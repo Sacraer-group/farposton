@@ -69,7 +69,8 @@ def test_opencode_gpt6_responses_payload_replays_tool_state():
 
     assert llm._endpoint(settings) == "https://opencode.ai/zen/v1/responses"
     assert payload["store"] is False
-    assert payload["max_output_tokens"] == 1200
+    assert payload["max_output_tokens"] == 4000
+    assert payload["reasoning"] == {"effort": "low"}
     assert payload["input"][1:3] == output
     assert payload["input"][3] == {"type": "function_call_output",
                                     "call_id": "call-1", "output": '{"ok":true}'}
@@ -83,6 +84,8 @@ def test_opencode_response_text_ignores_reasoning_and_tool_calls():
         {"type": "function_call", "name": "get_meta", "arguments": "{}"},
         {"type": "message", "content": [{"type": "output_text", "text": "Готово"}]},
     ]}) == "Готово"
+    with pytest.raises(RuntimeError, match="не завершила"):
+        llm._response_text({"status": "incomplete", "output": []})
 
 
 def test_opencode_transport_reads_responses_and_stream_deltas(monkeypatch):

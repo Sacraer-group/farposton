@@ -101,7 +101,8 @@ def _payload(messages: list[dict], settings: WebSettings,
                 input_items.append({"role": message["role"],
                                     "content": message.get("content") or ""})
         payload = {"model": settings.llm_model, "input": input_items,
-                   "max_output_tokens": max_tokens, "stream": stream, "store": False}
+                   "max_output_tokens": max(max_tokens, 4000), "stream": stream,
+                   "store": False, "reasoning": {"effort": "low"}}
         if tools:
             payload["tools"] = [{"type": "function", **tool["function"], "strict": False}
                                 for tool in tools]
@@ -152,6 +153,8 @@ async def stream_chat(messages: list[dict], settings: WebSettings,
                 except json.JSONDecodeError:
                     continue  # рваная строка SSE — пропускаем, не роняем стрим
                 if _uses_responses(settings):
+                    if chunk.get("type") == "response.incomplete":
+                        raise RuntimeError("Модель не завершила ответ; попробуйте короче")
                     if chunk.get("type") == "response.output_text.delta" and chunk.get("delta"):
                         yield chunk["delta"]
                     continue
@@ -227,6 +230,8 @@ async def chat(messages: list[dict], settings: WebSettings | None = None,
 
 
 def _response_text(data: dict) -> str:
+    if data.get("status") == "incomplete":
+        raise RuntimeError("Модель не завершила ответ; попробуйте короче")
     return "".join(part.get("text", "")
                    for item in data.get("output") or [] if item.get("type") == "message"
                    for part in item.get("content") or [] if part.get("type") == "output_text")
