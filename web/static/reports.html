@@ -84,6 +84,7 @@
   let reports = [];        // [{date, has_llm_text}] — свежие первыми (порядок сервера)
   let current = null;
   let currentHtml = null;  // html открытой сводки — чтобы перекрасить при смене темы
+  let requestId = 0;
 
   /** '2026-08-11' → '11.08.2026' */
   function dmY(iso) { return iso.slice(8, 10) + '.' + iso.slice(5, 7) + '.' + iso.slice(0, 4); }
@@ -139,14 +140,18 @@
   });
 
   async function select(date) {
+    const id = ++requestId;
     current = date;
+    currentHtml = null;
     renderList();
     viewBox.textContent = '';
     viewBox.append(el('div', { class: 'rep-loading', text: 'Загрузка сводки…' }));
     try {
       const d = await fetchJSON('/api/reports/' + encodeURIComponent(date));
+      if (id !== requestId) return;
       showHtml(d.html);
     } catch (e) {
+      if (id !== requestId) return;
       viewBox.textContent = '';
       viewBox.append(el('div', { class: 'rep-empty', text: 'Не удалось загрузить сводку: ' + e.message }));
     }

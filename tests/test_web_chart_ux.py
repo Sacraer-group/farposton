@@ -34,6 +34,21 @@ def test_web_line_chart_is_accessible_and_distinguishes_series() -> None:
     assert "<polygon" in svg
 
 
+def test_dark_theme_primary_buttons_have_readable_text() -> None:
+    css = (STATIC / "assets" / "app.css").read_text(encoding="utf-8")
+    login = (STATIC / "login.html").read_text(encoding="utf-8")
+
+    def luminance(color: str) -> float:
+        channels = [int(color[i:i + 2], 16) / 255 for i in (1, 3, 5)]
+        linear = [x / 12.92 if x <= 0.04045 else ((x + 0.055) / 1.055) ** 2.4 for x in channels]
+        return sum(x * weight for x, weight in zip(linear, (0.2126, 0.7152, 0.0722)))
+
+    contrast = (luminance("#91B8E8") + 0.05) / (luminance("#141416") + 0.05)
+    assert contrast >= 4.5
+    assert '.btn:not(.sec){color:#141416}' in css
+    assert 'button{color:#141416}' in login
+
+
 def test_web_bar_chart_exposes_exact_value_on_hover() -> None:
     svg = svgchart.bars(["24.08", "25.08"], [12.5, 8.0], title="WAPE", unit="%")
 

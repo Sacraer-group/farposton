@@ -72,6 +72,7 @@ html[data-admin-access="1"] [data-admin-only]{display:inline-flex!important}
 .btn{padding:11px 24px;font-size:14.5px;font-weight:600;cursor:pointer;color:#fff;border:0;
   border-radius:10px;background:var(--accent);transition:background .15s,transform .05s}
 .btn:hover{background:var(--accent-dark)} .btn:active{transform:translateY(1px)}
+:root[data-theme="dark"] .btn:not(.sec){color:#141416}
 .btn:disabled{opacity:.45;cursor:default;background:var(--accent)}
 .btn.sec{background:transparent;border:1px solid var(--line2);color:var(--mut)}
 .btn.sec:hover{color:var(--ink);background:transparent;border-color:var(--mut)}

@@ -74,7 +74,7 @@
         <button data-v="30d" class="on">30 дней</button>
         <button data-v="all">Всё, что пересчитано</button>
       </div>
-      <select id="sel-point"><option value="">Вся сеть</option></select>
+      <select id="sel-point" aria-label="Точка"><option value="">Вся сеть</option></select>
       <div class="seg" id="seg-base">
         <button data-v="demand" class="on">Считать к спросу</button>
         <button data-v="sold">К продажам</button>
@@ -172,6 +172,7 @@ const state = { period: '30d', point: '', base: 'demand', scope: 'paired' };
 const SCOPE_RU = { paired: 'строки, где сотрудник в этот день заказывал',
                    all: 'все позиции ассортимента' };
 let pointsFilled = false;
+let requestId = 0;
 
 const f1 = v => (v == null) ? '—'
   : v.toLocaleString('ru-RU', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -343,18 +344,28 @@ function renderGap(rows) {
 }
 
 async function load() {
+  const id = ++requestId;
   const err = document.getElementById('err');
   err.style.display = 'none';
+  document.getElementById('meta').textContent = 'Загрузка…';
+  document.getElementById('empty').style.display = 'none';
+  document.getElementById('stats').textContent = '';
+  show('method', false);
+  ['card-charts', 'card-daily', 'card-points', 'card-gap', 'card-how'].forEach(card => show(card, false));
   const qs = 'period=' + state.period + '&base=' + state.base + '&scope=' + state.scope
     + '&point=' + encodeURIComponent(state.point);
   try {
     const d = await fetchJSON('/api/comparison?' + qs);
+    if (id !== requestId) return;
     renderSummary(d);
     if (!d.rows) return;
     show('card-gap', true);
+    document.querySelector('#tbl-gap tbody').innerHTML = '<tr><td colspan="10">Загрузка…</td></tr>';
     const g = await fetchJSON('/api/comparison/top?' + qs);
+    if (id !== requestId) return;
     renderGap(g.rows);
   } catch (e) {
+    if (id !== requestId) return;
     if (String(e.message) === '401') return;
     err.textContent = 'Не удалось загрузить данные: ' + e.message;
     err.style.display = 'block';
