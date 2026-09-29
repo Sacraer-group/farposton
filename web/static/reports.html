@@ -6,8 +6,8 @@
 <meta name="robots" content="noindex,nofollow">
 <title>Сводки — Прогноз заказов</title>
 <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="/assets/app.css?v=20260929-ui3">
-<script src="/assets/app.js?v=20260929-ui3"></script>
+<link rel="stylesheet" href="/assets/app.css?v=20260929-ui4">
+<script src="/assets/app.js?v=20260929-ui4"></script>
 <style>
   /* Специфика страницы «Сводки»: список дат слева, сводка справа */
   .reports-layout{display:grid;grid-template-columns:220px 1fr;gap:0;min-height:420px}
@@ -45,7 +45,7 @@
           <path class="ic-moon" d="M17 12.5A7.5 7.5 0 0 1 7.5 3a7.5 7.5 0 1 0 9.5 9.5z"/>
         </svg>
       </button>
-      <button class="ghost" onclick="logout()">Выйти</button>
+      <button class="ghost" id="logoutBtn" onclick="logout()">Выйти</button>
     </div>
   </header>
 

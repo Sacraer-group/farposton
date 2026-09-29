@@ -4,7 +4,7 @@ This directory is an independent private Git repository. `main` contains the int
 
 - Application: `web/`; start with `python -m web.app` after installing `web/requirements.txt` and configuring a private `.env`.
 - Existing demo runtime: `/opt/product/forecast` on the local demo VM. Data remain separately under `/opt/product/data/forecast`.
-- Portable synthetic fixture and generators: `demo/`. Shared product guides: `../docs/README.md`.
+- Portable synthetic fixture and generators: `demo/`. Shared product guides are supplied separately in the desktop bundle’s `passport` folder.
 - Secrets, virtual environments and runtime data are excluded from Git.
 
 ## UI maintenance, 2026-09-29
@@ -37,3 +37,7 @@ To create a new synthetic source database, use `python demo/generate.py /absolut
 To extend causal comparison on an extracted copy of the fixture, set `PROGNOZ_DB_PATH`, `APP_OUTPUT_ROOT` and `PROGNOZ_CONFIG_DIR` to that copy; then run `PYTHONPATH=src python -m prognoz.predict.duel --since=YYYY-MM-DD --until=YYYY-MM-DD --db=snapshot`. Its `--db=snapshot` mode reads `prognoz_web.duckdb` beside the configured source DB and writes only to the configured output directory. Verify with `demo/check_analytics.py` before packaging or serving it.
 
 For a server refresh, extract into a **new staging directory**, validate there, stop the web service, then replace only the source DB, web snapshot, generated output and demo config after backing up the existing directory. Preserve the server's `.env`, `web_edits.sqlite`, users, logs and any operator changes. Never extract the archive directly over the live data tree. The archive deliberately excludes `web_edits.sqlite`.
+
+## Continuous integration
+
+GitHub Actions runs Python 3.12 regression checks and the dependency-free DOM check on the organization's `self-hosted`, `Linux`, `X64` runners. Actions are pinned; the workflow has read-only repository permissions and does not run code from fork pull requests. Deployment to the local VM is separate from CI. `actions/checkout` v5 is retained because v6's credential include paths do not match the runners' symlinked work directories.
