@@ -273,6 +273,23 @@ def _collect(async_iter):
     return asyncio.run(run())
 
 
+def test_payment_error_is_actionable(monkeypatch):
+    settings = SimpleNamespace(llm_base_url="https://opencode.ai/zen/v1",
+                               llm_model="gpt-6-luna", llm_api_key="test-key",
+                               llm_allow_client_data=True)
+    monkeypatch.setattr(routes_chat, "_settings", lambda: settings)
+
+    async def unavailable(*_args, **_kwargs):
+        raise RuntimeError("LLM API ответил 402")
+        yield {}  # pragma: no cover
+
+    monkeypatch.setattr(chat, "run_with_tools", unavailable)
+    events = _collect(routes_chat.chat_events([{"role": "user", "content": "Сколько?"}],
+                                              "test-payment"))
+    assert "недостаточно средств" in events[0]
+    assert '"done": true' in events[-1]
+
+
 def test_tool_calls_are_honoured_even_without_finish_reason(monkeypatch):
     replies = [
         {

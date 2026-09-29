@@ -117,9 +117,12 @@ async def chat_events(history: list[dict], session_key: str,
                 yield _sse({"delta": text or "Помощник вернул пустой ответ — попробуйте переформулировать."})
     except Exception as exc:
         logger.exception("Помощник: ошибка вызова LLM")
-        yield _sse({"delta": (f"Помощник временно недоступен ({type(exc).__name__}). "
-                              "Числа на остальных вкладках работают без ИИ — загляните туда, "
-                              "а вопрос повторите позже.")})
+        if isinstance(exc, RuntimeError) and str(exc).startswith("LLM API ответил 402"):
+            yield _sse({"delta": "На аккаунте OpenCode Zen недостаточно средств."})
+        else:
+            yield _sse({"delta": (f"Помощник временно недоступен ({type(exc).__name__}). "
+                                  "Числа на остальных вкладках работают без ИИ — загляните туда, "
+                                  "а вопрос повторите позже.")})
     yield _sse({"done": True})
 
 
