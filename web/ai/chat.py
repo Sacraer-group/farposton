@@ -279,7 +279,13 @@ async def run_with_tools(messages: list[dict],
         if not tool_calls:
             break
 
-        if "_response_output" in choice:
+        if "_messages_output" in choice:
+            selected_ids = {tc["id"] for tc in tool_calls}
+            convo.append({"_messages_output": [
+                item for item in choice["_messages_output"]
+                if item.get("type") != "tool_use" or item.get("id") in selected_ids
+            ]})
+        elif "_response_output" in choice:
             selected_ids = {tc["id"] for tc in tool_calls}
             convo.append({"_response_output": [
                 item for item in choice["_response_output"]
@@ -323,7 +329,9 @@ async def run_with_tools(messages: list[dict],
 
     # Лимит вызовов/таймаут/пустой ответ: финальный ответ стримом, без tools —
     # модель обязана сформулировать текст по уже собранным результатам.
-    async for delta in llm.stream_chat(convo, settings, max_tokens=MAX_TOKENS):
+    final_tools = (tools_mod.OPENAI_TOOLS if llm._uses_messages(settings) else None)
+    async for delta in llm.stream_chat(
+            convo, settings, max_tokens=MAX_TOKENS, tools=final_tools):
         yield {"delta": delta}
 
 

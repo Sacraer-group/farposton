@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Клиент OpenAI-совместимого LLM API (…/chat/completions) на httpx.
+"""Клиент Chat Completions, Responses и OpenCode Go Messages API на httpx.
 
 Настройки — из web.config.load_settings(): LLM_BASE_URL / LLM_API_KEY / LLM_MODEL /
 LLM_TIMEOUT_S / LLM_PROXY_URL. Прокси применяется только к запросам LLM и не
@@ -39,7 +39,15 @@ def _endpoint(settings: WebSettings) -> str:
     scheme = parsed.scheme.lower()
     if not parsed.netloc or not (scheme == "https" or (scheme == "http" and loopback)):
         raise RuntimeError("LLM_BASE_URL должен быть HTTPS-адресом (http — только для 127.0.0.1/localhost, туннель)")
-    return base_url + ("/responses" if _uses_responses(settings) else "/chat/completions")
+    return base_url + ("/messages" if _uses_messages(settings) else
+                       "/responses" if _uses_responses(settings) else "/chat/completions")
+
+
+def _uses_messages(settings: WebSettings) -> bool:
+    parsed = urlsplit(getattr(settings, "llm_base_url", ""))
+    return (parsed.hostname == "opencode.ai"
+            and parsed.path.rstrip("/") == "/zen/go/v1"
+            and str(getattr(settings, "llm_model", "")).lower() == "qwen3.8-flash")
 
 
 def _uses_responses(settings: WebSettings) -> bool:
@@ -58,6 +66,8 @@ def _headers(settings: WebSettings, messages: list[dict]) -> dict:
                                if m.get("role") == "user"), "")
         headers["x-opencode-session"] = hashlib.sha256(first_question.encode()).hexdigest()
         headers["User-Agent"] = "forecast-analytics-demo/1.0"
+    if _uses_messages(settings):
+        headers["anthropic-version"] = "2023-06-01"
     return headers
 
 
@@ -102,6 +112,47 @@ def _provider_error(response) -> RuntimeError:
 
 def _payload(messages: list[dict], settings: WebSettings,
              max_tokens: int, stream: bool, tools: list[dict] | None = None) -> dict:
+    if _uses_messages(settings):
+        system = "\n\n".join(str(m.get("content") or "") for m in messages
+                             if m.get("role") == "system")
+        convo = []
+        for message in messages:
+            if message.get("role") == "system":
+                continue
+            if "_messages_output" in message:
+                convo.append({"role": "assistant", "content": message["_messages_output"]})
+            elif message.get("role") == "tool":
+                block = {"type": "tool_result", "tool_use_id": message["tool_call_id"],
+                         "content": message["content"]}
+                if convo and convo[-1]["role"] == "user" and isinstance(convo[-1]["content"], list):
+                    convo[-1]["content"].append(block)
+                else:
+                    convo.append({"role": "user", "content": [block]})
+            elif message.get("role") == "assistant" and message.get("tool_calls"):
+                blocks = []
+                if message.get("content"):
+                    blocks.append({"type": "text", "text": message["content"]})
+                for call in message["tool_calls"]:
+                    function = call["function"]
+                    blocks.append({"type": "tool_use", "id": call["id"],
+                                   "name": function["name"],
+                                   "input": json.loads(function.get("arguments") or "{}")})
+                convo.append({"role": "assistant", "content": blocks})
+            else:
+                convo.append({"role": message["role"], "content": message.get("content") or ""})
+        payload = {"model": settings.llm_model, "max_tokens": max_tokens,
+                   "stream": stream, "messages": convo}
+        if system:
+            payload["system"] = system
+        if tools:
+            payload["tools"] = [
+                {"name": tool["function"]["name"],
+                 "description": tool["function"].get("description", ""),
+                 "input_schema": tool["function"]["parameters"]}
+                for tool in tools]
+            if stream:
+                payload["tool_choice"] = {"type": "none"}
+        return payload
     if _uses_responses(settings):
         input_items = []
         for message in messages:
@@ -139,7 +190,8 @@ def _payload(messages: list[dict], settings: WebSettings,
 
 
 async def stream_chat(messages: list[dict], settings: WebSettings,
-                      max_tokens: int = 1200) -> AsyncIterator[str]:
+                      max_tokens: int = 1200,
+                      tools: list[dict] | None = None) -> AsyncIterator[str]:
     """Генератор текстовых дельт из /chat/completions со stream:true (SSE).
 
     Бросает RuntimeError при выключенном LLM или не-200 ответе API —
@@ -152,7 +204,7 @@ async def stream_chat(messages: list[dict], settings: WebSettings,
     timeout = httpx.Timeout(float(settings.llm_timeout_s), connect=10.0)
     async with httpx.AsyncClient(**_client_options(settings, timeout)) as client:
         async with client.stream("POST", _endpoint(settings), headers=_headers(settings, messages),
-                                 json=_payload(messages, settings, max_tokens, True)) as resp:
+                                 json=_payload(messages, settings, max_tokens, True, tools)) as resp:
             if resp.status_code != 200:
                 raise _provider_error(resp)
             async for line in resp.aiter_lines():
@@ -171,6 +223,13 @@ async def stream_chat(messages: list[dict], settings: WebSettings,
                         raise RuntimeError("Модель не завершила ответ; попробуйте короче")
                     if chunk.get("type") == "response.output_text.delta" and chunk.get("delta"):
                         yield chunk["delta"]
+                    continue
+                if _uses_messages(settings):
+                    if chunk.get("type") == "error":
+                        raise RuntimeError("LLM API прервал поток")
+                    delta = chunk.get("delta") or {}
+                    if chunk.get("type") == "content_block_delta" and delta.get("type") == "text_delta":
+                        yield delta.get("text", "")
                     continue
                 choices = chunk.get("choices") or []
                 delta = (choices[0].get("delta") or {}).get("content") if choices else None
@@ -198,6 +257,20 @@ async def chat_raw(messages: list[dict], settings: WebSettings,
         if resp.status_code != 200:
             raise _provider_error(resp)
         data = resp.json()
+        if _uses_messages(settings):
+            content = data.get("content") or []
+            tool_calls = [
+                {"id": part["id"], "type": "function",
+                 "function": {"name": part["name"],
+                              "arguments": json.dumps(part.get("input") or {}, ensure_ascii=False)}}
+                for part in content if part.get("type") == "tool_use"]
+            text = "".join(part.get("text", "") for part in content
+                           if part.get("type") == "text")
+            if data.get("stop_reason") == "max_tokens":
+                raise RuntimeError("Модель не завершила ответ; попробуйте короче")
+            return {"message": {"role": "assistant", "content": text,
+                                "tool_calls": tool_calls},
+                    "_messages_output": content}
         if _uses_responses(settings):
             output = data.get("output") or []
             tool_calls = [{"id": item.get("call_id"), "type": "function",
@@ -237,6 +310,11 @@ async def chat(messages: list[dict], settings: WebSettings | None = None,
         if resp.status_code != 200:
             raise _provider_error(resp)
         data = resp.json()
+        if _uses_messages(settings):
+            if data.get("stop_reason") == "max_tokens":
+                raise RuntimeError("Модель не завершила ответ; попробуйте короче")
+            return "".join(part.get("text", "") for part in data.get("content") or []
+                           if part.get("type") == "text")
         if _uses_responses(settings):
             return _response_text(data)
         choices = data.get("choices") or []

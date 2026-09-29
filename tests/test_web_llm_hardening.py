@@ -148,6 +148,92 @@ def test_opencode_transport_reads_responses_and_stream_deltas(monkeypatch):
     assert all(url == "https://opencode.ai/zen/go/v1/responses" for url, _ in sent)
 
 
+def test_opencode_qwen_messages_payload_and_tool_replay():
+    settings = SimpleNamespace(llm_base_url="https://opencode.ai/zen/go/v1",
+                               llm_model="qwen3.8-flash", llm_api_key="test-key")
+    output = [{"type": "text", "text": "Checking"}, {
+        "type": "tool_use", "id": "toolu-1", "name": "get_meta", "input": {}}]
+    messages = [
+        {"role": "system", "content": "demo only"},
+        {"role": "user", "content": "date?"},
+        {"_messages_output": output},
+        {"role": "tool", "tool_call_id": "toolu-1", "content": '{"ok":true}'},
+    ]
+    tool_defs = [{"type": "function", "function": {
+        "name": "get_meta", "description": "Metadata",
+        "parameters": {"type": "object", "properties": {}}}}]
+    payload = llm._payload(messages, settings, 1200, False, tool_defs)
+    assert llm._endpoint(settings) == "https://opencode.ai/zen/go/v1/messages"
+    assert llm._headers(settings, messages)["anthropic-version"] == "2023-06-01"
+    assert payload["system"] == "demo only"
+    assert payload["messages"] == [
+        {"role": "user", "content": "date?"},
+        {"role": "assistant", "content": output},
+        {"role": "user", "content": [{
+            "type": "tool_result", "tool_use_id": "toolu-1", "content": '{"ok":true}'}]},
+    ]
+    assert payload["tools"] == [{
+        "name": "get_meta", "description": "Metadata",
+        "input_schema": {"type": "object", "properties": {}}}]
+    assert llm._payload(messages, settings, 1200, True, tool_defs)[
+        "tool_choice"] == {"type": "none"}
+
+
+def test_opencode_qwen_messages_transport(monkeypatch):
+    import httpx
+
+    settings = SimpleNamespace(llm_base_url="https://opencode.ai/zen/go/v1",
+                               llm_model="qwen3.8-flash", llm_api_key="test-key",
+                               llm_timeout_s=60, llm_proxy_url="")
+    sent = []
+
+    class FakeClient:
+        status_code = 200
+
+        def __init__(self, **_kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return False
+
+        async def post(self, url, **kwargs):
+            sent.append((url, kwargs))
+            return self
+
+        def json(self):
+            return {"content": [
+                {"type": "thinking", "thinking": "private"},
+                {"type": "text", "text": "Checking"},
+                {"type": "tool_use", "id": "toolu-1", "name": "get_meta", "input": {}},
+            ], "stop_reason": "tool_use"}
+
+        def stream(self, _method, url, **kwargs):
+            sent.append((url, kwargs))
+            return self
+
+        async def aiter_lines(self):
+            yield 'data: {"type":"content_block_delta","delta":{"type":"thinking_delta","thinking":"private"}}'
+            yield 'data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"Done"}}'
+            yield 'data: {"type":"message_stop"}'
+
+    monkeypatch.setattr(httpx, "AsyncClient", FakeClient)
+
+    async def run():
+        choice = await llm.chat_raw([{"role": "user", "content": "date?"}], settings)
+        deltas = [delta async for delta in llm.stream_chat(
+            [{"role": "user", "content": "date?"}], settings)]
+        return choice, deltas
+
+    choice, deltas = asyncio.run(run())
+    assert choice["message"]["tool_calls"][0]["id"] == "toolu-1"
+    assert choice["_messages_output"][0]["type"] == "thinking"
+    assert deltas == ["Done"]
+    assert all(url == "https://opencode.ai/zen/go/v1/messages" for url, _ in sent)
+
+
 def test_morning_client_uses_prefixed_gpt5_token_field(monkeypatch):
     captured = {}
 
@@ -365,6 +451,32 @@ def test_responses_tool_loop_replays_provider_output(monkeypatch):
     assert events == [{"tool": "get_meta"}, {"delta": "Готово"}]
     assert seen[1][1] == {"_response_output": output}
     assert seen[1][2] == {"role": "tool", "tool_call_id": "call-1",
+                          "content": '{"ok":true}'}
+
+
+def test_messages_tool_loop_replays_provider_blocks(monkeypatch):
+    output = [{"type": "text", "text": "Checking"}, {
+        "type": "tool_use", "id": "toolu-1", "name": "get_meta", "input": {}}]
+    seen = []
+
+    async def fake_chat_raw(messages, *_args, **_kwargs):
+        seen.append(list(messages))
+        if len(seen) == 1:
+            return {"message": {"role": "assistant", "tool_calls": [{
+                "id": "toolu-1", "function": {"name": "get_meta", "arguments": "{}"},
+            }]}, "_messages_output": output}
+        return {"message": {"role": "assistant", "content": "Готово"}}
+
+    monkeypatch.setattr(llm, "chat_raw", fake_chat_raw)
+    monkeypatch.setattr(tools, "execute_tool", lambda *_args, **_kwargs: '{"ok":true}')
+    settings = SimpleNamespace(llm_base_url="https://opencode.ai/zen/go/v1",
+                               llm_model="qwen3.8-flash")
+    events = _collect(chat.run_with_tools(
+        [{"role": "user", "content": "test"}], settings))
+
+    assert events == [{"tool": "get_meta"}, {"delta": "Готово"}]
+    assert seen[1][1] == {"_messages_output": output}
+    assert seen[1][2] == {"role": "tool", "tool_call_id": "toolu-1",
                           "content": '{"ok":true}'}
 
 
