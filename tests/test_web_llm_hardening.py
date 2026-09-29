@@ -164,7 +164,14 @@ def test_opencode_qwen_messages_payload_and_tool_replay():
         "parameters": {"type": "object", "properties": {}}}}]
     payload = llm._payload(messages, settings, 1200, False, tool_defs)
     assert llm._endpoint(settings) == "https://opencode.ai/zen/go/v1/messages"
-    assert llm._headers(settings, messages)["anthropic-version"] == "2023-06-01"
+    headers = llm._headers(settings, messages)
+    assert headers["anthropic-version"] == "2023-06-01"
+    assert headers["x-api-key"] == "test-key"
+    assert "Authorization" not in headers
+    assert llm._headers(SimpleNamespace(
+        llm_base_url="https://opencode.ai/zen/go/v1",
+        llm_model="gpt-6-luna", llm_api_key="test-key"), messages)[
+            "Authorization"] == "Bearer test-key"
     assert payload["system"] == "demo only"
     assert payload["messages"] == [
         {"role": "user", "content": "date?"},

@@ -67,6 +67,8 @@ def _headers(settings: WebSettings, messages: list[dict]) -> dict:
         headers["x-opencode-session"] = hashlib.sha256(first_question.encode()).hexdigest()
         headers["User-Agent"] = "forecast-analytics-demo/1.0"
     if _uses_messages(settings):
+        headers.pop("Authorization")
+        headers["x-api-key"] = settings.llm_api_key
         headers["anthropic-version"] = "2023-06-01"
     return headers
 
