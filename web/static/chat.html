@@ -116,6 +116,9 @@
 
   let history = [];
   try { history = JSON.parse(sessionStorage.getItem(KEY) || '[]'); } catch (e) { history = []; }
+  const oldError = m => m && m.role === 'assistant' &&
+    /^(OpenCode Go недоступен из региона|OpenCode Go отклонил запрос \(402\)|Помощник временно недоступен \(|Лимит помощника:|Помощник не подключён:|Пустое сообщение)/.test(m.content);
+  history = history.filter((m, i, all) => !oldError(m) && !(m.role === 'user' && oldError(all[i + 1])));
   let llmOk = false;
   let busy = false;
 
@@ -185,6 +188,11 @@
             botDiv.textContent = acc;
             scrollDown();
           }
+          if (payload.error) {
+            const error = new Error(payload.error);
+            error.userFacing = true;
+            throw error;
+          }
           if (payload.done) return acc;
         }
       }
@@ -219,7 +227,7 @@
       answer = await streamAnswer(botDiv);
     } catch (e) {
       failed = true;
-      showErr('Не удалось получить ответ — проверьте связь и попробуйте ещё раз.');
+      showErr(e.userFacing ? e.message : 'Не удалось получить ответ — проверьте связь и попробуйте ещё раз.');
     }
     if (!failed && !answer) {
       failed = true;
@@ -227,8 +235,10 @@
     }
     if (!failed) {
       history.push({ role: 'assistant', content: answer });
-      save();
+    } else {
+      history.pop();
     }
+    save();
     busy = false;
     setEnabled(llmOk);
     input.focus();

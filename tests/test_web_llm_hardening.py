@@ -385,6 +385,8 @@ def test_payment_error_is_actionable(monkeypatch):
     events = _collect(routes_chat.chat_events([{"role": "user", "content": "Сколько?"}],
                                               "test-payment"))
     assert "Проверьте подписку или лимит" in events[0]
+    assert '"error":' in events[0]
+    assert '"delta":' not in events[0]
     assert '"done": true' in events[-1]
     import httpx
     blocked = httpx.Response(403, json={"error": {"code": "unsupported_country_region_territory"}})
@@ -411,8 +413,10 @@ def test_tool_calls_are_honoured_even_without_finish_reason(monkeypatch):
         },
     ]
     executed = []
+    budgets = []
 
-    async def fake_chat_raw(*_args, **_kwargs):
+    async def fake_chat_raw(*_args, **kwargs):
+        budgets.append(kwargs["max_tokens"])
         return replies.pop(0)
 
     monkeypatch.setattr(llm, "chat_raw", fake_chat_raw)
@@ -428,6 +432,7 @@ def test_tool_calls_are_honoured_even_without_finish_reason(monkeypatch):
     ))
 
     assert executed == [("get_meta", {}, "Точка А")]
+    assert budgets == [4096, 4096]
     assert {"tool": "get_meta"} in events
     assert events[-1] == {"delta": "Готово"}
 

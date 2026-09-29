@@ -4,9 +4,9 @@
 POST /api/chat  {messages:[{role,content}]} → text/event-stream:
     data: {"tool": "get_order"}  — помощник пошёл за данными (служебный чанк)
     data: {"delta": "..."}       — куски текста ответа
+    data: {"error": "..."}       — ошибка (не часть ответа)
     data: {"done": true}         — финал (всегда приходит, даже после ошибки)
-Любая беда (нет ключа, лимит, упал LLM) — не HTTP-ошибка, а один чанк
-с человеческим текстом + done: страница показывает его как обычный ответ.
+Ошибки передаются отдельным чанком + done: страница не добавляет их в историю.
 
 GET /api/chat/status → {llm_ok, model} — страница по нему решает, включать ли ввод.
 
@@ -83,21 +83,21 @@ async def chat_events(history: list[dict], session_key: str,
     """Генератор SSE-чанков ответа помощника (вынесен отдельно — его зовут тесты)."""
     settings = _settings()
     if not _assistant_enabled(settings):
-        yield _sse({"delta": DATA_PERMISSION_MESSAGE})
+        yield _sse({"error": DATA_PERMISSION_MESSAGE})
         yield _sse({"done": True})
         return
 
     wait_s = _limiter.check(session_key)
     if wait_s:
         minutes = wait_s // 60 + 1
-        yield _sse({"delta": (f"Лимит помощника: не больше {chat_ctx.RATE_LIMIT_MESSAGES} "
+        yield _sse({"error": (f"Лимит помощника: не больше {chat_ctx.RATE_LIMIT_MESSAGES} "
                               f"сообщений в час. Попробуйте минут через {minutes}.")})
         yield _sse({"done": True})
         return
 
     trimmed = chat_ctx.trim_history(history)
     if not trimmed:
-        yield _sse({"delta": "Пустое сообщение — напишите вопрос про прогноз, точность или заявку."})
+        yield _sse({"error": "Пустое сообщение — напишите вопрос про прогноз, точность или заявку."})
         yield _sse({"done": True})
         return
 
@@ -116,13 +116,13 @@ async def chat_events(history: list[dict], session_key: str,
                 text = await llm.chat(messages, settings, max_tokens=chat_ctx.MAX_TOKENS)
                 yield _sse({"delta": text or "Помощник вернул пустой ответ — попробуйте переформулировать."})
     except Exception as exc:
-        logger.exception("Помощник: ошибка вызова LLM")
+        logger.error("Помощник: ошибка вызова LLM ({})", type(exc).__name__)
         if isinstance(exc, RuntimeError) and str(exc).startswith("LLM API ответил 402"):
-            yield _sse({"delta": "OpenCode Go отклонил запрос (402). Проверьте подписку или лимит."})
+            yield _sse({"error": "OpenCode Go отклонил запрос (402). Проверьте подписку или лимит."})
         elif isinstance(exc, RuntimeError) and str(exc) == "OpenCode Go недоступен из региона этой машины":
-            yield _sse({"delta": str(exc) + "."})
+            yield _sse({"error": str(exc) + "."})
         else:
-            yield _sse({"delta": (f"Помощник временно недоступен ({type(exc).__name__}). "
+            yield _sse({"error": (f"Помощник временно недоступен ({type(exc).__name__}). "
                                   "Числа на остальных вкладках работают без ИИ — загляните туда, "
                                   "а вопрос повторите позже.")})
     yield _sse({"done": True})

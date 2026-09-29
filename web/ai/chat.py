@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Сборка контекста помощника: system-промпт + методичка + сжатый facts.json +
 json свежей утренней сводки. Плюс лимиты диалога: история ≤20 сообщений и ≤24 КБ,
-ответ ≤1200 токенов, 30 сообщений/час на сессию.
+ответ ≤4096 токенов, 30 сообщений/час на сессию.
 
 Здесь же — петля tool-use (run_with_tools): помощник умеет дёргать read-only
 инструменты из web.ai.tools (заявка, точность, продажи, списания, полка) и
@@ -29,7 +29,7 @@ MAX_HISTORY_MESSAGES = 20
 MAX_HISTORY_BYTES = 24 * 1024
 MAX_FACTS_BYTES = 25 * 1024
 MAX_REPORT_BYTES = 16 * 1024
-MAX_TOKENS = 1200
+MAX_TOKENS = 4096
 RATE_LIMIT_MESSAGES = 30
 RATE_LIMIT_WINDOW_S = 3600
 
