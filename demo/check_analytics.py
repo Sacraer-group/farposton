@@ -56,7 +56,7 @@ def main(root: Path) -> None:
         raise RuntimeError("Fewer than 30 causal comparison days")
     for path in duel:
         frame = pd.read_parquet(path, columns=["date", "model_cutoff"])
-        if frame.empty or (pd.to_datetime(frame["model_cutoff"]).dt.date
+        if frame.empty or frame.isna().any().any() or (pd.to_datetime(frame["model_cutoff"]).dt.date
                            > pd.to_datetime(frame["date"]).dt.date
                            - pd.Timedelta(days=3)).any():
             raise RuntimeError(f"Future-looking comparison: {path.name}")

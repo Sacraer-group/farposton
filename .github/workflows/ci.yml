@@ -35,3 +35,9 @@ jobs:
           .venv/bin/python -m pip install -r web/requirements.txt pytest
       - run: .venv/bin/python -m pytest -q tests
       - run: node tests/test_dom_helper.cjs
+      - name: Verify synthetic analytics and causal comparison
+        run: |
+          demo_root=$(mktemp -d "$RUNNER_TEMP/forecast-demo.XXXXXX")
+          trap 'rm -rf "$demo_root"' EXIT
+          tar -xzf demo/forecast-demo-data.tar.gz -C "$demo_root"
+          .venv/bin/python demo/check_analytics.py "$demo_root/forecast"
