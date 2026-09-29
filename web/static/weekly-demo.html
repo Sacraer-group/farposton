@@ -48,14 +48,15 @@
       <button class="btn" id="approve" type="button">Утвердить демочерновик</button>
     </div>
     <p class="note">Прогноз относится ко всей неделе. Черновик покрывает только первую поставку:
-      дату доставки задаёт срок поставки, объём ограничен сроком хранения. Для короткого срока
-      хранения нужны повторные поставки в течение недели. Остаток к доставке учитывает
-      ожидаемую поставку и расход за время ожидания. Остатки и ожидаемые поставки — вводные
+      дату доставки задаёт срок поставки, спрос для неё ограничен сроком хранения. Страховой
+      запас и округление до упаковки могут привести к списаниям; демо их не оптимизирует.
+      Для короткого срока хранения нужны повторные поставки в течение недели. Остаток к доставке учитывает
+      ожидаемую поставку, которая по условиям демо приходит до начала недели, и расход за время ожидания. Остатки и ожидаемые поставки — вводные
       вымышленного сценария, не результаты инвентаризации.</p>
     <div class="tablewrap"><table id="orders">
       <thead><tr><th>Позиция</th><th class="num">Неделя</th><th>Первая поставка</th>
         <th class="num">Спрос до конца срока</th><th class="num">Остаток к доставке</th>
-        <th class="num">Страховой запас</th><th class="num">Упаковка</th>
+        <th class="num">Страховой запас</th><th class="num">Упаковка</th><th class="num">Мин. заказ</th>
         <th class="num">Черновик, шт</th></tr></thead><tbody></tbody>
     </table></div>
     <p class="note">Расчёт строки: спрос первой поставки + страховой запас − остаток к доставке;
@@ -80,13 +81,22 @@
   };
   const key = () => 'weekly-demo:' + data.scenario_id;
   const save = () => localStorage.setItem(key(), JSON.stringify({edits, approved}));
+  const quantity = (row, raw) => {
+    if ((typeof raw !== 'string' && typeof raw !== 'number') || String(raw).trim() === '') return false;
+    const value = Number(raw);
+    return Number.isSafeInteger(value) && value >= 0 &&
+      (value === 0 || (value >= row.min_order && value % row.pack_size === 0));
+  };
+  const rowKey = row => row.point_key + '/' + row.sku_key;
+  const invalidRow = () => data.rows.find(row =>
+    !quantity(row, Object.hasOwn(edits, rowKey(row)) ? edits[rowKey(row)] : row.draft_qty));
   function show() {
     const point = $('point').value;
     const body = $('orders').tBodies[0];
     body.replaceChildren();
     for (const r of data.rows.filter(r => r.point_key === point)) {
       const tr = body.insertRow();
-      const id = r.point_key + '/' + r.sku_key;
+      const id = rowKey(r);
       cell(tr, r.sku_name);
       cell(tr, fmt(r.forecast_week), 'num');
       cell(tr, r.delivery_date + ' · ' + r.covered_days + ' дн.');
@@ -94,22 +104,19 @@
       cell(tr, fmt(r.available_delivery), 'num');
       cell(tr, fmt(r.safety_stock), 'num');
       cell(tr, fmt(r.pack_size), 'num');
+      cell(tr, fmt(r.min_order), 'num');
       const td = tr.insertCell();
       td.className = 'num';
       const input = document.createElement('input');
       input.type = 'number'; input.min = '0'; input.step = '1';
+      input.dataset.key = id;
       input.setAttribute('aria-label', 'Количество для ' + r.sku_name);
       input.title = r.lead_gap
         ? 'До первой доставки возможна недостача ' + r.lead_gap + ' шт'
         : 'Рекомендуется ' + r.draft_qty + ' шт; упаковка ' + r.pack_size + ' шт';
       input.value = Object.hasOwn(edits, id) ? edits[id] : r.draft_qty;
       input.addEventListener('change', () => {
-        const value = Number(input.value);
-        if (!Number.isSafeInteger(value) || value < 0) {
-          input.value = Object.hasOwn(edits, id) ? edits[id] : r.draft_qty;
-          return;
-        }
-        edits[id] = value;
+        edits[id] = input.value;
         approved = false;
         save();
         status();
@@ -131,7 +138,7 @@
     try {
       const saved = JSON.parse(localStorage.getItem(key()) || '{}');
       edits = saved.edits && typeof saved.edits === 'object' ? saved.edits : {};
-      approved = saved.approved === true;
+      approved = saved.approved === true && !invalidRow();
     } catch { edits = {}; approved = false; }
     const summary = $('summary');
     const cards = [
@@ -158,6 +165,16 @@
     $('point').addEventListener('change', show);
     $('reset').addEventListener('click', () => { edits = {}; approved = false; save(); show(); });
     $('approve').addEventListener('click', () => {
+      for (const input of $('orders').querySelectorAll('input')) edits[input.dataset.key] = input.value;
+      const invalid = invalidRow();
+      if (invalid) {
+        approved = false; save();
+        $('point').value = invalid.point_key;
+        show();
+        $('state').textContent = 'Проверьте количество: 0 или не ниже минимума, кратно упаковке.';
+        [...$('orders').querySelectorAll('input')].find(input => input.dataset.key === rowKey(invalid)).focus();
+        return;
+      }
       approved = true; save(); status();
     });
     show();

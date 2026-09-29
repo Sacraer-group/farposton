@@ -44,6 +44,8 @@ def _load(path: Path) -> tuple[pd.DataFrame, pd.DataFrame, str]:
         _integer_column(history, col)
     for col in PLANNING_COLUMNS - {"point_key", "sku_key"}:
         _integer_column(planning, col, 1 if col in {"pack_size", "shelf_life_days"} else 0)
+    if (planning["lead_time_days"] >= 7).any():
+        raise ValueError("Lead time must fall within the seven-day forecast")
     if (history["qty_demand"] < history["qty_sold"]).any():
         raise ValueError("Demand below sold quantity")
     if history.duplicated(["date", "point_key", "sku_key"]).any():

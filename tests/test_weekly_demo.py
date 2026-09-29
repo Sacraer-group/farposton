@@ -1,7 +1,10 @@
 """The weekly rehearsal is causal and its first delivery obeys stock/pack limits."""
-import pandas as pd
+from pathlib import Path
 
-from web.weekly_demo import _features, scenario
+import pandas as pd
+import pytest
+
+from web.weekly_demo import _features, _load, scenario
 
 
 def test_weekly_demo():
@@ -27,3 +30,13 @@ def test_weekly_demo():
         assert row["draft_qty"] >= need
         if need:
             assert row["draft_qty"] >= row["min_order"]
+
+
+def test_weekly_demo_rejects_delivery_after_forecast_week(tmp_path):
+    source = Path(__file__).resolve().parents[1] / "demo" / "weekly"
+    (tmp_path / "history.csv").write_bytes((source / "history.csv").read_bytes())
+    planning = pd.read_csv(source / "planning.csv")
+    planning.loc[0, "lead_time_days"] = 7
+    planning.to_csv(tmp_path / "planning.csv", index=False)
+    with pytest.raises(ValueError, match="Lead time must fall within"):
+        _load(tmp_path)
