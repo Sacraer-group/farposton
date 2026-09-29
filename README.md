@@ -30,7 +30,7 @@ tar -xzf demo/forecast-demo-data.tar.gz -C /tmp/forecast-demo-check
 python demo/check_analytics.py /tmp/forecast-demo-check/forecast
 ```
 
-Expected archive SHA-256: `92c456c832b829b615735a46a7d1c643f7c1e2faf8fd02148d32babf0f957d29`.
+Expected archive SHA-256: `f3bc8d83b430c0bc44d7d84f35e1d87511d32da04b4fad32dbd03ded1ab15408`.
 
 To create a new synthetic source database, use `python demo/generate.py /absolute/path/prognoz.duckdb --as-of YYYY-MM-DD`; the target must not exist. Build a matching read-only web snapshot and shelf with the existing project tools. `demo/status.py` publishes synthetic source completeness. Keep the selected `--as-of` date, model cutoff, forecast issue date, and display labels together when rebuilding the served demo.
 
