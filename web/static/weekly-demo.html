@@ -166,7 +166,9 @@
     } catch { edits = {}; approved = false; }
     const summary = $('summary');
     const cards = [
-      [result.week_start + ' — ' + result.week_end, 'Неделя прогноза'],
+      [result.week_start.slice(8, 10) + '.' + result.week_start.slice(5, 7) + '–' +
+        result.week_end.slice(8, 10) + '.' + result.week_end.slice(5, 7),
+        'Неделя прогноза, ' + result.week_end.slice(0, 4)],
       [result.wape.baseline + '%', 'Ошибка простой формулы'],
       [result.wape.ml + '%', 'Ошибка демомодели ML'],
       [result.chosen_method === 'ml' ? 'ML' : 'Простая формула', 'Метод для черновика'],
