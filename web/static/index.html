@@ -6,8 +6,8 @@
 <meta name="robots" content="noindex,nofollow">
 <title>Заявка — Прогноз заказов</title>
 <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="/assets/app.css?v=20260929-ui2">
-<script src="/assets/app.js?v=20260929-ui2"></script>
+<link rel="stylesheet" href="/assets/app.css?v=20260929-ui3">
+<script src="/assets/app.js?v=20260929-ui3"></script>
 <style>
   /* Специфика страницы «Заявка» (общие стили — в app.css, его не трогаем) */
   .toprow{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap}
@@ -42,7 +42,15 @@
   .totline{font-size:13px;color:var(--ink2);margin:2px 0 10px}
   .totline b{font-weight:700}
 
+  .wrap{max-width:none}
   #tbl{min-width:980px}
+  @media(min-width:1000px){
+    #tbl{min-width:0;table-layout:fixed}
+    #tbl th,#tbl td{padding:9px 6px;white-space:normal;overflow-wrap:anywhere}
+    #tbl .namecell{width:20%;min-width:0;max-width:none;position:static;overflow:visible}
+    #tbl th:nth-child(2){width:10%}
+    #tbl .notecell{max-width:none}
+  }
   #tbl td{vertical-align:top}
 
   .editcell .ev{display:inline-block;min-width:42px;text-align:right;padding:3px 8px;

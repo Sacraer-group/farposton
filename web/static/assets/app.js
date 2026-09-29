@@ -231,7 +231,8 @@ async function applyAccessNavigation() {
     const r = await fetch('/api/meta');
     if (r.status === 401) return;
     const meta = await r.json();
-    if (meta.demo_no_auth) document.getElementById('logoutBtn')?.remove();
+    const logout = document.getElementById('logoutBtn');
+    if (meta.demo_no_auth && logout) logout.style.display = 'none';
     if (meta && meta.access && meta.access.analytics)
       document.documentElement.dataset.adminAccess = '1';
   } catch (e) {
