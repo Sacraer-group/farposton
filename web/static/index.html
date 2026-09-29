@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Заявка — Прогноз заказов</title>
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/app.css">
+<script src="/assets/app.js?v=20260929-dom"></script>
+<style>
+  /* Специфика страницы «Заявка» (общие стили — в app.css, его не трогаем) */
+  .toprow{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap}
+  .toprow .grow{flex:1}
+  .ordertitle{font-size:17px;font-weight:800;letter-spacing:.01em}
+  .titleblock{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .datelab{font-size:13px;color:var(--ink2);display:flex;align-items:center;gap:7px}
+  #dateSel{padding:7px 10px;border:1px solid var(--line2);border-radius:9px;
+    font-size:13.5px;background:var(--paper);color:var(--ink);font-family:inherit}
+  .freshline{font-size:13px;color:var(--mut);margin-top:9px}
+  .metaline{font-size:13px;color:var(--ink2);margin-top:9px;line-height:1.7}
+  .metaline b{font-weight:600}
+  .actions{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}
+  .mut{color:var(--mut)}
+  .strong{font-weight:700}
+  .mono{font-variant-numeric:tabular-nums;white-space:nowrap}
+
+  .ptab{border:1px solid var(--line2);background:var(--paper);color:var(--mut);
+    padding:5px 13px;border-radius:20px;font-size:12.5px;cursor:pointer;font-family:inherit}
+  .ptab:hover{color:var(--ink);border-color:var(--mut)}
+  .ptab.active{background:var(--seg-on-bg);color:var(--seg-on-ink);
+    border-color:var(--seg-on-bg);font-weight:600}
+
+  .refbar{display:flex;align-items:center;gap:8px;margin:14px 0 10px;
+    font-size:13px;color:var(--mut);flex-wrap:wrap}
+  .refbar button{border:1px solid var(--line2);background:var(--paper);padding:4px 11px;
+    border-radius:8px;cursor:pointer;font-size:12.5px;color:var(--mut);font-family:inherit}
+  .refbar button.on{background:var(--seg-on-bg);color:var(--seg-on-ink);
+    border-color:var(--seg-on-bg)}
+  .refnote{font-size:12px;color:var(--mut)}
+
+  .totline{font-size:13px;color:var(--ink2);margin:2px 0 10px}
+  .totline b{font-weight:700}
+
+  #tbl{min-width:980px}
+  #tbl td{vertical-align:top}
+
+  .editcell .ev{display:inline-block;min-width:42px;text-align:right;padding:3px 8px;
+    border:1px dashed var(--line2);border-radius:7px;cursor:pointer;color:var(--mut);
+    background:transparent;font:inherit}
+  .editcell .ev.has{color:var(--ink);font-weight:700;border-style:solid;border-color:var(--ink)}
+  .editcell input{width:66px;padding:4px 6px;font-size:13px;border:1px solid var(--ink);
+    background:var(--paper);color:var(--ink);border-radius:6px;font-family:inherit;text-align:right}
+  #tbl tr.pending td{background:var(--info-soft)}
+  .lockcell{color:var(--mut);cursor:default;white-space:nowrap}
+  .lockcell svg{vertical-align:-1px;margin-left:4px;opacity:.7}
+
+  .editbar{position:sticky;bottom:10px;z-index:8;margin-top:14px;padding:11px 12px;
+    display:flex;align-items:center;gap:9px;flex-wrap:wrap;background:var(--paper);
+    border:1px solid var(--line2);border-radius:11px;box-shadow:var(--shadow)}
+  .editbar .status{font-size:13px;color:var(--mut);margin-right:auto}
+  .editbar .status.dirty{color:var(--ink);font-weight:650}
+
+  .attcell .pill{margin:1px 3px 2px 0;white-space:normal;text-align:left}
+  .pill.nov{background:var(--info-soft);color:var(--info)}
+  .notecell{max-width:240px}
+  .notecell details summary{cursor:pointer;color:var(--mut);font-size:12px;list-style:none}
+  .notecell details summary::before{content:'▸ '}
+  .notecell details[open] summary::before{content:'▾ '}
+  .notebody{font-size:12px;color:var(--ink2);margin-top:4px;line-height:1.5;max-width:330px}
+
+  .stubmsg{color:var(--mut);font-size:14px;padding:14px 0}
+  .stubmsg .big{font-size:34px;margin-bottom:8px;color:var(--line2);font-weight:700}
+
+  .banner.ok{display:block;background:var(--green-soft);border:1px solid var(--green);
+    color:var(--green)}
+
+  /* Модал утренней сводки */
+  .modal-back{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;
+    align-items:center;justify-content:center;z-index:50;padding:20px}
+  .modal-card{background:var(--paper);border-radius:var(--radius);max-width:780px;width:100%;
+    max-height:88vh;display:flex;flex-direction:column;padding:18px 20px;
+    border-top:3px solid var(--accent);box-shadow:var(--shadow)}
+  .modal-head{display:flex;align-items:baseline;gap:10px}
+  .modal-head b{font-size:15px}
+  .modal-body{overflow:auto;flex:1;margin:12px 0;border:1px solid var(--line);border-radius:10px}
+  .modal-body iframe{width:100%;height:62vh;border:0;display:block;background:var(--paper)}
+  .modal-foot{display:flex;justify-content:flex-end}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="brand"><a href="/" aria-label="На главную"><img class="serial-plate" src="/assets/serial-plate.png" alt="SERIAL NO."></a>
+    
+    <div class="service">Прогноз заказов<div class="sub">готовая еда · кухня → точки</div></div>
+  </div>
+  <div class="hdr-actions">
+    <button class="ghost icon" onclick="toggleTheme()" aria-label="Переключить тему">
+      <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor" aria-hidden="true">
+        <g class="ic-sun"><circle cx="10" cy="10" r="4.4"/><path d="M10 0v3M10 17v3M0 10h3M17 10h3M2.9 2.9l2.1 2.1M15 15l2.1 2.1M17.1 2.9L15 5M5 15l-2.1 2.1" stroke="currentColor" stroke-width="1.6" fill="none"/></g>
+        <path class="ic-moon" d="M17 12.5A7.5 7.5 0 0 1 7.5 3a7.5 7.5 0 1 0 9.5 9.5z"/>
+      </svg>
+    </button>
+    <button class="ghost" id="logoutBtn" type="button">Выйти</button>
+  </div>
+</header>
+<nav class="tabs">
+  <a class="tab active" href="/">Заявка </a>
+      <a class="tab" href="/accuracy" data-admin-only>Точность </a>
+      <a class="tab" href="/comparison" data-admin-only>Сравнение </a>
+      <a class="tab" href="/analytics" data-admin-only>Аналитика </a>
+  <a class="tab" href="/reports">Сводки </a>
+  <a class="tab" href="/chat">Помощник </a>
+</nav>
+
+  <!-- Шапка страницы: дата, движок, свежесть, календарь, кнопки -->
+  <div class="card">
+    <div class="toprow">
+      <div class="titleblock">
+        <span class="ordertitle" id="orderTitle">Заявка</span>
+        <span class="pill" id="enginePill" style="display:none"></span>
+      </div>
+      <span class="grow"></span>
+      <label class="datelab">Дата <select id="dateSel" aria-label="Дата заявки"></select></label>
+    </div>
+    <div class="freshline" id="freshline"></div>
+    <div class="pillrow" id="fresh"></div>
+    <div class="metaline" id="metaline"></div>
+    <div class="actions">
+      <!-- зеркало кнопки из панели под таблицей: сохранить правки можно и отсюда,
+           рядом с выгрузкой в 1С (просьба сотрудника, 09.2026) -->
+      <button class="btn" type="button" data-mirror="saveEditsBtn" disabled>Сохранить правки</button>
+      <button class="btn" id="dlBtn" disabled>Скачать Excel с правками</button>
+      <button class="btn sec" id="pushBtn" disabled
+        title="ждёт подключения 1С (согласование с 1С-ником)">Сформировать заявку в 1С</button>
+    </div>
+    <div class="banner" id="banner" role="status" aria-live="polite"></div>
+  </div>
+
+  <!-- Таблица заявки -->
+  <div class="card">
+    <div class="pillrow" id="pointTabs" style="margin-top:0"></div>
+    <div class="refbar" id="krapbar" style="display:none">
+      <span>Второй расчёт:</span>
+      <button id="krapBtn" type="button">показать формулу КВП</button>
+      <span class="refnote">та же дата, посчитанная базовой методикой — для сравнения</span>
+    </div>
+    <div class="totline" id="totline" style="display:none"></div>
+    <div class="tablewrap" id="twrap"><table id="tbl"></table></div>
+    <div class="stubmsg" id="emptyStub" style="display:none"></div>
+    <div class="editbar" id="editbar">
+      <span class="status" id="editStatus" aria-live="polite">Нет несохранённых правок</span>
+      <button class="btn sec" id="discardEditsBtn" type="button" disabled>Отменить правки</button>
+      <button class="btn" id="saveEditsBtn" type="button" disabled>Сохранить правки</button>
+      <!-- зеркала верхних кнопок: после правок внизу таблицы не нужно листать наверх -->
+      <button class="btn" type="button" data-mirror="dlBtn" disabled>Скачать Excel с правками</button>
+      <button class="btn sec" type="button" data-mirror="pushBtn" disabled>Сформировать заявку в 1С</button>
+    </div>
+  </div>
+
+  <div class="footnote">
+    Демонстрационный сервис прогноза. Прогнозы считаются на этом сервере по данным
+    продаж 1С; данные не передаются третьим лицам.
+  </div>
+  
+</div>
+
+<!-- Модал утренней сводки (эндпоинт /api/reports/latest делает страница «Сводки»;
+     404 здесь — норма, модал просто не показывается) -->
+<div class="modal-back" id="morningBack" style="display:none">
+  <div class="modal-card">
+    <div class="modal-head">
+      <b>Утренняя сводка</b><span class="mut" id="morningDate"></span>
+    </div>
+    <div class="modal-body" id="morningBody"></div>
+    <div class="modal-foot"><button class="btn" id="morningOk">Прочитано</button></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  let META = null;          // /api/meta
+  let ORDER = null;         // /api/order текущей даты
+  let curDate = null;
+  let curPoint = null;      // всегда конкретная точка (режима «все точки» нет)
+  let showKrap = false;     // колонка второго расчёта (базовая формула)
+  let push1cEnabled = false;
+  let morningHtml = null;   // html сводки для перекраски iframe при смене темы
+  const pendingEdits = new Map(); // только изменённые строки выбранной даты
+  let pendingBatchId = null;      // сохраняется при retry после обрыва сети
+  let savingEdits = false;
+  let editConflict = false;       // stale revision/release требует обновления заявки
+
+  const $ = id => document.getElementById(id);
+  const todayISO = () => new Date().toLocaleDateString('sv');   // YYYY-MM-DD локально
+  // Заявки на сегодня и прошедшие даты уже отгружены — правки закрыты. Окно правок
+  // начинается с рабочей заявки (завтра по UTC+10); сервер отдаёт точный
+  // флаг meta.editable, здесь — быстрая проверка без запроса.
+  const isLocked = () => !!curDate && !!(META && META.operational_date)
+    && curDate < META.operational_date;
+  const ruDate = iso => (iso || '').split('-').reverse().join('.');       // 14.08.2026
+  const ruDayMon = iso => (iso || '').slice(5).split('-').reverse().join('.'); // 14.08
+
+  // Верхняя полоса прокрутки: цепляем ОДИН раз, upd() — после каждого перерендера
+  const updScroll = attachTopScroll($('twrap'));
+
+  const LOCK_SVG = '<svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor"' +
+    ' aria-hidden="true"><path d="M8 1a3.5 3.5 0 0 0-3.5 3.5V6H4a1.5 1.5 0 0 0-1.5 1.5v5' +
+    'A1.5 1.5 0 0 0 4 14h8a1.5 1.5 0 0 0 1.5-1.5v-5A1.5 1.5 0 0 0 12 6h-.5V4.5' +
+    'A3.5 3.5 0 0 0 8 1zm2 5H6V4.5a2 2 0 1 1 4 0V6z"/></svg>';
+  const LOCK_TITLE = 'заявка уже отгружена — правки закрыты';
+
+  // ---- сервис: сообщения без техжаргона --------------------------------------
+
+  /** fetch + JSON, как fetchJSON, но понимает и {message}, и {detail} (FastAPI). */
+  async function apiJSON(url, opts) {
+    const r = await fetch(url, opts || {});
+    if (r.status === 401) { window.location = '/login'; throw new Error('401'); }
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const error = new Error((d && (d.message || d.detail)) || ('HTTP ' + r.status));
+      error.status = r.status;
+      throw error;
+    }
+    return d;
+  }
+
+  /** Техошибок в интерфейсе нет: «HTTP 500» и обрывы сети → человеческая фраза. */
+  function friendly(msg) {
+    if (!msg || /^HTTP \d+$/.test(msg) || /fetch/i.test(msg)) {
+      return 'сервис временно недоступен — попробуйте ещё раз';
+    }
+    return msg;
+  }
+
+  function showBanner(msg, kind) {
+    const b = $('banner');
+    b.className = 'banner ' + (kind || 'err');
+    b.textContent = msg;
+  }
+  function hideBanner() { const b = $('banner'); b.className = 'banner'; b.textContent = ''; }
+
+  // ---- черновики и атомарное сохранение -------------------------------------
+
+  const editKey = row => JSON.stringify([curDate, String(row.point_key), String(row.sku_key)]);
+  const sameQty = (a, b) => (a == null && b == null) || (a != null && b != null && +a === +b);
+  const hasDraft = row => pendingEdits.has(editKey(row));
+  const effectiveQty = row => {
+    const draft = pendingEdits.get(editKey(row));
+    return draft ? draft.qty_user : row.qty_user;
+  };
+  const openEditor = () => document.querySelector('#tbl input');
+  const hasOpenEditor = () => !!openEditor();
+
+  function updateEditBar() {
+    const count = pendingEdits.size;
+    const open = hasOpenEditor();
+    const status = $('editStatus');
+    status.classList.toggle('dirty', count > 0 || open);
+    status.textContent = savingEdits ? 'Сохраняем ' + fmt(count) + ' правок…'
+      : editConflict ? 'Заявка обновилась: отмените черновики и загрузите её заново'
+      : count ? 'Несохранённых правок: ' + fmt(count)
+      : open ? 'Есть незавершённая правка'
+              : (isLocked() ? 'Правки для этой даты закрыты' : 'Нет несохранённых правок');
+    $('saveEditsBtn').disabled = (!count && !open) || savingEdits || editConflict || isLocked() || !ORDER;
+    $('discardEditsBtn').disabled = (!count && !open) || savingEdits;
+    $('dateSel').disabled = savingEdits;
+    $('logoutBtn').disabled = savingEdits;
+    document.querySelectorAll('#pointTabs button').forEach(button => {
+      button.disabled = savingEdits;
+    });
+    const dl = $('dlBtn');
+    dl.disabled = !ORDER || !!count || open || savingEdits;
+    dl.title = (count || open) ? 'Сначала сохраните незавершённые правки'
+                     : (!ORDER ? 'нет заявки на выбранную дату' : '');
+    updatePushBtn();
+  }
+
+  function setDraft(row, qtyUser) {
+    const key = editKey(row);
+    if (sameQty(qtyUser, row.qty_user)) pendingEdits.delete(key);
+    else pendingEdits.set(key, {
+      point_key: row.point_key,
+      sku_key: row.sku_key,
+      qty_user: qtyUser,
+      expected_revision: Number(row.edit_revision || 0),
+    });
+    // После изменения состава retry уже обязан получить новый идентификатор.
+    pendingBatchId = null;
+    updateEditBar();
+  }
+
+  function discardPending(render) {
+    pendingEdits.clear();
+    pendingBatchId = null;
+    editConflict = false;
+    if (render !== false) renderTable();
+    updateEditBar();
+  }
+
+  function confirmDiscard() {
+    const input = openEditor();
+    if (!pendingEdits.size && !input) return true;
+    const suffix = pendingEdits.size ? ' (' + pendingEdits.size + ')' : ' в открытом поле';
+    const accepted = window.confirm('Есть несохранённые правки' + suffix +
+      '. Если продолжить, они будут потеряны.');
+    if (!accepted && input) { input.focus(); input.select(); }
+    return accepted;
+  }
+
+  function makeBatchId() {
+    if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+      return window.crypto.randomUUID();
+    }
+    return 'web-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+  }
+
+  // ---- шапка страницы --------------------------------------------------------
+
+  function renderFreshline() {
+    const parts = [];
+    const mt = META && META.snapshot_mtime;   // ISO; поля может и не быть — терпим
+    if (mt) {
+      const d = new Date(mt);
+      if (!isNaN(d)) {
+        const day = d.toLocaleDateString('sv');
+        const y = new Date(); y.setDate(y.getDate() - 1);
+        const when = day === todayISO() ? 'сегодня'
+                   : day === y.toLocaleDateString('sv') ? 'вчера'
+                   : ruDate(day);
+        const hm = d.toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'});
+        parts.push('Данные обновлены ' + when + ' в ' + hm);
+      }
+    }
+    const ms = (META && META.max_sale_date) || (ORDER && ORDER.meta.max_sale_date) || '';
+    if (ms) parts.push('продажи по ' + ruDayMon(ms) + ' включительно');
+    $('freshline').textContent = parts.join(' · ');
+  }
+
+  function renderFreshness() {
+    const wrap = $('fresh');
+    wrap.replaceChildren();
+    if (!META) return;
+    (META.freshness || []).forEach(f => {
+      const stale = META.max_sale_date && f.last_sale < META.max_sale_date;
+      wrap.append(el('span', {
+        class: 'pill' + (stale ? '' : ' green'),
+        title: stale ? 'Продажи точки отстают от сети (' + META.max_sale_date + ')'
+                     : 'Продажи свежие',
+      }, [f.point + ' · ' + f.last_sale]));
+    });
+  }
+
+  function renderHead() {
+    const title = curDate
+      ? 'Заявка на ' + ruDate(curDate) +
+        (weekdayRu(curDate) ? ' (' + weekdayRu(curDate) + ')' : '')
+      : 'Заявка';
+    $('orderTitle').textContent = title;
+
+    const m = ORDER && ORDER.meta;
+    const ep = $('enginePill');
+    const line = $('metaline');
+    if (!m) { ep.style.display = 'none'; line.replaceChildren(); return; }
+
+    ep.style.display = '';
+    ep.removeAttribute('title');
+    const mlEngines = new Set(['ml', 'catboost', 'stacked_guard']);
+    if (mlEngines.has(m.engine)) {
+      ep.className = 'pill green';
+      ep.textContent = m.engine === 'stacked_guard' ? 'ML-ядро · ансамбль'
+        : (m.engine === 'catboost' ? 'ML-ядро · CatBoost' : 'ML-ядро');
+      ep.title = 'Движок: ' + m.engine;
+    } else if (m.engine === 'baseline') {
+      // Базовая формула — резервный контур: ML-ядро ночью не прошло сторожа,
+      // либо выпуск старше перехода на машинное ядро (12.08).
+      ep.className = 'pill mut';
+      ep.textContent = 'резерв: формула КВП';
+      ep.title = 'Выпуск по базовой формуле: ML-ядро в эту ночь не прошло проверку, ' +
+        'либо выпуск до 12.08';
+    } else {
+      ep.className = 'pill mut';
+      ep.textContent = 'движок: ' + (m.engine || 'не указан');
+      ep.title = 'Неизвестный идентификатор движка';
+    }
+
+    const parts = [];
+    // Календарь показываем ТОЛЬКО при реальной поправке; погода из UI убрана
+    // (фидбек 12.08: техшум и «без поправки» — лишняя информация).
+    if (m.cal && Math.abs(m.cal.mult - 1) > 0.005) {
+      parts.push(el('div', {}, [el('b', {text: 'Календарь: '}),
+        '×' + m.cal.mult.toFixed(2) + (m.cal.why ? ' — ' + m.cal.why : '')]));
+    }
+    if ((m.excluded_in_window || []).length) {
+      parts.push(el('div', {}, [
+        el('b', {text: 'Нетипичные дни: '}),
+        'из окна расчёта исключены ' + m.excluded_in_window.join(', '),
+      ]));
+    }
+    line.replaceChildren(...parts);
+  }
+
+  // ---- фильтр точек ----------------------------------------------------------
+
+  function renderPointTabs() {
+    const wrap = $('pointTabs');
+    wrap.replaceChildren();
+    if (!ORDER) return;
+    (ORDER.meta.points || []).forEach(p => {
+      const b = el('button', {class: 'ptab' + (curPoint === p ? ' active' : ''),
+        text: p});
+      b.disabled = savingEdits;
+      b.addEventListener('click', () => {
+        if (savingEdits) return;
+        const input = openEditor();
+        if (input) {
+          showBanner('Завершите или отмените правку в открытом поле');
+          input.focus(); input.select();
+          return;
+        }
+        curPoint = p;
+        try { localStorage.setItem('app_point', p); } catch (e) {}
+        renderPointTabs(); renderTable();
+      });
+      wrap.append(b);
+    });
+  }
+
+  // ---- итог по точке (над таблицей) ------------------------------------------
+
+  function renderTotals() {
+    const t = $('totline');
+    if (!ORDER || !curPoint) { t.style.display = 'none'; t.replaceChildren(); return; }
+    const rows = ORDER.rows.filter(r => r.point === curPoint);
+    if (!rows.length) { t.style.display = 'none'; t.replaceChildren(); return; }
+    let base = 0, withEdits = 0, edited = 0;
+    rows.forEach(r => {
+      const effective = effectiveQty(r);
+      base += r.qty;
+      withEdits += effective != null ? effective : r.qty;
+      if (effective != null) edited++;
+    });
+    const kids = ['Итого по точке: ', el('b', {text: fmt(base) + ' шт'})];
+    if (edited) {
+      kids.push(' · правок: ' + fmt(edited) + ' (итог с правками: ',
+                el('b', {text: fmt(withEdits) + ' шт'}), ')');
+    }
+    // Второй расчёт: сколько по той же точке попросила бы базовая формула
+    const krapRows = rows.filter(r => r.qty_baseline != null);
+    if (krapRows.length) {
+      const kt = krapRows.reduce((s, r) => s + r.qty_baseline, 0);
+      kids.push(' · формула КВП просила бы ', el('b', {text: fmt(kt) + ' шт'}));
+    }
+    t.style.display = '';
+    t.replaceChildren(...kids);
+  }
+
+  // ---- редактируемая ячейка «Правка, шт» -------------------------------------
+
+  function editCell(row) {
+    const currentQty = () => effectiveQty(row);
+    if (isLocked()) {
+      // дата в прошлом: заявка отгружена, правки закрыты
+      const td = el('td', {class: 'num lockcell', title: LOCK_TITLE});
+      const s = el('span');
+      const qty = currentQty();
+      s.innerHTML = (qty != null ? fmt(qty) + ' ' : '') + LOCK_SVG;
+      td.append(s);
+      return td;
+    }
+    const td = el('td', {class: 'num editcell'});
+    const show = () => {
+      const qty = currentQty();
+      td.replaceChildren(el('button', {
+        type: 'button',
+        class: 'ev' + (qty != null ? ' has' : ''),
+        title: 'Нажмите, чтобы поставить своё число (пустое — вернуться к прогнозу)',
+      }, [qty != null ? fmt(qty) : '—']));
+    };
+    td.addEventListener('click', () => {
+      if (savingEdits || editConflict || td.querySelector('input')) return;
+      const qty = currentQty();
+      const inp = el('input', {
+        type: 'number', min: '0', step: '1',
+        value: qty != null ? qty : '',
+      });
+      td.replaceChildren(inp);
+      inp.focus(); inp.select();
+      updateEditBar();
+      let done = false;
+      const finish = cancel => {
+        if (done) return;
+        if (cancel) { done = true; show(); updateEditBar(); return; }
+        const raw = inp.value.trim();
+        const val = raw === '' ? null : Number(raw);
+        if (raw !== '' && (!Number.isInteger(val) || val < 0 || val > 100000)) {
+          showBanner('Правка должна быть целым числом от 0 до 100 000');
+          inp.setAttribute('aria-invalid', 'true');
+          updateEditBar();
+          return;
+        }
+        done = true;
+        const prev = currentQty();
+        if (val === prev) { show(); updateEditBar(); return; }
+        setDraft(row, val);
+        hideBanner();
+        show();
+        const tr = td.closest('tr');
+        if (tr) {
+          tr.classList.toggle('edited', val != null);
+          tr.classList.toggle('pending', hasDraft(row));
+        }
+        renderTotals();
+      };
+      inp.addEventListener('keydown', ev => {
+        if (ev.key === 'Enter') inp.blur();
+        if (ev.key === 'Escape') finish(true);
+      });
+      inp.addEventListener('blur', () => finish(false));
+    });
+    show();
+    return td;
+  }
+
+  // ---- таблица ---------------------------------------------------------------
+
+  const KRAP_CAPTION = 'сколько попросила бы базовая формула (веса 40/30/20/10, ' +
+    'КВП, тренд, дневная рамка) — она считается каждую ночь параллельно с ядром';
+
+  function stub(msg) {
+    const s = $('emptyStub');
+    s.style.display = '';
+    s.replaceChildren(el('div', {class: 'big', 'aria-hidden': 'true', text: '空'}),
+                      document.createTextNode(msg));
+  }
+
+  function renderTable() {
+    const tbl = $('tbl');
+    tbl.replaceChildren();
+    renderTotals();
+    if (!ORDER || !ORDER.rows.length) {
+      stub(ORDER ? 'Заявка на эту дату пуста.'
+                 : 'Заявка на эту дату не считалась — файла прогноза нет.');
+      updScroll();
+      return;
+    }
+    $('emptyStub').style.display = 'none';
+
+    const rows = ORDER.rows.filter(r => r.point === curPoint);
+    const locked = isLocked();
+
+    const trh = el('tr');
+    trh.append(el('th', {class: 'namecell', text: 'Позиция'}),
+               el('th', {text: 'Группа'}),
+               el('th', {class: 'num', text: 'Прогноз, шт'}),
+               el('th', {class: 'num', text: 'Правка, шт',
+                         title: locked ? LOCK_TITLE : 'нажмите на ячейку, чтобы поправить'}));
+    if (showKrap) trh.append(el('th', {class: 'num', title: KRAP_CAPTION,
+                                       text: 'Формула КВП, шт'}));
+    trh.append(el('th', {text: 'Продажи в этот день недели',
+                         title: '−7 / −14 / −21 / −28 дней: продажи в тот же день недели'}),
+               el('th', {class: 'num', text: 'Продано за 28 дн.',
+                         title: 'всего продано за последние 28 дней'}),
+               el('th', {class: 'num', text: 'Уценено, %'}),
+               el('th', {text: 'Пояснение'}),
+               el('th', {text: 'Внимание'}));
+    tbl.append(el('thead', {}, [trh]));
+
+    const tb = el('tbody');
+    rows.forEach(r => {
+      const tr = el('tr', {class: (effectiveQty(r) != null ? 'edited ' : '') +
+        (hasDraft(r) ? 'pending' : '')});
+      tr.append(el('td', {class: 'namecell', title: r.name, text: r.name}));
+      tr.append(el('td', {class: 'mut', text: r.group || '—'}));
+      tr.append(el('td', {class: 'num strong', text: fmt(r.qty)}));
+      tr.append(editCell(r));
+      if (showKrap) {
+        tr.append(el('td', {class: 'num mut', title: KRAP_CAPTION,
+                            text: r.qty_baseline == null ? '—' : fmt(r.qty_baseline)}));
+      }
+      tr.append(el('td', {
+        class: 'mut mono',
+        title: r.sales_weeks ? 'точно: ' + r.sales_weeks : '',
+        text: fmtWeeks(r.sales_weeks),
+      }));
+      tr.append(el('td', {class: 'num', text: fmt(r.sold28)}));
+      tr.append(el('td', {class: 'num', text: r.u40_pct ? fmt(r.u40_pct) + '%' : '—'}));
+      if (r.note) {
+        tr.append(el('td', {class: 'notecell', title: r.note}, [
+          el('details', {}, [el('summary', {text: 'показать'}),
+                             el('div', {class: 'notebody', text: r.note})]),
+        ]));
+      } else {
+        tr.append(el('td', {class: 'mut', text: '—'}));
+      }
+      const att = el('td', {class: 'attcell'});
+      if (r.novelty) att.append(el('span', {class: 'pill nov', text: 'новинка'}));
+      (r.attention || '').split(';').map(s => s.trim()).filter(Boolean).forEach(s => {
+        // «холодный старт …» уже показан бейджем «новинка» — не дублируем
+        if (r.novelty && s.indexOf('холодный старт') !== -1) return;
+        att.append(el('span', {class: 'pill', text: s}));
+      });
+      if (!att.childNodes.length) att.append(document.createTextNode(''));
+      tr.append(att);
+      tb.append(tr);
+    });
+    tbl.append(tb);
+    updScroll();
+    updateEditBar();
+  }
+
+  async function savePendingEdits() {
+    // Blur срабатывает раньше click по кнопке, поэтому ищем открытый редактор
+    // независимо от текущего фокуса и не позволяем потерять неверное значение.
+    const openInput = openEditor();
+    if (openInput) {
+      const raw = openInput.value.trim();
+      const value = raw === '' ? null : Number(raw);
+      if (raw !== '' && (!Number.isInteger(value) || value < 0 || value > 100000)) {
+        showBanner('Правка должна быть целым числом от 0 до 100 000');
+        openInput.setAttribute('aria-invalid', 'true');
+        openInput.focus();
+        openInput.select();
+        return false;
+      }
+      // Поле могло потерять фокус ещё до click; цикл focus/blur гарантированно
+      // применяет валидное значение через единый обработчик finish().
+      openInput.focus();
+      openInput.blur();
+    }
+    await Promise.resolve();
+    if (!pendingEdits.size || savingEdits || !ORDER) return false;
+    if (isLocked()) {
+      showBanner(LOCK_TITLE);
+      updateEditBar();
+      return false;
+    }
+
+    const saveDate = curDate;
+    const saveRelease = ORDER.meta && ORDER.meta.release_id;
+    if (!/^sha256:[0-9a-f]{64}$/.test(saveRelease || '')) {
+      showBanner('Не удалось определить выпуск заявки — обновите страницу');
+      return false;
+    }
+    const edits = Array.from(pendingEdits.values()).map(item => ({...item}));
+    if (!pendingBatchId) pendingBatchId = makeBatchId();
+    const batchId = pendingBatchId;
+    savingEdits = true;
+    updateEditBar();
+    try {
+      const result = await apiJSON('/api/edits/bulk', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          target_date: saveDate, release_id: saveRelease,
+          batch_id: batchId, edits,
+        }),
+      });
+      if (!result || result.ok !== true || !Number.isInteger(result.count) ||
+          result.count !== edits.length || result.batch_id !== batchId ||
+          result.release_id !== saveRelease) {
+        throw new Error('сервер вернул неполное подтверждение — правки оставлены в черновике');
+      }
+      const saved = result.count;
+      pendingEdits.clear();
+      pendingBatchId = null;
+      savingEdits = false;
+      editConflict = false;
+      const sameContext = curDate === saveDate && ORDER &&
+        ORDER.meta && ORDER.meta.release_id === saveRelease;
+      const loaded = sameContext ? await loadOrder() : false;
+      showBanner(loaded
+        ? 'Правки сохранены: ' + fmt(saved)
+        : 'Правки сохранены, но таблица уже изменилась — обновите страницу',
+        loaded ? 'ok' : undefined);
+      updateEditBar();
+      return true;
+    } catch (e) {
+      savingEdits = false;
+      if (e.message !== '401') {
+        if (e.status === 409) {
+          editConflict = true;
+          pendingBatchId = null;
+          showBanner('Правки не сохранены: заявка изменилась. Отмените черновики, ' +
+            'обновите страницу и внесите их заново.');
+        } else {
+          showBanner('Правки не сохранены: ' + friendly(e.message));
+        }
+      }
+      // При сетевом сбое batch_id остаётся для идемпотентного retry.
+      updateEditBar();
+      return false;
+    }
+  }
+
+  $('saveEditsBtn').addEventListener('click', savePendingEdits);
+  $('discardEditsBtn').addEventListener('click', async () => {
+    if ((!pendingEdits.size && !hasOpenEditor()) || savingEdits) return;
+    if (window.confirm('Отменить все несохранённые правки этой даты?')) {
+      const reload = editConflict;
+      discardPending();
+      hideBanner();
+      if (reload) await loadOrder();
+    }
+  });
+
+  // ---- заявка в 1С -----------------------------------------------------------
+
+  function updatePushBtn() {
+    const b = $('pushBtn');
+    if (!push1cEnabled) {
+      b.disabled = true;
+      b.title = 'ждёт подключения 1С (согласование с 1С-ником)';
+    } else if (!ORDER || !curPoint) {
+      b.disabled = true;
+      b.title = 'нет заявки на выбранную дату';
+    } else if (isLocked()) {
+      b.disabled = true;
+      b.title = LOCK_TITLE;
+    } else if (pendingEdits.size || hasOpenEditor() || savingEdits) {
+      b.disabled = true;
+      b.title = 'Сначала сохраните правки';
+    } else {
+      b.disabled = false;
+      b.title = 'создаст в 1С непроведённый заказ по выбранной точке';
+    }
+  }
+
+  async function checkPush1c() {
+    // Эндпоинт появится позже: 404/503/обрыв — норма, кнопка просто спит
+    try {
+      const r = await fetch('/api/order/push1c/status');
+      if (r.ok) {
+        const d = await r.json().catch(() => ({}));
+        push1cEnabled = !!(d && d.enabled);
+      }
+    } catch (e) { /* сети нет — кнопка остаётся выключенной */ }
+    updatePushBtn();
+  }
+
+  $('pushBtn').addEventListener('click', async () => {
+    if (!push1cEnabled || !curDate || !curPoint) return;
+    if (pendingEdits.size || hasOpenEditor() || savingEdits) {
+      showBanner(savingEdits ? 'Дождитесь завершения сохранения правок'
+        : 'Сначала завершите и сохраните правки, затем формируйте заявку в 1С');
+      return;
+    }
+    const b = $('pushBtn');
+    b.disabled = true;
+    const was = b.textContent;
+    b.textContent = 'Отправляем…';
+    try {
+      const d = await apiJSON('/api/order/push1c', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({date: curDate, point: curPoint}),
+      });
+      const num = d && (d.number || d.doc_number || d.order_number);
+      const where = ' — откройте его в 1С в списке «Заказы на перемещение», ' +
+        'состояние «В работе», проверьте и проведите';
+      showBanner((num ? 'Создано: заказ №' + num + ' в 1С (непроведённый)'
+                      : 'Создано: заказ в 1С (непроведённый)') + where, 'ok');
+    } catch (e) {
+      if (e.message !== '401') showBanner('Заявка в 1С не создалась: ' + friendly(e.message));
+    }
+    b.textContent = was;
+    updatePushBtn();
+  });
+
+  // ---- загрузка заявки -------------------------------------------------------
+
+  async function loadOrder() {
+    hideBanner();
+    ORDER = null;
+    try {
+      ORDER = await apiJSON('/api/order?date=' + encodeURIComponent(curDate));
+    } catch (e) {
+      if (e.message !== '401') {
+        // честная заглушка: файла на дату нет или сервис не смог его прочитать
+        $('tbl').replaceChildren();
+        stub(friendly(e.message));
+      }
+      renderHead(); renderPointTabs(); renderTotals();
+      updateEditBar();
+      return false;
+    }
+    // выбранную точку держим между датами; нет её в этой дате — тихо первая
+    const pts = ORDER.meta.points || [];
+    if (pts.indexOf(curPoint) === -1) curPoint = pts[0] || null;
+    // Второй расчёт есть только в файлах, выпущенных ядром: у старых дат колонки
+    // нет, и панель прячется, а не показывает прочерки
+    const hasKrap = !!ORDER.meta.has_baseline;
+    $('krapbar').style.display = hasKrap ? '' : 'none';
+    if (!hasKrap) showKrap = false;
+    renderHead();
+    renderFreshline();
+    renderPointTabs();
+    renderTable();
+    updateEditBar();
+    return true;
+  }
+
+  $('krapBtn').addEventListener('click', () => {
+    showKrap = !showKrap;
+    $('krapBtn').classList.toggle('on', showKrap);
+    $('krapBtn').textContent = showKrap ? 'скрыть формулу КВП' : 'показать формулу КВП';
+    renderTable();
+  });
+
+  $('dlBtn').addEventListener('click', () => {
+    if (pendingEdits.size || hasOpenEditor() || savingEdits) {
+      showBanner(savingEdits ? 'Дождитесь завершения сохранения правок'
+        : 'Сначала завершите и сохраните правки, затем скачивайте Excel');
+      return;
+    }
+    if (curDate && ORDER) {
+      window.location = '/api/order/export?date=' + encodeURIComponent(curDate);
+    }
+  });
+
+  // ---- модал утренней сводки -------------------------------------------------
+
+  function themedReport(html) {
+    // Пробрасываем тему сервиса внутрь iframe (replace строкой — только 1-е вхождение)
+    const t = document.documentElement.dataset.theme || 'light';
+    return html.replace('<html', '<html data-theme="' + t + '"');
+  }
+
+  async function morningCheck() {
+    let d;
+    try {
+      const r = await fetch('/api/reports/latest');
+      if (!r.ok) return;                       // 404 — сводок ещё нет, это норма
+      d = await r.json();
+    } catch (e) { return; }
+    const rd = d.date || d.report_date || null;
+    const html = d.html || d.content_html || d.body_html || null;
+    if (!rd || !html) return;
+    if (localStorage.getItem('morning_seen') === rd) return;  // эту уже читали
+    morningHtml = html;
+    $('morningDate').textContent = ruDate(rd) +
+      (weekdayRu(rd) ? ' (' + weekdayRu(rd) + ')' : '');
+    const frame = el('iframe');
+    frame.setAttribute('sandbox', '');                   // сводка — только чтение
+    frame.srcdoc = themedReport(html);
+    $('morningBody').replaceChildren(frame);
+    $('morningBack').style.display = 'flex';
+    $('morningOk').addEventListener('click', () => {
+      localStorage.setItem('morning_seen', rd);
+      $('morningBack').style.display = 'none';
+    }, {once: true});
+  }
+
+  document.addEventListener('app-theme', () => {
+    const frame = $('morningBody').querySelector('iframe');
+    if (frame && morningHtml) frame.srcdoc = themedReport(morningHtml);
+  });
+
+  // ---- старт -----------------------------------------------------------------
+
+  (async () => {
+    try {
+      META = await apiJSON('/api/meta');
+    } catch (e) {
+      if (e.message !== '401') showBanner('Не удалось получить сводку: ' + friendly(e.message));
+      return;
+    }
+    renderFreshline();
+    renderFreshness();
+    const sel = $('dateSel');
+    const dates = (META.dates || []).slice().sort();
+    if (!dates.length) {
+      stub('Прогнозы ещё не считались — дат нет.');
+      return;
+    }
+    // Свежие даты сверху. Дефолт — РАБОЧАЯ заявка (на завтра по UTC+10);
+    // послезавтра — тоже окончательный выпуск, правки к нему принимаются. Дальние
+    // даты (D+3/D+4) предварительные: ночью пересчитываются заново, и менеджер по
+    // умолчанию не должен попадать на них (ревью 07.09).
+    const opDate = META.operational_date || '';
+    const nextDay = iso => {
+      const t = new Date(iso + 'T00:00:00Z'); t.setUTCDate(t.getUTCDate() + 1);
+      return t.toISOString().slice(0, 10);
+    };
+    const dayAfterOp = opDate ? nextDay(opDate) : '';
+    const horizonLabel = d => (!opDate ? '' : d === opDate ? ' · рабочая заявка'
+      : d === dayAfterOp ? ' · на послезавтра'
+      : d > dayAfterOp ? ' · предварительно' : ' · архив');
+    dates.slice().reverse().forEach(d => sel.append(el('option', {
+      value: d, text: ruDate(d) + ' — ' + weekdayRu(d) + horizonLabel(d),
+    })));
+    curDate = dates.includes(opDate) ? opDate
+      : (dates.filter(d => d <= opDate).pop() || dates[0]);
+    sel.value = curDate;
+    sel.addEventListener('change', async () => {
+      const nextDate = sel.value;
+      if (savingEdits) {
+        sel.value = curDate;
+        showBanner('Дождитесь завершения сохранения правок');
+        return;
+      }
+      if (!confirmDiscard()) { sel.value = curDate; return; }
+      // Закрываем редактор строки до смены глобальной даты: его обработчик не
+      // должен успеть создать черновик новой даты из строки старого выпуска.
+      discardPending();
+      curDate = nextDate;
+      await loadOrder();
+    });
+    try { curPoint = localStorage.getItem('app_point'); } catch (e) {}
+    await loadOrder();
+    checkPush1c();
+    morningCheck();
+  })();
+
+  document.querySelectorAll('nav a, .logolink').forEach(link => {
+    link.addEventListener('click', event => {
+      if (savingEdits) {
+        event.preventDefault();
+        showBanner('Дождитесь завершения сохранения правок');
+        return;
+      }
+      if (pendingEdits.size || hasOpenEditor()) {
+        if (!confirmDiscard()) event.preventDefault();
+        else discardPending(false);
+      }
+    });
+  });
+  $('logoutBtn').addEventListener('click', () => {
+    if (savingEdits) {
+      showBanner('Дождитесь завершения сохранения правок');
+      return;
+    }
+    if (!confirmDiscard()) return;
+    discardPending(false);
+    logout();
+  });
+  window.addEventListener('beforeunload', event => {
+    if (!pendingEdits.size && !savingEdits && !hasOpenEditor()) return;
+    event.preventDefault();
+    event.returnValue = '';
+  });
+})();
+</script>
+<script>
+  // Зеркала кнопок: «Сохранить правки» продублирована рядом с выгрузкой в 1С
+  // сверху, Excel и 1С — под таблицей. Зеркало ничего не решает само: клик
+  // передаётся исходной кнопке, состояние (disabled/текст/подсказка)
+  // повторяется через MutationObserver — логика живёт в одном месте.
+  document.querySelectorAll('button[data-mirror]').forEach(mirror => {
+    const src = document.getElementById(mirror.dataset.mirror);
+    if (!src) return;
+    const sync = () => {
+      mirror.disabled = src.disabled;
+      mirror.textContent = src.textContent;
+      mirror.title = src.title || '';
+    };
+    new MutationObserver(sync).observe(src, {
+      attributes: true, childList: true, characterData: true, subtree: true,
+    });
+    mirror.addEventListener('click', () => src.click());
+    sync();
+  });
+</script>
+</body>
+</html>

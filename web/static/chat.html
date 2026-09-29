@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Помощник — Прогноз заказов</title>
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/app.css">
+<script src="/assets/app.js?v=20260929-dom"></script>
+<style>
+  /* Специфика страницы «Помощник»: пузыри диалога + композер */
+  .chat-warn{display:block;background:var(--amber-soft);border:1px solid var(--amber);
+    color:var(--amber);padding:12px 14px;border-radius:10px;font-size:13.5px;
+    font-weight:600;margin-bottom:16px}
+  .chat-box{display:flex;flex-direction:column;min-height:340px;max-height:62vh;
+    overflow-y:auto;gap:12px;padding:4px 2px 12px}
+  .msg{max-width:82%;padding:11px 15px;border-radius:14px;font-size:14px;
+    line-height:1.55;white-space:pre-wrap;overflow-wrap:break-word}
+  .msg.user{align-self:flex-end;background:var(--wash);border:1px solid var(--line2);
+    border-bottom-right-radius:4px}
+  .msg.bot{align-self:flex-start;background:var(--paper);border:1px solid var(--line);
+    border-bottom-left-radius:4px;box-shadow:var(--shadow)}
+  .msg.bot.typing{color:var(--mut)}
+  /* Ошибка помощника: видна в ленте, но в историю диалога НЕ попадает */
+  .msg.err{background:var(--amber-soft);border-color:var(--amber);color:var(--amber);
+    box-shadow:none}
+  /* Служебная строка «→ смотрю данные: …» — тонкая, вне пузырей */
+  .tool-line{align-self:flex-start;font-size:11.5px;color:var(--mut);padding:0 6px;
+    font-variant-numeric:tabular-nums}
+  .chat-empty{color:var(--mut);font-size:13.5px;text-align:center;margin:auto;padding:30px 10px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 14px}
+  .chip{background:var(--wash);border:1px solid var(--line2);color:var(--ink2);
+    border-radius:20px;padding:7px 14px;font-size:12.5px;cursor:pointer;font-family:inherit}
+  .chip:hover{border-color:var(--accent);color:var(--accent)}
+  .chip:disabled{opacity:.45;cursor:default}
+  .chip:disabled:hover{border-color:var(--line2);color:var(--ink2)}
+  .composer{display:flex;gap:10px;align-items:flex-end;border-top:1px solid var(--line);
+    padding-top:14px}
+  .composer textarea{flex:1;resize:none;border:1px solid var(--line2);border-radius:10px;
+    padding:10px 13px;font:inherit;font-size:14px;min-height:44px;max-height:150px;
+    background:var(--paper);color:var(--ink)}
+  .composer textarea:focus{outline:none;border-color:var(--accent)}
+  .composer textarea:disabled{background:var(--wash);color:var(--mut)}
+  .chat-tools{display:flex;justify-content:space-between;align-items:center;margin-top:10px}
+  .chat-hint{font-size:11.5px;color:var(--mut)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand"><a href="/" aria-label="На главную"><img class="serial-plate" src="/assets/serial-plate.png" alt="SERIAL NO."></a>
+      
+      <div class="service">Прогноз заказов<div class="sub">готовая еда · кухня → точки</div></div>
+    </div>
+    <div class="hdr-actions">
+      <button class="ghost icon" onclick="toggleTheme()" aria-label="Переключить тему">
+        <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor" aria-hidden="true">
+          <g class="ic-sun"><circle cx="10" cy="10" r="4.4"/><path d="M10 0v3M10 17v3M0 10h3M17 10h3M2.9 2.9l2.1 2.1M15 15l2.1 2.1M17.1 2.9L15 5M5 15l-2.1 2.1" stroke="currentColor" stroke-width="1.6" fill="none"/></g>
+          <path class="ic-moon" d="M17 12.5A7.5 7.5 0 0 1 7.5 3a7.5 7.5 0 1 0 9.5 9.5z"/>
+        </svg>
+      </button>
+      <button class="ghost" onclick="logout()">Выйти</button>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <a class="tab" href="/">Заявка </a>
+      <a class="tab" href="/accuracy" data-admin-only>Точность </a>
+      <a class="tab" href="/comparison" data-admin-only>Сравнение </a>
+      <a class="tab" href="/analytics" data-admin-only>Аналитика </a>
+    <a class="tab" href="/reports">Сводки </a>
+    <a class="tab active" href="/chat">Помощник </a>
+  </nav>
+
+  <div class="chat-warn" id="warn" style="display:none">
+    ⚠ Помощник не подключён — нет ключа ИИ. Числа на остальных вкладках работают как обычно.
+  </div>
+
+  <div class="card">
+    <div class="chat-box" id="box"></div>
+
+    <div class="chips" id="chips">
+      <button class="chip" type="button">Почему вырос прогноз по шаурме?</button>
+      <button class="chip" type="button">Какая точность за неделю?</button>
+      <button class="chip" type="button">Что за правило новинок?</button>
+    </div>
+
+    <div class="composer">
+      <textarea id="input" rows="1" maxlength="8192" placeholder="Вопрос про прогноз, точность или заявку…"></textarea>
+      <button class="btn" id="send" type="button">Отправить</button>
+    </div>
+    <div class="chat-tools">
+      <span class="chat-hint">Enter — отправить, Shift+Enter — новая строка. Помощник отвечает только по данным системы.</span>
+      <button class="btn sec" id="clear" type="button">Очистить диалог</button>
+    </div>
+  </div>
+
+  <div class="footnote">
+    Помощник видит методичку и только те данные, которые разрешены текущему кабинету.
+    История диалога хранится только в этой вкладке браузера. Демонстрационный сервис прогноза.
+  </div>
+  
+</div>
+
+<script>
+'use strict';
+(function () {
+  const KEY = 'prognoz_chat_v1';                 // история — в sessionStorage вкладки
+  const box = document.getElementById('box');
+  const input = document.getElementById('input');
+  const sendBtn = document.getElementById('send');
+  const clearBtn = document.getElementById('clear');
+  const warn = document.getElementById('warn');
+  const chips = document.getElementById('chips');
+
+  let history = [];
+  try { history = JSON.parse(sessionStorage.getItem(KEY) || '[]'); } catch (e) { history = []; }
+  let llmOk = false;
+  let busy = false;
+
+  function save() { try { sessionStorage.setItem(KEY, JSON.stringify(history)); } catch (e) {} }
+
+  function bubble(role, text, extraClass) {
+    const div = el('div', { class: 'msg ' + (role === 'user' ? 'user' : 'bot')
+      + (extraClass ? ' ' + extraClass : '') });
+    div.textContent = text;
+    box.append(div);
+    return div;
+  }
+
+  function scrollDown() { box.scrollTop = box.scrollHeight; }
+
+  function renderAll() {
+    box.textContent = '';
+    if (!history.length) {
+      box.append(el('div', { class: 'chat-empty',
+        text: 'Спросите обычным языком — про заявку, точность, правило новинок или конкретную позицию.' }));
+      return;
+    }
+    history.forEach(m => bubble(m.role, m.content));
+    scrollDown();
+  }
+
+  function setEnabled(on) {
+    input.disabled = !on;
+    sendBtn.disabled = !on;
+    Array.from(chips.querySelectorAll('.chip')).forEach(c => { c.disabled = !on; });
+  }
+
+  /** Читаем SSE-поток /api/chat из fetch body (ReadableStream), копим дельты в пузырь. */
+  async function streamAnswer(botDiv) {
+    const resp = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: history.slice(-20) }),
+    });
+    if (resp.status === 401) { window.location = '/login'; throw new Error('401'); }
+    if (!resp.ok || !resp.body) throw new Error('HTTP ' + resp.status);
+
+    const reader = resp.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '', acc = '';
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let idx;
+      while ((idx = buf.indexOf('\n\n')) >= 0) {
+        const rawEvent = buf.slice(0, idx);
+        buf = buf.slice(idx + 2);
+        for (const line of rawEvent.split('\n')) {
+          if (!line.startsWith('data:')) continue;
+          let payload;
+          try { payload = JSON.parse(line.slice(5)); } catch (e) { continue; }
+          if (payload.tool) {
+            // Служебный чанк: помощник пошёл в данные — показываем тонкой строкой
+            box.insertBefore(el('div', { class: 'tool-line',
+              text: '→ смотрю данные: ' + payload.tool }), botDiv);
+            scrollDown();
+          }
+          if (payload.delta) {
+            acc += payload.delta;
+            botDiv.classList.remove('typing');
+            botDiv.textContent = acc;
+            scrollDown();
+          }
+          if (payload.done) return acc;
+        }
+      }
+    }
+    return acc;
+  }
+
+  async function send(text) {
+    text = (text || '').trim();
+    if (!text || busy || !llmOk) return;
+    busy = true;
+    setEnabled(false);
+
+    if (!history.length) box.textContent = '';   // убрать placeholder
+    history.push({ role: 'user', content: text });
+    save();
+    bubble('user', text);
+    input.value = '';
+    const botDiv = bubble('bot', 'Помощник думает…', 'typing');
+    scrollDown();
+
+    // Ошибка/пустой ответ показываются только визуально (.msg.err) и в историю
+    // НЕ попадают — иначе текст ошибки уходит в контекст следующего запроса.
+    function showErr(text) {
+      botDiv.classList.remove('typing');
+      botDiv.classList.add('err');
+      botDiv.textContent = text;
+    }
+    let answer = '';
+    let failed = false;
+    try {
+      answer = await streamAnswer(botDiv);
+    } catch (e) {
+      failed = true;
+      showErr('Не удалось получить ответ — проверьте связь и попробуйте ещё раз.');
+    }
+    if (!failed && !answer) {
+      failed = true;
+      showErr('Помощник не ответил — попробуйте ещё раз.');
+    }
+    if (!failed) {
+      history.push({ role: 'assistant', content: answer });
+      save();
+    }
+    busy = false;
+    setEnabled(llmOk);
+    input.focus();
+  }
+
+  // --- обвязка UI -------------------------------------------------------------
+  sendBtn.addEventListener('click', () => send(input.value));
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(input.value); }
+  });
+  input.addEventListener('input', () => {   // авто-рост textarea
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 150) + 'px';
+  });
+  clearBtn.addEventListener('click', () => {
+    history = [];
+    try { sessionStorage.removeItem(KEY); } catch (e) {}
+    renderAll();
+  });
+  Array.from(chips.querySelectorAll('.chip')).forEach(c => {
+    c.addEventListener('click', () => send(c.textContent));
+  });
+
+  async function init() {
+    renderAll();
+    setEnabled(false);
+    try {
+      const st = await fetchJSON('/api/chat/status');
+      llmOk = !!st.llm_ok;
+    } catch (e) {
+      llmOk = false;
+    }
+    if (!llmOk) {
+      warn.style.display = 'block';
+      input.placeholder = 'Помощник не подключён — проверьте ключ и разрешение внешней обработки';
+      setEnabled(false);
+    } else {
+      setEnabled(true);
+      input.focus();
+    }
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>

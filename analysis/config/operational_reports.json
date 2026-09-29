@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "delivery_mode": "pilot",
+  "web_url": "",
+  "pilot_successful_dates": [],
+  "group_approved_at": null,
+  "pending_point_names": [],
+  "release_scope_enabled": false,
+  "points": []
+}

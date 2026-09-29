@@ -1,0 +1,184 @@
+# -*- coding: utf-8 -*-
+"""Клиент OpenAI-совместимого LLM API (…/chat/completions) на httpx.
+
+Настройки — из web.config.load_settings(): LLM_BASE_URL / LLM_API_KEY / LLM_MODEL /
+LLM_TIMEOUT_S / LLM_PROXY_URL. Прокси применяется только к запросам LLM и не
+меняет сетевое поведение остальных частей веб-сервиса. Ключа может не быть
+(пилот стартует без ИИ) — модуль обязан жить без него и даже без установленного
+httpx: импорт httpx ленивый, внутри функций.
+"""
+from __future__ import annotations
+
+import json
+import re
+from typing import AsyncIterator
+from urllib.parse import urlsplit
+
+from web.config import WebSettings, load_settings
+
+# Единый текст «помощник выключен» — его показывают и /api/chat, и статус на странице
+NO_KEY_MESSAGE = (
+    "Помощник не подключён: нет ключа ИИ (LLM_API_KEY). "
+    "Числа на остальных вкладках считает конвейер — они работают без ИИ."
+)
+
+
+def is_configured(settings: WebSettings | None) -> bool:
+    """LLM включён, только когда заданы все три: base_url, ключ и модель."""
+    return bool(settings and settings.llm_api_key
+                and settings.llm_base_url and settings.llm_model)
+
+
+def _endpoint(settings: WebSettings) -> str:
+    base_url = settings.llm_base_url.rstrip("/")
+    parsed = urlsplit(base_url)
+    # http допустим только для loopback: у клиента помощник ходит на наш релей через обратный
+    # SSH-туннель (127.0.0.1:8090), снаружи OpenRouter отвечает 403 (08.09.2026).
+    loopback = (parsed.hostname or "").lower() in {"127.0.0.1", "localhost", "::1"}
+    scheme = parsed.scheme.lower()
+    if not parsed.netloc or not (scheme == "https" or (scheme == "http" and loopback)):
+        raise RuntimeError("LLM_BASE_URL должен быть HTTPS-адресом (http — только для 127.0.0.1/localhost, туннель)")
+    return base_url + "/chat/completions"
+
+
+def _headers(settings: WebSettings) -> dict:
+    return {"Authorization": f"Bearer {settings.llm_api_key}",
+            "Content-Type": "application/json"}
+
+
+def _client_options(settings: WebSettings, timeout) -> dict:
+    """Параметры HTTP-клиента: только явный LLM-прокси, без системного proxy env."""
+    return {
+        "timeout": timeout,
+        "proxy": settings.llm_proxy_url or None,
+        "trust_env": False,
+    }
+
+
+def _is_gpt5_model(model: str) -> bool:
+    """Recognise direct and provider-prefixed GPT-5 model identifiers.
+
+    OpenRouter uses names such as ``openai/gpt-5.6-luna`` while direct OpenAI
+    calls use ``gpt-5.6-luna``.  Payload rules must be based on the model part,
+    not on the optional provider prefix.
+    """
+    model_id = str(model or "").strip().lower().rsplit("/", 1)[-1]
+    return model_id.startswith("gpt-5")
+
+
+def _provider_error(response) -> RuntimeError:
+    """Build a diagnostic error without copying a provider body into logs."""
+    request_id = ""
+    for name in ("x-request-id", "request-id", "x-openrouter-request-id"):
+        candidate = str(response.headers.get(name, "")).strip()
+        if candidate:
+            request_id = re.sub(r"[^A-Za-z0-9._:-]", "", candidate)[:80]
+            break
+    suffix = f" (request_id={request_id})" if request_id else ""
+    return RuntimeError(f"LLM API ответил {response.status_code}{suffix}")
+
+
+def _payload(messages: list[dict], settings: WebSettings,
+             max_tokens: int, stream: bool, tools: list[dict] | None = None) -> dict:
+    p = {"model": settings.llm_model, "messages": messages, "stream": stream}
+    # GPT-5.x принимает только max_completion_tokens (на max_tokens отвечает 400);
+    # для остальных OpenAI-совместимых провайдеров оставляем классическое поле.
+    gpt5 = _is_gpt5_model(settings.llm_model)
+    if gpt5:
+        p["max_completion_tokens"] = max_tokens
+    else:
+        p["max_tokens"] = max_tokens
+    if tools:
+        p["tools"] = tools
+        if gpt5:
+            # GPT-5.x в /chat/completions не совмещает tools с reasoning:
+            # «To use function tools … set reasoning_effort to 'none'» (ответ 400 API)
+            p["reasoning_effort"] = "none"
+    return p
+
+
+async def stream_chat(messages: list[dict], settings: WebSettings,
+                      max_tokens: int = 1200) -> AsyncIterator[str]:
+    """Генератор текстовых дельт из /chat/completions со stream:true (SSE).
+
+    Бросает RuntimeError при выключенном LLM или не-200 ответе API —
+    вызывающий превращает ошибку в человеческий текст в потоке.
+    """
+    if not is_configured(settings):
+        raise RuntimeError(NO_KEY_MESSAGE)
+    import httpx  # noqa: PLC0415 — ленивый импорт: без ключа httpx не нужен вовсе
+
+    timeout = httpx.Timeout(float(settings.llm_timeout_s), connect=10.0)
+    async with httpx.AsyncClient(**_client_options(settings, timeout)) as client:
+        async with client.stream("POST", _endpoint(settings), headers=_headers(settings),
+                                 json=_payload(messages, settings, max_tokens, True)) as resp:
+            if resp.status_code != 200:
+                raise _provider_error(resp)
+            async for line in resp.aiter_lines():
+                line = line.strip()
+                if not line.startswith("data:"):
+                    continue
+                data = line[len("data:"):].strip()
+                if data == "[DONE]":
+                    return
+                try:
+                    chunk = json.loads(data)
+                except json.JSONDecodeError:
+                    continue  # рваная строка SSE — пропускаем, не роняем стрим
+                choices = chunk.get("choices") or []
+                delta = (choices[0].get("delta") or {}).get("content") if choices else None
+                if delta:
+                    yield delta
+
+
+async def chat_raw(messages: list[dict], settings: WebSettings,
+                   tools: list[dict] | None = None,
+                   max_tokens: int = 1200) -> dict:
+    """Нестриминговый вызов для петли tool-use: возвращает ПЕРВЫЙ choice целиком —
+    {"message": {..., "tool_calls": [...]}, "finish_reason": "tool_calls"|"stop"|...}.
+
+    Бросает RuntimeError при выключенном LLM или не-200 ответе API.
+    """
+    if not is_configured(settings):
+        raise RuntimeError(NO_KEY_MESSAGE)
+    import httpx  # noqa: PLC0415
+
+    timeout = httpx.Timeout(float(settings.llm_timeout_s), connect=10.0)
+    async with httpx.AsyncClient(**_client_options(settings, timeout)) as client:
+        resp = await client.post(
+            _endpoint(settings), headers=_headers(settings),
+            json=_payload(messages, settings, max_tokens, False, tools))
+        if resp.status_code != 200:
+            raise _provider_error(resp)
+        data = resp.json()
+        choices = data.get("choices") or []
+        if not choices:
+            return {"message": {"role": "assistant", "content": ""},
+                    "finish_reason": "stop"}
+        return choices[0]
+
+
+async def chat(messages: list[dict], settings: WebSettings | None = None,
+               max_tokens: int = 1200) -> str:
+    """Нестриминговый фолбэк: один запрос — весь текст ответа строкой.
+
+    Без ключа НЕ бросает, а возвращает NO_KEY_MESSAGE (удобно звать напрямую).
+    """
+    if settings is None:
+        try:
+            settings = load_settings()
+        except RuntimeError:   # .env ещё не заполнен — помощник просто «не подключён»
+            settings = None
+    if not is_configured(settings):
+        return NO_KEY_MESSAGE
+    import httpx  # noqa: PLC0415
+
+    timeout = httpx.Timeout(float(settings.llm_timeout_s), connect=10.0)
+    async with httpx.AsyncClient(**_client_options(settings, timeout)) as client:
+        resp = await client.post(_endpoint(settings), headers=_headers(settings),
+                                 json=_payload(messages, settings, max_tokens, False))
+        if resp.status_code != 200:
+            raise _provider_error(resp)
+        data = resp.json()
+        choices = data.get("choices") or []
+        return ((choices[0].get("message") or {}).get("content") or "") if choices else ""

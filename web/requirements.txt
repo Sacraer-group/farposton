@@ -1,0 +1,30 @@
+# Зависимости веб-сервиса прогноза. Единственный список проекта: у ядра prognoz
+# отдельного requirements.txt нет, всё нужное вебу и ядру ставится отсюда.
+# Python 3.12.10 — как на прод-сервере (sklearn-модель joblib чувствительна к версиям).
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+python-multipart==0.0.20
+itsdangerous==2.2.0
+python-dotenv==1.0.1
+loguru==0.7.3
+Markdown==3.10.3
+
+# Данные: снимок DuckDB + parquet-выходы прогона + выгрузки Excel
+duckdb==1.5.4
+pandas==3.0.5
+numpy==2.5.2
+pyarrow==22.0.0
+openpyxl==3.1.5
+
+# ML-ядро (predict/ml_core.py): модель model.joblib обучена sklearn 1.9.0 —
+# менять версию нельзя без переобучения (joblib между версиями непереносим)
+scikit-learn==1.9.0
+joblib==1.5.3
+catboost==1.2.10
+
+# Ядро prognoz, которое веб импортирует через paths.py:
+# calendar_ru тянет requests — без него «Календарь недоступен (ModuleNotFoundError)»
+requests==2.32.5
+
+# LLM-помощник (вкладка «Помощник»): ходим в OpenAI-совместимый API напрямую
+httpx==0.28.1
