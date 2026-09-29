@@ -186,7 +186,7 @@ def build(path: Path | None = None) -> dict:
         "backtest_weeks": 4, "backtest_demand": denominator,
         "wape": {name: round(100 * value / denominator, 1) for name, value in errors.items()},
         "chosen_method": winner,
-        "method_note": "Demo ML uses the daily model's HGB quantile family, retrained only on fictional history; it is not the production model.",
+        "method_note": "Учебная ML-модель того же семейства HGB обучена отдельно на вымышленной истории; это не рабочая дневная модель.",
         "rows": rows,
     }
 

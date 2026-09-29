@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="/assets/app.css?v=20260929-ui4">
 <script src="/assets/app.js?v=20260929-ui4"></script>
 <style>
+  .wrap{max-width:1320px}
   .lead{color:var(--ink2);line-height:1.6}
   .note{font-size:13px;color:var(--mut);line-height:1.6}
   .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0}
@@ -17,7 +18,25 @@
   input[type=number]{width:82px;text-align:right}
   .status{font-size:13px;color:var(--ink2)}
   #error{display:none}
-  @media(max-width:600px){.wrap{padding:16px 12px}.card{padding:16px}}
+  @media(max-width:800px){
+    .wrap{padding:16px 12px}.card{padding:16px}
+    .tablewrap{overflow:visible;max-height:none;border:0}
+    #orders,#orders tbody,#orders tr,#orders td{display:block;width:100%;min-width:0}
+    #orders thead{display:none}
+    #orders tr{border:1px solid var(--line);border-radius:10px;margin:0 0 12px;padding:8px}
+    #orders td{display:flex;justify-content:space-between;gap:12px;text-align:right;white-space:normal}
+    #orders td:first-child{font-weight:700}
+    #orders td::before{color:var(--mut);font-weight:400;text-align:left}
+    #orders td:nth-child(1)::before{content:'Позиция'}
+    #orders td:nth-child(2)::before{content:'Неделя'}
+    #orders td:nth-child(3)::before{content:'Первая поставка'}
+    #orders td:nth-child(4)::before{content:'Спрос до конца срока'}
+    #orders td:nth-child(5)::before{content:'Остаток к доставке'}
+    #orders td:nth-child(6)::before{content:'Страховой запас'}
+    #orders td:nth-child(7)::before{content:'Упаковка'}
+    #orders td:nth-child(8)::before{content:'Минимум'}
+    #orders td:nth-child(9)::before{content:'Черновик, шт'}
+  }
 </style>
 </head>
 <body>
@@ -72,6 +91,11 @@
   let data, edits = {}, approved = false;
   const $ = id => document.getElementById(id);
   const fmt = n => Number(n).toLocaleString('ru-RU');
+  const pointNames = {
+    'DEMO-POINT-01': 'ДЕМО — Вокзальная',
+    'DEMO-POINT-02': 'ДЕМО — Набережная',
+    'DEMO-POINT-03': 'ДЕМО — Университет',
+  };
   const cell = (row, value, className='') => {
     const td = document.createElement('td');
     td.textContent = value;
@@ -159,7 +183,7 @@
       'Ошибка — сумма абсолютных отклонений / фактический спрос. ' + result.method_note;
     for (const point of [...new Set(result.rows.map(r => r.point_key))]) {
       const option = document.createElement('option');
-      option.value = point; option.textContent = point;
+      option.value = point; option.textContent = pointNames[point] || point;
       $('point').append(option);
     }
     $('point').addEventListener('change', show);
