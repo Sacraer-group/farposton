@@ -52,7 +52,7 @@ def test_non_gpt_payload_keeps_classic_max_tokens():
 
 
 def test_opencode_gpt6_responses_payload_replays_tool_state():
-    settings = SimpleNamespace(llm_base_url="https://opencode.ai/zen/v1",
+    settings = SimpleNamespace(llm_base_url="https://opencode.ai/zen/go/v1",
                                llm_model="gpt-6-luna")
     output = [
         {"type": "reasoning", "encrypted_content": "opaque"},
@@ -67,7 +67,7 @@ def test_opencode_gpt6_responses_payload_replays_tool_state():
         tools=[{"type": "function", "function": {
             "name": "get_meta", "parameters": {"type": "object", "properties": {}}}}])
 
-    assert llm._endpoint(settings) == "https://opencode.ai/zen/v1/responses"
+    assert llm._endpoint(settings) == "https://opencode.ai/zen/go/v1/responses"
     assert payload["store"] is False
     assert payload["max_output_tokens"] == 4000
     assert payload["reasoning"] == {"effort": "low"}
@@ -91,7 +91,7 @@ def test_opencode_response_text_ignores_reasoning_and_tool_calls():
 def test_opencode_transport_reads_responses_and_stream_deltas(monkeypatch):
     import httpx
 
-    settings = SimpleNamespace(llm_base_url="https://opencode.ai/zen/v1",
+    settings = SimpleNamespace(llm_base_url="https://opencode.ai/zen/go/v1",
                                llm_model="gpt-6-luna", llm_api_key="test-key",
                                llm_timeout_s=60, llm_proxy_url="")
     sent = []
@@ -140,7 +140,7 @@ def test_opencode_transport_reads_responses_and_stream_deltas(monkeypatch):
     assert choice["message"]["tool_calls"][0]["id"] == "call-1"
     assert choice["_response_output"][0]["encrypted_content"] == "opaque"
     assert deltas == ["Готово"]
-    assert all(url == "https://opencode.ai/zen/v1/responses" for url, _ in sent)
+    assert all(url == "https://opencode.ai/zen/go/v1/responses" for url, _ in sent)
 
 
 def test_morning_client_uses_prefixed_gpt5_token_field(monkeypatch):
@@ -274,7 +274,7 @@ def _collect(async_iter):
 
 
 def test_payment_error_is_actionable(monkeypatch):
-    settings = SimpleNamespace(llm_base_url="https://opencode.ai/zen/v1",
+    settings = SimpleNamespace(llm_base_url="https://opencode.ai/zen/go/v1",
                                llm_model="gpt-6-luna", llm_api_key="test-key",
                                llm_allow_client_data=True)
     monkeypatch.setattr(routes_chat, "_settings", lambda: settings)
@@ -286,7 +286,7 @@ def test_payment_error_is_actionable(monkeypatch):
     monkeypatch.setattr(chat, "run_with_tools", unavailable)
     events = _collect(routes_chat.chat_events([{"role": "user", "content": "Сколько?"}],
                                               "test-payment"))
-    assert "недостаточно средств" in events[0]
+    assert "Проверьте подписку или лимит" in events[0]
     assert '"done": true' in events[-1]
 
 

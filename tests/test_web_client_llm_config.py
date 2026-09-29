@@ -44,7 +44,7 @@ def test_client_profile_keeps_llm_disabled_by_default(monkeypatch: pytest.Monkey
 def test_client_profile_accepts_complete_explicit_llm_config(monkeypatch: pytest.MonkeyPatch):
     settings = _load_client(
         monkeypatch,
-        LLM_BASE_URL="https://opencode.ai/zen/v1",
+        LLM_BASE_URL="https://opencode.ai/zen/go/v1",
         LLM_API_KEY="opaque-test-key",
         LLM_MODEL="gpt-6-luna",
         LLM_ALLOW_CLIENT_DATA="1",

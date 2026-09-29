@@ -45,7 +45,7 @@ def _uses_responses(settings: WebSettings) -> bool:
     """OpenCode serves GPT models through Responses, not Chat Completions."""
     parsed = urlsplit(getattr(settings, "llm_base_url", ""))
     return (parsed.hostname == "opencode.ai"
-            and parsed.path.rstrip("/") in {"/zen/v1", "/inference/openai/v1"}
+            and parsed.path.rstrip("/") in {"/zen/v1", "/zen/go/v1", "/inference/openai/v1"}
             and str(settings.llm_model).lower().startswith("gpt-"))
 
 

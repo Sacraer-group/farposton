@@ -118,7 +118,7 @@ async def chat_events(history: list[dict], session_key: str,
     except Exception as exc:
         logger.exception("Помощник: ошибка вызова LLM")
         if isinstance(exc, RuntimeError) and str(exc).startswith("LLM API ответил 402"):
-            yield _sse({"delta": "На аккаунте OpenCode Zen недостаточно средств."})
+            yield _sse({"delta": "OpenCode Go отклонил запрос (402). Проверьте подписку или лимит."})
         else:
             yield _sse({"delta": (f"Помощник временно недоступен ({type(exc).__name__}). "
                                   "Числа на остальных вкладках работают без ИИ — загляните туда, "

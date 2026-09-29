@@ -9,12 +9,12 @@ This directory is an independent private Git repository. `main` contains the int
 
 ## Synthetic demo assistant
 
-The existing assistant supports OpenCode Zen's `gpt-6-luna` through the Responses API. On the synthetic demo server, set these in the private `.env`:
+The existing assistant supports OpenCode Go's `gpt-6-luna` through the Responses API. On the synthetic demo server, set these in the private `.env`:
 
 ```dotenv
-LLM_BASE_URL=https://opencode.ai/zen/v1
+LLM_BASE_URL=https://opencode.ai/zen/go/v1
 LLM_MODEL=gpt-6-luna
-LLM_API_KEY=<OpenCode Zen API key>
+LLM_API_KEY=<OpenCode Go API key>
 LLM_ALLOW_CLIENT_DATA=1
 ```
 
