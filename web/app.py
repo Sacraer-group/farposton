@@ -111,7 +111,7 @@ app.mount("/assets", StaticFiles(directory=STATIC / "assets"), name="assets")
 
 # Разделы: каждый живёт своим APIRouter-ом (все под require_auth внутри)
 from . import (routes_accuracy, routes_analytics, routes_chat,  # noqa: E402
-               routes_comparison, routes_order, routes_reports)
+               routes_comparison, routes_order, routes_reports, routes_weekly_demo)
 
 app.include_router(routes_order.router)
 app.include_router(routes_accuracy.router)
@@ -119,6 +119,7 @@ app.include_router(routes_comparison.router)
 app.include_router(routes_analytics.router)
 app.include_router(routes_reports.router)
 app.include_router(routes_chat.router)
+app.include_router(routes_weekly_demo.router)
 
 
 # ----- страницы ---------------------------------------------------------------
@@ -152,6 +153,11 @@ async def accuracy(request: Request):
 @app.get("/comparison", response_class=HTMLResponse)
 async def comparison(request: Request):
     return _admin_page(request, "comparison.html")
+
+
+@app.get("/weekly-demo", response_class=HTMLResponse)
+async def weekly_demo(request: Request):
+    return _admin_page(request, "weekly-demo.html")
 
 
 @app.get("/analytics", response_class=HTMLResponse)

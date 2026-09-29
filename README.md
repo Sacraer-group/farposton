@@ -30,6 +30,20 @@ Verification used a local, read-only copy of captured synthetic API responses in
 
 ## Synthetic demo and analytics audit
 
+The isolated admin page `/weekly-demo` rehearses a seven-day auto-order on
+fictional data in `demo/weekly/{history,planning}.csv`. The same deterministic
+source is maintained in the product bundle's `demo-data/weekly`; the vendored
+copy makes the forecast service self-contained. `WEEKLY_DEMO_DATA_DIR` can
+point to an equivalent private fixture directory. The page checks a simple
+four-week same-weekday average against a small HistGradientBoostingRegressor
+(the same model family as the daily ML core, retrained for this fictional
+sample) on four completed, causal holdout weeks. It chooses lower WAPE for
+the next seven days. The first-delivery draft subtracts projected demand
+during lead time from fictional stock and incoming units, then uses demand
+through shelf life, safety stock, pack size and minimum order. It does not
+cover later deliveries in that week. Edits and approval remain in this
+browser's localStorage; they do not reach 1C or the daily order store.
+
 `demo/forecast-demo-data.tar.gz` is a fictional shawarma data snapshot (2026-09-29), with three stores and fourteen products. It includes 485 days of source facts, a newer store with 120 days, two new products with 17 days, stockout estimates, markdowns, writeoffs, and a precomputed shelf. No customer export or original brand is used. The archive contains 30 days of **simulated causal engine comparison** (2026-08-30 to 2026-09-28), replayed with `prognoz.predict.duel`: historical ML models are trained in a sandbox and each cutoff is checked before writing a day. The recorded forecast evaluation still spans only seven days, so its 30-day accuracy view is not a 30-day result. Do not copy a recent model backward or relabel simulated rows as production accuracy.
 
 The existing analytics page covers sales, year-over-year trends, hourly and weekday profiles, writeoffs/markdowns, deficit, sellout speed, and SKU leaders. These sections use the snapshot plus `shelf_rolling.parquet`; they do not need new business formulas. `demo/check_analytics.py` checks that the fixture populates each section and reports source/evaluation coverage.
