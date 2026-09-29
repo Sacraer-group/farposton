@@ -21,7 +21,6 @@ def main(root: Path) -> None:
     })
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     import duckdb
-    import pandas as pd
     from web import analytics  # imports environment-backed paths
 
     with duckdb.connect(str(root / "prognoz_web.duckdb"), read_only=True) as con:
@@ -54,12 +53,15 @@ def main(root: Path) -> None:
           f"recorded forecast evaluation: {len(shadow)} days")
     if len(duel) < 30:
         raise RuntimeError("Fewer than 30 causal comparison days")
-    for path in duel:
-        frame = pd.read_parquet(path, columns=["date", "model_cutoff"])
-        if frame.empty or frame.isna().any().any() or (pd.to_datetime(frame["model_cutoff"]).dt.date
-                           > pd.to_datetime(frame["date"]).dt.date
-                           - pd.Timedelta(days=3)).any():
-            raise RuntimeError(f"Future-looking comparison: {path.name}")
+    with duckdb.connect() as con:
+        for path in duel:
+            rows, invalid = con.execute(
+                "SELECT count(*), count(*) FILTER (WHERE date IS NULL OR "
+                "model_cutoff IS NULL OR model_cutoff::DATE > "
+                "date::DATE - INTERVAL 3 DAY) FROM read_parquet(?)", [str(path)]
+            ).fetchone()
+            if not rows or invalid:
+                raise RuntimeError(f"Future-looking comparison: {path.name}")
 
 
 if __name__ == "__main__":
