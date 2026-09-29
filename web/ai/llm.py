@@ -10,6 +10,7 @@ httpx: импорт httpx ленивый, внутри функций.
 from __future__ import annotations
 
 import json
+import hashlib
 import re
 from typing import AsyncIterator
 from urllib.parse import urlsplit
@@ -49,9 +50,15 @@ def _uses_responses(settings: WebSettings) -> bool:
             and str(settings.llm_model).lower().startswith("gpt-"))
 
 
-def _headers(settings: WebSettings) -> dict:
-    return {"Authorization": f"Bearer {settings.llm_api_key}",
-            "Content-Type": "application/json"}
+def _headers(settings: WebSettings, messages: list[dict]) -> dict:
+    headers = {"Authorization": f"Bearer {settings.llm_api_key}",
+               "Content-Type": "application/json"}
+    if urlsplit(settings.llm_base_url).path.rstrip("/") == "/zen/go/v1":
+        first_question = next((str(m.get("content", "")) for m in messages
+                               if m.get("role") == "user"), "")
+        headers["x-opencode-session"] = hashlib.sha256(first_question.encode()).hexdigest()
+        headers["User-Agent"] = "forecast-analytics-demo/1.0"
+    return headers
 
 
 def _client_options(settings: WebSettings, timeout) -> dict:
@@ -76,6 +83,13 @@ def _is_gpt5_model(model: str) -> bool:
 
 def _provider_error(response) -> RuntimeError:
     """Build a diagnostic error without copying a provider body into logs."""
+    if response.status_code == 403:
+        try:
+            error = response.json().get("error", {})
+            if isinstance(error, dict) and error.get("code") == "unsupported_country_region_territory":
+                return RuntimeError("OpenCode Go недоступен из региона этой машины")
+        except (ValueError, AttributeError):
+            pass
     request_id = ""
     for name in ("x-request-id", "request-id", "x-openrouter-request-id"):
         candidate = str(response.headers.get(name, "")).strip()
@@ -137,7 +151,7 @@ async def stream_chat(messages: list[dict], settings: WebSettings,
 
     timeout = httpx.Timeout(float(settings.llm_timeout_s), connect=10.0)
     async with httpx.AsyncClient(**_client_options(settings, timeout)) as client:
-        async with client.stream("POST", _endpoint(settings), headers=_headers(settings),
+        async with client.stream("POST", _endpoint(settings), headers=_headers(settings, messages),
                                  json=_payload(messages, settings, max_tokens, True)) as resp:
             if resp.status_code != 200:
                 raise _provider_error(resp)
@@ -179,7 +193,7 @@ async def chat_raw(messages: list[dict], settings: WebSettings,
     timeout = httpx.Timeout(float(settings.llm_timeout_s), connect=10.0)
     async with httpx.AsyncClient(**_client_options(settings, timeout)) as client:
         resp = await client.post(
-            _endpoint(settings), headers=_headers(settings),
+            _endpoint(settings), headers=_headers(settings, messages),
             json=_payload(messages, settings, max_tokens, False, tools))
         if resp.status_code != 200:
             raise _provider_error(resp)
@@ -218,7 +232,7 @@ async def chat(messages: list[dict], settings: WebSettings | None = None,
 
     timeout = httpx.Timeout(float(settings.llm_timeout_s), connect=10.0)
     async with httpx.AsyncClient(**_client_options(settings, timeout)) as client:
-        resp = await client.post(_endpoint(settings), headers=_headers(settings),
+        resp = await client.post(_endpoint(settings), headers=_headers(settings, messages),
                                  json=_payload(messages, settings, max_tokens, False))
         if resp.status_code != 200:
             raise _provider_error(resp)

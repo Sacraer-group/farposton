@@ -53,7 +53,7 @@ def test_non_gpt_payload_keeps_classic_max_tokens():
 
 def test_opencode_gpt6_responses_payload_replays_tool_state():
     settings = SimpleNamespace(llm_base_url="https://opencode.ai/zen/go/v1",
-                               llm_model="gpt-6-luna")
+                               llm_model="gpt-6-luna", llm_api_key="test-key")
     output = [
         {"type": "reasoning", "encrypted_content": "opaque"},
         {"type": "function_call", "call_id": "call-1",
@@ -68,6 +68,11 @@ def test_opencode_gpt6_responses_payload_replays_tool_state():
             "name": "get_meta", "parameters": {"type": "object", "properties": {}}}}])
 
     assert llm._endpoint(settings) == "https://opencode.ai/zen/go/v1/responses"
+    headers = llm._headers(settings, [{"role": "user", "content": "Первый вопрос"}])
+    assert headers["User-Agent"] == "forecast-analytics-demo/1.0"
+    assert headers["x-opencode-session"] == llm._headers(settings, [
+        {"role": "user", "content": "Первый вопрос"}, {"role": "tool", "content": "ответ"}
+    ])["x-opencode-session"]
     assert payload["store"] is False
     assert payload["max_output_tokens"] == 4000
     assert payload["reasoning"] == {"effort": "low"}
@@ -288,6 +293,9 @@ def test_payment_error_is_actionable(monkeypatch):
                                               "test-payment"))
     assert "Проверьте подписку или лимит" in events[0]
     assert '"done": true' in events[-1]
+    import httpx
+    blocked = httpx.Response(403, json={"error": {"code": "unsupported_country_region_territory"}})
+    assert "недоступен из региона" in str(llm._provider_error(blocked))
 
 
 def test_tool_calls_are_honoured_even_without_finish_reason(monkeypatch):
