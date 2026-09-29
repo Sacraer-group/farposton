@@ -4,7 +4,9 @@ import json
 from datetime import date
 from pathlib import Path
 
+import duckdb
 import pandas as pd
+import pytest
 
 from prognoz.assortment import Entry, Policy, filter_frame, filter_pairs, load_policy, sql_exclusion_predicate
 
@@ -52,5 +54,11 @@ def test_effective_date_and_sql_predicate():
                          "sku_key": ["DEMO-SKU-01"] * 2,
                          "date": ["2026-09-09", "2026-09-10"]})
     assert filter_frame(rows, "factory_order", date_col="date", policy=policy).date.tolist() == ["2026-09-09"]
-    predicate = sql_exclusion_predicate("factory_order", point_expr="point_key", sku_expr="sku_key", policy=policy)
-    assert "DEMO-POINT-01" in predicate and "DEMO-SKU-01" in predicate
+    with pytest.raises(ValueError, match="нужна дата"):
+        sql_exclusion_predicate("factory_order", point_expr="point_key", sku_expr="sku_key", policy=policy)
+    predicate = sql_exclusion_predicate(
+        "factory_order", point_expr="point_key", sku_expr="sku_key",
+        date_expr='CAST("date" AS DATE)', policy=policy)
+    with duckdb.connect() as con:
+        con.register("rows", rows)
+        assert con.execute(f'SELECT "date" FROM rows WHERE {predicate}').fetchall() == [("2026-09-09",)]

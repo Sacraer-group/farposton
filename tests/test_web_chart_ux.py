@@ -199,7 +199,8 @@ def test_accuracy_and_comparison_carry_static_honesty_banner() -> None:
         assert text in html
         assert '<div class="banner err" id="err"></div>' in html
         assert html.index('id="honesty"') < html.index('id="err"')
-    assert "резервный контур CatBoost" in comparison
+    assert "сохранённые прогнозы ML и базовой формулы" in comparison
+    assert "резервный контур CatBoost" not in comparison
     assert ".banner.warn{display:block" in css
 
 

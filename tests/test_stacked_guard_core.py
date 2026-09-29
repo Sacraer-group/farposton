@@ -106,11 +106,16 @@ def test_non_packaged_bundle_requires_explicit_pin(monkeypatch, tmp_path):
         guard.load_bundle(target=date(2026, 8, 20))
 
 
-def test_packaged_bundle_matches_pin_and_loads(monkeypatch):
+def test_optional_bundle_is_pinned_or_fails_closed(monkeypatch):
     monkeypatch.delenv("PROGNOZ_STACKED_GUARD_BUNDLE", raising=False)
     monkeypatch.delenv("PROGNOZ_ML_MODEL_DIR", raising=False)
     monkeypatch.delenv("PROGNOZ_STACKED_GUARD_MANIFEST_SHA256", raising=False)
     manifest = guard.bundle_dir() / "manifest.json"
+    if not manifest.exists():
+        # The neutral demo ships HGB, not the historical customer-trained bundle.
+        with pytest.raises(guard.BundleError, match="No stacked guard manifest"):
+            guard.load_bundle(target=date(2026, 8, 23))
+        return
     assert guard._manifest_sha256(manifest) == guard.PACKAGED_MANIFEST_SHA256
     bundle = guard.load_bundle(target=date(2026, 8, 23))
     assert bundle.manifest["engine"] == guard.ENGINE

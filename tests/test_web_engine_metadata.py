@@ -90,13 +90,13 @@ def test_order_page_recognises_current_ml_engines():
     assert "ML-ядро в эту ночь не прошло проверку" in page
 
 
-def test_ai_method_notes_describe_stacked_guard_contract():
+def test_ai_method_notes_require_runtime_evidence():
     notes = chat.METHOD_NOTES
-    for value in ("engine: baseline", "ml", "catboost", "engine: stacked_guard"):
-        assert value in notes
-    assert "meta_uplift >= 1" in notes
-    assert "оба CatBoost >= HGB + 1" in notes
-    assert "поле engine: baseline / ml" not in notes
+    assert "get_meta/get_order" in notes
+    assert "WAPE = 100 × Σ|прогноз − факт| / Σфакт" in notes
+    assert "продажи дают только нижнюю границу спроса" in notes
+    assert "не представляй демонстрационные данные реальными" in notes
+    assert "engine: stacked_guard" not in notes
 
 
 def test_release_gate_rejects_silent_model_fallback():

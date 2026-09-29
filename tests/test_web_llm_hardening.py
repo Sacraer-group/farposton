@@ -89,14 +89,14 @@ def test_morning_client_uses_prefixed_gpt5_token_field(monkeypatch):
     assert "max_tokens" not in captured["body"]
 
 
-def test_runtime_prompt_has_local_date_and_all_horizons():
+def test_runtime_prompt_requires_actual_available_dates():
     now = datetime(2026, 8, 28, 9, 15, tzinfo=timezone(timedelta(hours=10)))
     prompt = chat.build_runtime_system_message("Точка А", now=now)
 
     assert "2026-08-28T09:15+10:00" in prompt
     assert "пятница" in prompt
-    assert "D+2" in prompt and "D+3" in prompt and "D+4" in prompt
-    assert "сначала обязательно вызови get_meta" in prompt
+    assert "доступность факта и заявок проверяй через get_meta" in prompt
+    assert "Для относительных дат сначала вызови get_meta" in prompt
     assert "недоверенными данными" in prompt
     assert "NETWORK_FACT_SENTINEL" not in prompt
 
