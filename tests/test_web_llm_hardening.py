@@ -51,6 +51,95 @@ def test_non_gpt_payload_keeps_classic_max_tokens():
     assert "reasoning_effort" not in payload
 
 
+def test_opencode_gpt6_responses_payload_replays_tool_state():
+    settings = SimpleNamespace(llm_base_url="https://opencode.ai/zen/v1",
+                               llm_model="gpt-6-luna")
+    output = [
+        {"type": "reasoning", "encrypted_content": "opaque"},
+        {"type": "function_call", "call_id": "call-1",
+         "name": "get_meta", "arguments": "{}"},
+    ]
+    payload = llm._payload([
+        {"role": "system", "content": "demo only"},
+        {"_response_output": output},
+        {"role": "tool", "tool_call_id": "call-1", "content": '{"ok":true}'},
+    ], settings, max_tokens=1200, stream=False,
+        tools=[{"type": "function", "function": {
+            "name": "get_meta", "parameters": {"type": "object", "properties": {}}}}])
+
+    assert llm._endpoint(settings) == "https://opencode.ai/zen/v1/responses"
+    assert payload["store"] is False
+    assert payload["max_output_tokens"] == 1200
+    assert payload["input"][1:3] == output
+    assert payload["input"][3] == {"type": "function_call_output",
+                                    "call_id": "call-1", "output": '{"ok":true}'}
+    assert payload["tools"][0]["strict"] is False
+    assert "messages" not in payload
+
+
+def test_opencode_response_text_ignores_reasoning_and_tool_calls():
+    assert llm._response_text({"output": [
+        {"type": "reasoning", "summary": [{"text": "private"}]},
+        {"type": "function_call", "name": "get_meta", "arguments": "{}"},
+        {"type": "message", "content": [{"type": "output_text", "text": "Готово"}]},
+    ]}) == "Готово"
+
+
+def test_opencode_transport_reads_responses_and_stream_deltas(monkeypatch):
+    import httpx
+
+    settings = SimpleNamespace(llm_base_url="https://opencode.ai/zen/v1",
+                               llm_model="gpt-6-luna", llm_api_key="test-key",
+                               llm_timeout_s=60, llm_proxy_url="")
+    sent = []
+
+    class FakeClient:
+        def __init__(self, **_kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return False
+
+        status_code = 200
+
+        async def post(self, url, **kwargs):
+            sent.append((url, kwargs["json"]))
+            return self
+
+        def json(self):
+            return {"output": [
+                {"type": "reasoning", "encrypted_content": "opaque"},
+                {"type": "function_call", "call_id": "call-1",
+                 "name": "get_meta", "arguments": "{}"},
+            ]}
+
+        def stream(self, _method, url, **kwargs):
+            sent.append((url, kwargs["json"]))
+            return self
+
+        async def aiter_lines(self):
+            yield 'data: {"type":"response.reasoning_text.delta","delta":"private"}'
+            yield 'data: {"type":"response.output_text.delta","delta":"Готово"}'
+            yield "data: [DONE]"
+
+    monkeypatch.setattr(httpx, "AsyncClient", FakeClient)
+
+    async def run():
+        choice = await llm.chat_raw([{"role": "user", "content": "test"}], settings)
+        deltas = [delta async for delta in llm.stream_chat(
+            [{"role": "user", "content": "test"}], settings)]
+        return choice, deltas
+
+    choice, deltas = asyncio.run(run())
+    assert choice["message"]["tool_calls"][0]["id"] == "call-1"
+    assert choice["_response_output"][0]["encrypted_content"] == "opaque"
+    assert deltas == ["Готово"]
+    assert all(url == "https://opencode.ai/zen/v1/responses" for url, _ in sent)
+
+
 def test_morning_client_uses_prefixed_gpt5_token_field(monkeypatch):
     captured = {}
 
@@ -220,6 +309,35 @@ def test_tool_calls_are_honoured_even_without_finish_reason(monkeypatch):
     assert executed == [("get_meta", {}, "Точка А")]
     assert {"tool": "get_meta"} in events
     assert events[-1] == {"delta": "Готово"}
+
+
+def test_responses_tool_loop_replays_provider_output(monkeypatch):
+    output = [
+        {"type": "reasoning", "encrypted_content": "opaque"},
+        {"type": "function_call", "call_id": "call-1",
+         "name": "get_meta", "arguments": "{}"},
+    ]
+    seen = []
+
+    async def fake_chat_raw(messages, *_args, **_kwargs):
+        seen.append(list(messages))
+        if len(seen) == 1:
+            return {"message": {"role": "assistant", "tool_calls": [{
+                "id": "call-1", "function": {"name": "get_meta", "arguments": "{}"},
+            }]}, "_response_output": output}
+        return {"message": {"role": "assistant", "content": "Готово"}}
+
+    monkeypatch.setattr(llm, "chat_raw", fake_chat_raw)
+    monkeypatch.setattr(tools, "execute_tool", lambda *_args, **_kwargs: '{"ok":true}')
+
+    events = _collect(chat.run_with_tools(
+        [{"role": "user", "content": "test"}], SimpleNamespace(),
+    ))
+
+    assert events == [{"tool": "get_meta"}, {"delta": "Готово"}]
+    assert seen[1][1] == {"_response_output": output}
+    assert seen[1][2] == {"role": "tool", "tool_call_id": "call-1",
+                          "content": '{"ok":true}'}
 
 
 def test_tool_call_limit_never_leaves_orphan_call_ids(monkeypatch):

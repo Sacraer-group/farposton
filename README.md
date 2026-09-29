@@ -7,6 +7,19 @@ This directory is an independent private Git repository. `main` contains the int
 - Portable synthetic fixture and generators: `demo/`. Shared product guides are supplied separately in the desktop bundle’s `passport` folder.
 - Secrets, virtual environments and runtime data are excluded from Git.
 
+## Synthetic demo assistant
+
+The existing assistant supports OpenCode Zen's `gpt-6-luna` through the Responses API. On the synthetic demo server, set these in the private `.env`:
+
+```dotenv
+LLM_BASE_URL=https://opencode.ai/zen/v1
+LLM_MODEL=gpt-6-luna
+LLM_API_KEY=<OpenCode Zen API key>
+LLM_ALLOW_CLIENT_DATA=1
+```
+
+Keep the key server side. Enable `LLM_ALLOW_CLIENT_DATA` only for a dataset approved for external processing; the demo fixture is synthetic. The assistant remains bounded by its existing read-only tools, per-account rate limit and request timeout. Do not use this configuration for client data without separate authorization.
+
 ## UI maintenance, 2026-09-29
 
 Chart tick bounds, responsive dates/header, demo navigation, request races and dark-theme contrast were corrected. Forecast calculations, inventory rules and synthetic source data were not changed.

@@ -38,7 +38,15 @@ def _endpoint(settings: WebSettings) -> str:
     scheme = parsed.scheme.lower()
     if not parsed.netloc or not (scheme == "https" or (scheme == "http" and loopback)):
         raise RuntimeError("LLM_BASE_URL должен быть HTTPS-адресом (http — только для 127.0.0.1/localhost, туннель)")
-    return base_url + "/chat/completions"
+    return base_url + ("/responses" if _uses_responses(settings) else "/chat/completions")
+
+
+def _uses_responses(settings: WebSettings) -> bool:
+    """OpenCode serves GPT models through Responses, not Chat Completions."""
+    parsed = urlsplit(getattr(settings, "llm_base_url", ""))
+    return (parsed.hostname == "opencode.ai"
+            and parsed.path.rstrip("/") in {"/zen/v1", "/inference/openai/v1"}
+            and str(settings.llm_model).lower().startswith("gpt-"))
 
 
 def _headers(settings: WebSettings) -> dict:
@@ -80,6 +88,24 @@ def _provider_error(response) -> RuntimeError:
 
 def _payload(messages: list[dict], settings: WebSettings,
              max_tokens: int, stream: bool, tools: list[dict] | None = None) -> dict:
+    if _uses_responses(settings):
+        input_items = []
+        for message in messages:
+            if "_response_output" in message:
+                input_items.extend(message["_response_output"])
+            elif message.get("role") == "tool":
+                input_items.append({"type": "function_call_output",
+                                    "call_id": message["tool_call_id"],
+                                    "output": message["content"]})
+            else:
+                input_items.append({"role": message["role"],
+                                    "content": message.get("content") or ""})
+        payload = {"model": settings.llm_model, "input": input_items,
+                   "max_output_tokens": max_tokens, "stream": stream, "store": False}
+        if tools:
+            payload["tools"] = [{"type": "function", **tool["function"], "strict": False}
+                                for tool in tools]
+        return payload
     p = {"model": settings.llm_model, "messages": messages, "stream": stream}
     # GPT-5.x принимает только max_completion_tokens (на max_tokens отвечает 400);
     # для остальных OpenAI-совместимых провайдеров оставляем классическое поле.
@@ -125,6 +151,10 @@ async def stream_chat(messages: list[dict], settings: WebSettings,
                     chunk = json.loads(data)
                 except json.JSONDecodeError:
                     continue  # рваная строка SSE — пропускаем, не роняем стрим
+                if _uses_responses(settings):
+                    if chunk.get("type") == "response.output_text.delta" and chunk.get("delta"):
+                        yield chunk["delta"]
+                    continue
                 choices = chunk.get("choices") or []
                 delta = (choices[0].get("delta") or {}).get("content") if choices else None
                 if delta:
@@ -151,6 +181,16 @@ async def chat_raw(messages: list[dict], settings: WebSettings,
         if resp.status_code != 200:
             raise _provider_error(resp)
         data = resp.json()
+        if _uses_responses(settings):
+            output = data.get("output") or []
+            tool_calls = [{"id": item.get("call_id"), "type": "function",
+                           "function": {"name": item.get("name"),
+                                        "arguments": item.get("arguments")}}
+                          for item in output if item.get("type") == "function_call"]
+            return {"message": {"role": "assistant",
+                                "content": _response_text(data),
+                                "tool_calls": tool_calls},
+                    "_response_output": output}
         choices = data.get("choices") or []
         if not choices:
             return {"message": {"role": "assistant", "content": ""},
@@ -180,5 +220,13 @@ async def chat(messages: list[dict], settings: WebSettings | None = None,
         if resp.status_code != 200:
             raise _provider_error(resp)
         data = resp.json()
+        if _uses_responses(settings):
+            return _response_text(data)
         choices = data.get("choices") or []
         return ((choices[0].get("message") or {}).get("content") or "") if choices else ""
+
+
+def _response_text(data: dict) -> str:
+    return "".join(part.get("text", "")
+                   for item in data.get("output") or [] if item.get("type") == "message"
+                   for part in item.get("content") or [] if part.get("type") == "output_text")

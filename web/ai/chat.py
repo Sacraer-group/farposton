@@ -279,9 +279,17 @@ async def run_with_tools(messages: list[dict],
         if not tool_calls:
             break
 
-        convo.append({"role": "assistant",
-                      "content": msg.get("content"),
-                      "tool_calls": tool_calls})
+        if "_response_output" in choice:
+            selected_ids = {tc["id"] for tc in tool_calls}
+            convo.append({"_response_output": [
+                item for item in choice["_response_output"]
+                if item.get("type") != "function_call"
+                or item.get("call_id") in selected_ids
+            ]})
+        else:
+            convo.append({"role": "assistant",
+                          "content": msg.get("content"),
+                          "tool_calls": tool_calls})
         for tc in tool_calls:
             fn = tc.get("function") or {}
             name = str(fn.get("name") or "")
