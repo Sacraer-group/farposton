@@ -268,6 +268,16 @@ def render_text(report: dict) -> str:
 def render_html(report: dict) -> str:
     # Scope the report BEFORE rendering; all source strings remain escaped.
     esc = lambda value: html.escape(str(value))
+    def detail_group(title: str, lines: list[str]) -> str:
+        if not lines:
+            return ''
+        items = []
+        for line in lines:
+            label, sep, value = line.partition(':')
+            content = '<strong>' + esc(label) + ':</strong> ' + esc(value.strip()) if sep else esc(line)
+            items.append('<li>' + content + '</li>')
+        return '<div class="detail-group"><h3>' + title + '</h3><ul>' + ''.join(items) + '</ul></div>'
+
     cards = []
     for p in report['points']:
         m = p['metrics']
@@ -290,13 +300,19 @@ def render_html(report: dict) -> str:
             str(r['sku']) + ' — последняя продажа ' + str(r['last_sale_at']) for r in p['early_stop'][:3])
                  + '. Это оценка, а не подтверждённое время исчерпания остатка.') if p['early_stop'] else 'Время окончания товаров не подтверждено.'
         state = 'Данные подтверждены' if p['complete'] else 'Предварительные данные'
+        detail_lines = render_point(p).splitlines()[2:]
+        source_at = next((i for i, line in enumerate(detail_lines) if line.startswith('Чеки:')), len(detail_lines))
+        action_at = next((i for i, line in enumerate(detail_lines) if line.startswith('Раннее окончание')), len(detail_lines))
+        details = (detail_group('Показатели и ограничения', detail_lines[:source_at])
+                   + detail_group('Источники и документы', detail_lines[source_at:action_at])
+                   + detail_group('Действия и ответственность', detail_lines[action_at:]))
         cards.append('<section><h2>' + esc(p['name']) + '</h2><p class="status">' + state + '</p>'
                      + '<dl>' + cells + '</dl><p>' + esc(edits) + '</p><p><strong>Документы:</strong> '
                      + esc(docs) + '</p><p>' + esc(early) + '</p><p><strong>Ответственный:</strong> '
                      + esc(p.get('owner') or 'не настроен') + '</p>'
                      + ('<p class="notice">' + esc(freshness_notice(p)) + '</p>' if freshness_notice(p) else '')
-                     + '<details><summary>Подробности и проверка данных</summary><pre>'
-                     + esc(render_point(p)) + '</pre></details></section>')
+                     + '<details><summary>Подробности и проверка данных</summary>'
+                     + details + '</details></section>')
     day = date.fromisoformat(report['trade_date']).strftime('%d.%m.%Y')
     return ('<!doctype html><html lang="ru"><head><meta charset="utf-8">'
             '<meta name="viewport" content="width=device-width,initial-scale=1">'
@@ -307,7 +323,12 @@ def render_html(report: dict) -> str:
             'dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:16px}'
             'dt{font-size:14px;color:#43566a}dd{font-size:22px;font-weight:650;margin:4px 0}'
             'p{margin:10px 0}.status,.notice{color:#695000}summary{cursor:pointer;font-weight:600}'
-            'pre{font:inherit;white-space:pre-wrap;overflow-wrap:anywhere}small{color:#43566a}'
+            '.detail-group{margin-top:18px}.detail-group h3{font-size:16px;margin:0 0 8px}'
+            '.detail-group ul{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));'
+            'gap:8px 16px;list-style:none;padding:0;margin:0}'
+            '.detail-group li{font-size:14px;line-height:1.45;overflow-wrap:anywhere;'
+            'padding:10px 12px;background:#f4f6f8;border-radius:8px}'
+            '.detail-group li strong{color:#172b3a}small{color:#43566a}'
             '@media(max-width:480px){body{padding:10px}section{padding:14px}dl{grid-template-columns:1fr 1fr}}'
             '</style></head><body><main><h1>Сводка за ' + esc(day) + '</h1>'
             '<p>Часовой пояс — UTC+10. † Сумма по загруженным строкам; полнота не подтверждена.</p>'
