@@ -216,3 +216,12 @@ def test_oversold_rows_are_explained_not_blamed_on_forecast() -> None:
     assert "Почему заказ 0, а продажа есть" in analytics
     assert hint in accuracy
     assert 'title="' + hint + '">Продано</th>' in accuracy
+
+
+def test_axis_ticks_stay_inside_plot_bounds() -> None:
+    for lo, hi in [(0, 560), (0, 475), (-3, 7), (0.1, 0.8)]:
+        ticks = svgchart._nice_ticks(lo, hi)
+        assert ticks and all(lo <= tick <= hi for tick in ticks)
+    svg = ET.fromstring(svgchart.lines({"sales": [("day 1", 350), ("day 2", 520)]}, title="Sales"))
+    grids = [node for node in svg if node.tag.endswith("line") and node.get("stroke") == svgchart.GRID]
+    assert grids and all(float(node.attrib["y1"]) >= 56 for node in grids)

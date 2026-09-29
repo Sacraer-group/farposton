@@ -192,3 +192,12 @@ tbody tr:hover td.namecell{background:var(--info-soft)}
 .kv b{font-weight:600}
 
 .serial-plate{display:block;width:140px;height:76px;object-fit:cover;object-position:50% 36%;border-radius:4px}
+
+@media(max-width:620px){
+  header{display:flex;gap:10px;flex-wrap:wrap}
+  .brand{flex:1;gap:10px;width:auto}
+  .service{font-size:13.5px}
+  .service .sub{font-size:11.5px}
+  .hdr-actions{width:auto;margin-top:0;flex-wrap:wrap}
+  .serial-plate{width:88px;height:48px;flex:none}
+}

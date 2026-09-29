@@ -11,11 +11,11 @@
 <style>
   /* Специфика страницы «Заявка» (общие стили — в app.css, его не трогаем) */
   .toprow{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap}
-  .toprow .grow{flex:1}
+  .toprow .grow{flex:1;min-width:0}
   .ordertitle{font-size:17px;font-weight:800;letter-spacing:.01em}
   .titleblock{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-  .datelab{font-size:13px;color:var(--ink2);display:flex;align-items:center;gap:7px}
-  #dateSel{padding:7px 10px;border:1px solid var(--line2);border-radius:9px;
+  .datelab{max-width:100%;min-width:0;font-size:13px;color:var(--ink2);display:flex;align-items:center;gap:7px}
+  #dateSel{min-width:0;max-width:100%;flex:1;padding:7px 10px;border:1px solid var(--line2);border-radius:9px;
     font-size:13.5px;background:var(--paper);color:var(--ink);font-family:inherit}
   .freshline{font-size:13px;color:var(--mut);margin-top:9px}
   .metaline{font-size:13px;color:var(--ink2);margin-top:9px;line-height:1.7}

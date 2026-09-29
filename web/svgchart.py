@@ -50,8 +50,8 @@ def _nice_ticks(lo: float, hi: float, n: int = 5) -> list[float]:
     t0 = int(lo / step) * step
     out = []
     t = t0
-    while t <= hi + step / 2:
-        if t >= lo - step / 2:
+    while t <= hi:
+        if t >= lo:
             out.append(round(t, 10))
         t += step
     return out

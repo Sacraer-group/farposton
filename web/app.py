@@ -29,7 +29,7 @@ from .logging_setup import setup_logging
 from .auth import (
     RateLimiter, authenticate_user, client_ip, ip_allowed, require_auth, session_is_valid,
 )
-from .access import principal_from_session
+from .access import principal_from_session, demo_no_auth
 
 settings = load_settings()
 
@@ -289,6 +289,7 @@ async def api_meta(request: Request, _: None = Depends(require_auth)):
         # операционный день локального времени UTC+10 и дата РАБОЧЕЙ заявки (завтра, D+1):
         # страница открывает её по умолчанию; правки — завтра и послезавтра,
         # дальние даты помечает как предварительные (см. routes_order)
+        "demo_no_auth": demo_no_auth(),
         "business_date": business_today.isoformat(),
         "operational_date": _operational_date(business_today).isoformat(),
         "points": fresh["points"],
