@@ -7,6 +7,8 @@ This directory is an independent private Git repository. `main` contains the int
 - Portable synthetic fixture and generators: `demo/`. Shared product guides are supplied separately in the desktop bundle’s `passport` folder.
 - Secrets, virtual environments and runtime data are excluded from Git.
 
+The [training notebook](notebooks/Пайплайн_обучения_моделей.ipynb) walks through the model pipeline on generated data. Run it from the repository root or `notebooks/`; its generated data and weights stay in the ignored `notebooks/_sandbox/` directory. The notebook source is included without saved execution outputs.
+
 ## Synthetic demo assistant
 
 The existing assistant supports OpenCode Go's `qwen3.8-flash` through its

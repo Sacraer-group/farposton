@@ -13,6 +13,7 @@ __pycache__/
 data/
 analysis/db/
 analysis/output/
+notebooks/_sandbox/
 *.duckdb
 
 # Рантайм
