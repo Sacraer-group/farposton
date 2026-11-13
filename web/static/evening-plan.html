@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Сохранённый план вечера (вымышленное демо)</title>
+  <style>
+    :root { --bg:#f6f4ef; --card:#fff; --text:#1f2937; --muted:#6b7280; --accent:#0f766e; --err:#b91c1c; --border:#d1d5db; }
+    *{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text);line-height:1.4}
+    main{max-width:860px;margin:0 auto;padding:16px} h1{margin:0 0 8px;font-size:1.6rem}
+    .notice{background:#fff7ed;border:1px solid #fdba74;padding:10px 12px;border-radius:10px;margin:10px 0}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin:12px 0}
+    .error{color:var(--err);margin:8px 0} .muted{color:var(--muted)} .hidden{display:none}
+    .pill{display:inline-block;background:#ecfeff;border:1px solid #99f6e4;border-radius:999px;padding:2px 8px;margin:2px 4px 2px 0;font-size:.9rem}
+    .plan-block{border-top:1px solid var(--border);padding-top:10px;margin-top:10px}
+    .status{font-weight:700} .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+    button.secondary{background:#eef2f7;color:var(--text);border:1px solid var(--border);padding:9px 12px;border-radius:10px;cursor:pointer;font:inherit}
+    a{color:var(--accent)} button:focus,a:focus{outline:3px solid #99f6e4;outline-offset:1px}
+  </style>
+</head>
+<body>
+<main>
+  <h1>Сохранённый план вечера</h1>
+  <div class="notice"><strong>Вымышленное демо.</strong> Наличие столов не проверено. Минуты пути и гарантии мест не показываются.</div>
+  <div id="loading" class="muted">Загрузка плана…</div>
+  <div id="error" class="error hidden" role="alert"></div>
+  <section id="plan" class="card hidden" aria-live="polite"></section>
+  <p><a href="/evening">Создать новый план</a></p>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+function pills(arr, label) {
+  if (!arr || !arr.length) return `<div><span class="muted">${label}: нет</span></div>`;
+  return `<div><strong>${label}:</strong> ${arr.map(x=>`<span class="pill">${x}</span>`).join(' ')}</div>`;
+}
+function renderPlace(title, place) {
+  if (!place) return '';
+  return `<div class="plan-block"><h3>${title}</h3>
+    <p><strong>${place.name}</strong> (${place.category}), расстояние ${place.distance_m} м</p>
+    ${pills(place.confirmed,'Подтверждённые признаки')}
+    ${pills(place.matched_preferred,'Совпавшие предпочтения')}
+    ${pills(place.unknown,'Неизвестно')}
+  </div>`;
+}
+function planIdFromPath() {
+  const m = location.pathname.match(/\/evening\/p\/([^/?#]+)/);
+  return m ? decodeURIComponent(m[1]) : '';
+}
+async function loadPlan() {
+  const id = planIdFromPath();
+  if (!id) { $('loading').classList.add('hidden'); $('error').textContent='Некорректная ссылка на план.'; $('error').classList.remove('hidden'); return; }
+  try {
+    const r = await fetch(`/api/evening/plans/${encodeURIComponent(id)}`, {credentials:'same-origin'});
+    const data = await r.json().catch(()=>({}));
+    $('loading').classList.add('hidden');
+    if (!r.ok) {
+      $('error').textContent = data?.detail?.message || `Ошибка ${r.status}`;
+      $('error').classList.remove('hidden');
+      return;
+    }
+    const current = data.current || {};
+    const url = location.href;
+    $('plan').innerHTML = `
+      <h2>План ${data.id}</h2>
+      <p><strong>Событие:</strong> ${data.event?.title || ''} — ${data.event?.starts_at ? new Date(data.event.starts_at).toLocaleString('ru-RU',{timeZone:'Asia/Vladivostok'}) : ''}</p>
+      <p><strong>Текущий статус:</strong> <span class="status">${current.event_status || 'unknown'}</span> ${current.stale ? '(stale)' : ''} <span class="muted">(проверено: ${current.checked_at || ''})</span></p>
+      <p><strong>Окно еды:</strong> ${data.request?.meal_start}–${data.request?.meal_end}, дата ${data.request?.date}</p>
+      ${renderPlace('Основной вариант', data.primary)}
+      ${renderPlace('План Б', data.alternative)}
+      <div class="plan-block">
+        <p class="muted">${data.disclaimer || ''}</p>
+        <p><strong>Создан:</strong> ${data.created_at || ''} · <strong>Истекает:</strong> ${data.expires_at || ''}</p>
+        <p><strong>Источники/дата проверки:</strong> ${(data.sources||[]).map(s=>`${s.name} (${s.checked_at}) — ${s.note||''}`).join('; ')}</p>
+        <div class="actions"><button type="button" class="secondary" id="copy-link">Скопировать ссылку</button></div>
+        <div id="copy-status" class="muted" aria-live="polite"></div>
+      </div>`;
+    $('plan').classList.remove('hidden');
+    $('copy-link').onclick = async () => {
+      try { await navigator.clipboard.writeText(url); $('copy-status').textContent = 'Ссылка скопирована.'; }
+      catch { $('copy-status').textContent = 'Не удалось скопировать автоматически. Скопируйте ссылку вручную.'; }
+    };
+  } catch (e) {
+    $('loading').classList.add('hidden');
+    $('error').textContent = 'Сетевая ошибка при загрузке плана.';
+    $('error').classList.remove('hidden');
+  }
+}
+loadPlan();
+</script>
+</body>
+</html>

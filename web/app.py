@@ -114,6 +114,7 @@ app.mount("/assets", StaticFiles(directory=STATIC / "assets"), name="assets")
 # Разделы: каждый живёт своим APIRouter-ом (все под require_auth внутри)
 from . import (routes_accuracy, routes_analytics, routes_chat,  # noqa: E402
                routes_comparison, routes_order, routes_places, routes_reports, routes_weekly_demo)
+from evening import routes as evening_routes
 
 app.include_router(routes_order.router)
 app.include_router(routes_accuracy.router)
@@ -123,6 +124,7 @@ app.include_router(routes_reports.router)
 app.include_router(routes_chat.router)
 app.include_router(routes_weekly_demo.router)
 app.include_router(routes_places.router)
+app.include_router(evening_routes.router)
 
 
 # ----- страницы ---------------------------------------------------------------
