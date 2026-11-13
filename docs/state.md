@@ -12,4 +12,4 @@ Build the local Vladivostok rental shortlist app by the sprint plan in `docs/REA
 Sprints 0–6 in order. Sprint 0 task S0-T3 needs a real `METRAPI_KEY`.
 
 ## Next
-Assign S0-T1, S0-T2, S0-T3 to three agents with `docs/agent-rules.md`.
+Sprint 0 issues: #2 (S0-T1), #3 (S0-T2), #4 (S0-T3). One executor per issue, each in its own branch; merge PRs, then run the sprint check in `docs/sprint-0.md`.
