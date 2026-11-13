@@ -48,3 +48,28 @@ def test_flat_page_escapes_description_and_404(client):
     assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
     assert "<script>alert(1)" not in html
     assert client.get("/flat/nope").status_code == 404
+
+
+def test_sample_banner_and_similar_photo(tmp_path):
+    import numpy as np
+    from flats import repo_user
+    from flats.similar import MODEL
+
+    conn = db.connect(tmp_path / "s.db")
+    db.init_db(conn)
+    run_import(conn, [{"source": "farpost", "source_id": "1", "price": 30000, "photos": ["https://x/1.jpg", "https://x/2.jpg"]},
+                      {"source": "farpost", "source_id": "2", "price": 20000, "photos": ["https://x/3.jpg"]}])
+    for url, sid, vec in [("https://x/1.jpg", "1", [1, 0]), ("https://x/2.jpg", "1", [0, 1]), ("https://x/3.jpg", "2", [0.6, 0.8])]:
+        conn.execute("INSERT INTO photo_features VALUES (?, 'farpost', ?, 'h', ?, ?)",
+                     (url, sid, MODEL, np.array(vec, dtype=np.float32).tobytes()))
+    conn.commit()
+    app = create_app(tmp_path / "s.db")
+    client = app.test_client()
+    client.post("/api/sample", data={"photo_url": "https://x/2.jpg"})
+    html = client.get("/").get_data(as_text=True)
+    assert "Сбросить образец" in html and "Похожий интерьер" in html
+    assert html.index("https://x/2.jpg\" alt=\"Похожий") < html.index("https://x/3.jpg")
+    client.post("/api/sample/clear")
+    assert "Сбросить образец" not in client.get("/").get_data(as_text=True)
+    assert repo_user.get_profile(conn).sample_photo_url is None
+    conn.close()

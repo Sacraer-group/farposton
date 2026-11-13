@@ -14,6 +14,13 @@
   <label><input type="checkbox" name="pets_required" value="1"{% if profile.pets_required %} checked{% endif %}> Нужно с животными</label>
   <button>Подобрать</button>
 </form>
+{% if profile.sample_photo_url %}
+<div class="sample" role="status">
+  <img src="{{ profile.sample_photo_url }}" alt="Выбранный образец интерьера" referrerpolicy="no-referrer">
+  <p>Сначала показаны квартиры с похожим интерьером{% if not rows|selectattr('similar')|list %} — для этого запустите <code>flats embed</code>{% endif %}.</p>
+  <form method="post" action="/api/sample/clear"><button>Сбросить образец</button></form>
+</div>
+{% endif %}
 {% for e in errors %}<p class="status-reject" role="alert">{{ e }}</p>{% endfor %}
 <p>Подходят или требуют уточнения: {{ rows|length }} из {{ total }}.{% if rows|length < 3 %} Остальные нарушают известные условия — попробуйте смягчить фильтры.{% endif %}</p>
 <div class="cards">{% for row in rows %}{% include "_card.html" %}{% endfor %}</div>

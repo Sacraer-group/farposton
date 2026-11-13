@@ -1,6 +1,7 @@
 {% set o = row.offer %}{% set c = row.costs %}
 <article class="card">
-  {% if o.photos %}<img class="thumb" src="{{ o.photos[0] }}" alt="Фото квартиры: {{ o.address or '' }}" loading="lazy" referrerpolicy="no-referrer">{% endif %}
+  {% if row.similar %}<img class="thumb" src="{{ row.similar[1] }}" alt="Похожий интерьер: {{ o.address or '' }}" loading="lazy" referrerpolicy="no-referrer"><p class="similar-label">Похожий интерьер</p>
+  {% elif o.photos %}<img class="thumb" src="{{ o.photos[0] }}" alt="Фото квартиры: {{ o.address or '' }}" loading="lazy" referrerpolicy="no-referrer">{% endif %}
   <p class="status status-{{ row.verdict.status }}">{{ row.verdict.status|status_label }}{% if row.decision == 'save' %} · в избранном{% endif %}</p>
   <h2><a href="{{ url_for('pages.flat', key=row.card.key) }}">{{ room_label(o.rooms) }}, {{ o.area_total or '?' }} м² · {{ o.district or 'район не указан' }}</a></h2>
   <p>{{ o.address or 'Адрес не указан' }}{% if o.floor %}, этаж {{ o.floor }}/{{ o.floors_total or '?' }}{% endif %}</p>
