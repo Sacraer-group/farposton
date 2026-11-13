@@ -5,7 +5,7 @@ from sqlite3 import Connection
 from flask import Flask, current_app, g, render_template
 
 from flats import config, db
-from flats.web.format import rub, status_label
+from flats.web.format import part_label, room_label, rub, status_label
 
 
 def get_conn() -> Connection:
@@ -18,7 +18,8 @@ def get_conn() -> Connection:
 def create_app(db_path: Path | None = None) -> Flask:
     app = Flask(__name__, template_folder="../templates", static_folder="../static")
     app.config["DB_PATH"] = db_path or config.db_path()
-    app.jinja_env.filters.update(rub=rub, status_label=status_label)
+    app.jinja_env.filters.update(rub=rub, status_label=status_label, part_label=part_label)
+    app.jinja_env.globals.update(room_label=room_label)
 
     @app.teardown_appcontext
     def close_conn(_error: BaseException | None) -> None:

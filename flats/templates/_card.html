@@ -1,0 +1,17 @@
+{% set o = row.offer %}{% set c = row.costs %}
+<article class="card">
+  {% if o.photos %}<img class="thumb" src="{{ o.photos[0] }}" alt="Фото квартиры: {{ o.address or '' }}" loading="lazy" referrerpolicy="no-referrer">{% endif %}
+  <p class="status status-{{ row.verdict.status }}">{{ row.verdict.status|status_label }}{% if row.decision == 'save' %} · в избранном{% endif %}</p>
+  <h2><a href="{{ url_for('pages.flat', key=row.card.key) }}">{{ room_label(o.rooms) }}, {{ o.area_total or '?' }} м² · {{ o.district or 'район не указан' }}</a></h2>
+  <p>{{ o.address or 'Адрес не указан' }}{% if o.floor %}, этаж {{ o.floor }}/{{ o.floors_total or '?' }}{% endif %}</p>
+  <p><strong>Ежемесячно:</strong> {{ c.monthly_known|rub }}{% if 'utilities' in c.monthly_unknown %} + коммунальные (уточнить){% endif %}</p>
+  <p><strong>На въезд:</strong> {{ c.move_in_known|rub }}{% if c.move_in_unknown %} <span class="status-unknown">+ не указано: {{ c.move_in_unknown|map('part_label')|join(', ') }}</span>{% endif %}</p>
+  {% if row.verdict.reasons %}<ul class="reasons">{% for r in row.verdict.reasons %}<li>{{ r }}</li>{% endfor %}</ul>{% endif %}
+  <form method="post" action="/api/decide" class="actions">
+    <input type="hidden" name="source" value="{{ o.source }}">
+    <input type="hidden" name="source_id" value="{{ o.source_id }}">
+    <button name="action" value="save">Сохранить</button>
+    <button name="action" value="skip">Пропустить</button>
+    <a href="{{ url_for('pages.flat', key=row.card.key) }}">Подробнее</a>
+  </form>
+</article>
