@@ -2,19 +2,19 @@
 Updated: 2026-11-13
 
 ## Objective
-Build the local Vladivostok rental shortlist app by the sprint plan in `docs/README.md`.
+Local app that helps pick 3–5 long-term rentals in Vladivostok worth visiting.
 
 ## Verified
-- Sprints 0–1 and Sprint 2 wave A merged: domain logic, repositories, importer, search service, actions API.
-- Real data: 50 Metrapi/FarPost long-term rentals in Vladivostok (`flats/demo/metrapi_vladivostok.json`, 2026-11-13, trial API key). Findings: `docs/source-sample.md`.
-- CLI `flats init-db | import-json | demo`; web search page and flat page work on real data (#32).
-- `pytest -q` -> 291 passed; CI green on `main`.
+- All five v1 features work on 50 real Metrapi/FarPost offers: search, flat page, visual search (SigLIP 2), favorites + compare, swipes.
+- `pytest -q` passes (312 tests) locally on Python 3.11 and in CI.
+- `tests/test_critical.py` covers the "must check" list; it fails when prepayment is double-counted or rejected offers leak into results (checked by mutation).
+- Headless Chromium at 1200px and 390px: save, skip, drag, undo, favorites, compare, sample photo and reset work; no JS errors.
+- Visual search: 803 photos embedded in 12 min on CPU; room-type agreement of top-5 matches 77.8% vs 12.6% random (`docs/ml-check.md`).
 
 ## Remaining
-1. Favorites + comparison page (S3-T5).
-2. Visual interior search: embeddings + similarity (Sprint 4).
-3. Swipe mode (Sprint 5); end-to-end checks (Sprint 6).
-4. Metrapi key was shared in chat: rotate it after the trial.
+- Manual usefulness session with a real person (S6-T3).
+- Style-level visual check of matches by eye.
+- Rotate the Metrapi key shared in chat.
 
 ## Next
-Create issues for S3-T5 (favorites/compare) and Sprint 4 wave A (embed, similar).
+Run the app (`README.md`) and do the usefulness session.

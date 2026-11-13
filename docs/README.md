@@ -32,18 +32,11 @@ Closed study project, run locally by one user.
 - Interfaces between tasks are fixed in [contracts.md](contracts.md). A task never changes a contract; if a contract is wrong, the agent stops and reports it.
 - Each task is a GitHub issue, worked in its own branch `s<x>-t<y>-<slug>` and merged into `main` by PR. Tasks of one sprint run in parallel branches.
 
-## Status and remaining work (2026-11-13)
+## Status (2026-11-13)
 
-Done: domain logic, repositories, importer, search service, actions API, CLI, search and flat pages, 50 real Metrapi offers (`docs/source-sample.md`).
+All five v1 features are built: search by conditions, clear flat card, similar-interior search, favorites + comparison, swipe mode. Critical rules are covered by `tests/test_critical.py`. Current snapshot: `state.md`.
 
-Remaining, in order:
-
-| Step | Owns | Result |
-| --- | --- | --- |
-| R1 Favorites + compare | `flats/web/compare.py`, `flats/templates/favorites.html`, `flats/templates/compare.html`, `tests/test_compare.py` | Saved list, side-by-side table of up to 5 offers with questions |
-| R2 Visual search | `flats/embed.py`, `flats/similar.py`, `flats/cli.py` (`embed`), sample banner in `search.html`/`_card.html` | Photos -> SigLIP 2 vectors; list re-ordered by the chosen photo; matched photo shown |
-| R3 Swipes | `flats/web/swipe.py`, `flats/templates/swipe.html`, `flats/static/swipe.js` | Same search rows, save/skip/undo by buttons, keys and drag |
-| R4 Critical checks | `tests/test_critical.py` | The "must check" list from `architecture.md` as tests |
+Not done: the manual usefulness session (Sprint 6, S6-T3) and a style-level check of visual search (`ml-check.md`).
 
 ## Verified facts used by this plan (2026-11-13)
 
