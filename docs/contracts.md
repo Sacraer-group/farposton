@@ -147,7 +147,7 @@ class FlatCard:                       # one flat = offers sharing group_id
 | `flats/questions.py` | `questions_for(card: FlatCard, chosen: Offer) -> list[str]` |
 | `flats/source.py` | `fetch_all(key: str, params: dict, *, page_size=1000, sleep=time.sleep, http=requests) -> Iterator[dict]` |
 | `flats/importer.py` | `run_import(conn, items: Iterable[dict]) -> int` (returns run id) |
-| `flats/repo_offers.py` | `upsert_offer(conn, item: dict, run_id: int) -> None`; `all_offers(conn) -> list[Offer]`; `offers_by_key(conn, key: str) -> list[Offer]`; `last_ok_run(conn) -> sqlite3.Row \| None` |
+| `flats/repo_offers.py` | `upsert_offer(conn, row: dict, run_id: int) -> None` (normalized dict: `offers` columns + `photos` list + `raw` dict; no commit); `all_offers(conn) -> list[Offer]`; `offers_by_key(conn, key: str) -> list[Offer]`; `last_ok_run(conn) -> sqlite3.Row \| None` |
 | `flats/repo_user.py` | `get_profile(conn) -> Profile`; `save_profile(conn, p: Profile) -> None`; `decide(conn, source, source_id, action) -> int`; `undo_last(conn) -> int \| None`; `current_decisions(conn) -> dict[tuple[str, str], str]` |
 | `flats/grouping.py` | `group_offers(offers: list[Offer]) -> list[FlatCard]` |
 | `flats/search.py` | `search(conn, profile: Profile, *, include_skipped=False) -> list[SearchRow]` |

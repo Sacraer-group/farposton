@@ -16,5 +16,5 @@ Build the local Vladivostok rental shortlist app by the sprint plan in `docs/REA
 - Sprints 1–6.
 
 ## Next
-Sprint 1 waves 1A and 1B merged (#8, #9, #10, #14, #15, #16; 233 tests green in CI).
-Remaining in Sprint 1: wave 1C issue S1-T4 grouping (needs `flats.costs`). See `docs/sprint-1.md`.
+Sprint 1 wave 1C in progress: #20 (S1-T4 grouping), #21 (S1-T9 offers repository), #22 (S1-T10 actions API) — three parallel branches.
+After merge: Sprint 1 done. Then search service + flat/search pages + favorites/compare (Sprint 3 wave B) can start on test fixtures; the listings loader waits for the database.

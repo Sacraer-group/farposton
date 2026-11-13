@@ -48,13 +48,22 @@ Test helper: every test file builds `Offer` objects with its own local `make_off
 - **Steps:** `questions_for` by contracts §5 table, table order, no duplicates. Unknowns detected via `money` functions. A `FlatCard` is built by hand in tests.
 - **Tests:** fully known offer -> only "other payments"; each trigger alone; differing terms between two offers -> conflict question.
 
-## Wave 1C — after 1B merged (needs `flats.costs`)
+## Wave 1C — after 1B merged (issues #20, #21, #22)
 
 ### S1-T4 Grouping
 
 - **Owns:** `flats/grouping.py`, `tests/test_grouping.py`
-- **Steps:** `group_offers` by contracts §5 "Grouping", ranking `best` with `costs.compute_costs`.
-- **Tests:** same `group_id` -> one card with 2 offers; `group_id=None` stays separate; `best` = lowest known total; unknown-total never beats known; output sorted by key.
+- **Steps:** `group_offers` by contracts §5 "Grouping", ranking with `costs.compute_costs`.
+
+### S1-T9 Offers repository (moved from S2-T1)
+
+- **Owns:** `flats/repo_offers.py`, `tests/test_repo_offers.py`
+- **Steps:** `upsert_offer` takes a normalized dict (keys = `offers` columns + `photos` list + `raw` dict), so the future listings-database loader only maps fields. No commit inside; caller owns the transaction.
+
+### S1-T10 User actions API (moved from S3-T4)
+
+- **Owns:** `flats/web/actions.py`, `tests/test_actions.py`
+- **Steps:** `/api/decide`, `/api/undo`, `/api/sample`, `/api/sample/clear`. Reads `offers` with direct SQL (does not import S1-T9).
 
 ## Sprint check
 

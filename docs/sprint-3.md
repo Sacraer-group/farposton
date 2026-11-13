@@ -32,13 +32,7 @@ Moved to Sprint 1 as S1-T8.
 
 ### S3-T4 Actions API
 
-- **Owns:** `flats/web/actions.py`, `tests/test_actions.py`
-- **Steps:** `bp = Blueprint("actions", __name__, url_prefix="/api")`.
-  - `POST /api/decide` form/json `source`, `source_id`, `action` in (`save`,`skip`); 400 otherwise; 404 if offer missing; returns `{"id": n}` for JSON, redirect to `Referer` or `/` for forms.
-  - `POST /api/undo` -> `{"undone": id or null}`.
-  - `POST /api/sample` `photo_url` (must exist in some offer's photos, else 400) -> saves profile with `sample_photo_url`, redirect `/`. `POST /api/sample/clear` -> sets it to `None`.
-- **Tests:** each endpoint happy path and each 400/404.
-- **Accept:** `pytest -q tests/test_actions.py`.
+Moved to Sprint 1 as S1-T10.
 
 ### S3-T5 Favorites and comparison
 

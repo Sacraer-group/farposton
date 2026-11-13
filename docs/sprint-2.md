@@ -4,13 +4,7 @@ Goal: `flats import` fills SQLite with real Vladivostok offers (source: the list
 
 ## S2-T1 Offer repository
 
-- **Owns:** `flats/repo_offers.py`, `tests/test_repo_offers.py`
-- **Steps:**
-  1. `upsert_offer(conn, item, run_id)`: map API fields to `offers` columns. `deposit_raw=item["deposit"]`, `commission_raw=item["commission"]`, `prepayment_raw=item["prepayment"]`, `utilities_raw=item["utilities_payer"]`, `pets_raw=item["pets_allowed"]`, `rent_period_raw=item["rent_period"]`; `source_id` and `group_id` stored as `str` (or `NULL`); `photos_json=json.dumps(item.get("photos") or [])`; `raw_json=json.dumps(item, ensure_ascii=False)` **after removing keys `phone`, `phones`, `seller_name`**. Use `INSERT ... ON CONFLICT(source, source_id) DO UPDATE`.
-  2. `all_offers` returns `Offer` objects (photos as tuple). `offers_by_key` handles both a `group_id` and a `source:source_id` key.
-  3. `last_ok_run` = latest `import_runs` row with `status='ok'`.
-- **Tests:** on a `tmp_path` DB with `init_db`: upsert twice updates price; missing optional keys -> `NULL`; phones not in `raw_json`; `offers_by_key` both key forms.
-- **Accept:** `pytest -q tests/test_repo_offers.py`.
+Moved to Sprint 1 as S1-T9. Input is a normalized dict, not a raw Metrapi item; the loader (re-scoped S2-T3/S2-T4) maps source fields to it.
 
 ## S2-T2 User repository
 
