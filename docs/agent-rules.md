@@ -9,7 +9,7 @@ Read this file, `docs/contracts.md`, `docs/constraints.md`, and your task block.
 3. Follow signatures and rules in `docs/contracts.md` exactly. Do not rename, add parameters, or change return types.
 4. No new dependencies except those in your task. No abstractions, options, or features not in the task.
 5. Write the tests listed in the task. Use `pytest`. No network in tests: pass fake `http`/`sleep` objects or fixture dicts.
-6. Run the acceptance command from the task. It must pass. Paste its real output in your report.
+6. Run the acceptance command from the task. It must pass. Paste its real output in your report. CI (`tests` workflow) must be green on the PR.
 7. Commit with an English message `S<x>-T<y>: <what>`, `git push -u origin <task branch>`, open a PR to `main` that says `Closes #<issue>`. On conflict in a file you do not own: stop and report.
 
 ## Never

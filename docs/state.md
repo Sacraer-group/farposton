@@ -5,11 +5,12 @@ Updated: 2026-11-13
 Build the local Vladivostok rental shortlist app by the sprint plan in `docs/README.md`.
 
 ## Verified
-- Only planning docs exist in `docs/`. No code yet.
-- Metrapi public endpoints `/v1/cities` and `/v1/facets?city=vladivostok` answered without a key (observed 2026-11-13).
+- S0-T1 (#2, PR #6) and S0-T2 (#3, PR #7) merged: package `flats`, config, types, SQLite schema.
+- `pytest -q` -> 10 passed locally (Python 3.11) and in CI (`.github/workflows/tests.yml`, runs on push to `main` and on every PR).
 
 ## Remaining
-Sprints 0–6 in order. Sprint 0 task S0-T3 needs a real `METRAPI_KEY`.
+- S0-T3 (#4, draft PR #5) blocked: no `METRAPI_KEY`. After the real sample, check `docs/source-sample.md` against contracts §5 money table before Sprint 1.
+- Sprints 1–6.
 
 ## Next
-Sprint 0 issues: #2 (S0-T1), #3 (S0-T2), #4 (S0-T3). One executor per issue, each in its own branch; merge PRs, then run the sprint check in `docs/sprint-0.md`.
+Provide `METRAPI_KEY` to the S0-T3 executor; in parallel Sprint 1 issues can be created (money parsing uses contracts §5 until the sample arrives).
