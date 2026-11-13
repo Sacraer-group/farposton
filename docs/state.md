@@ -7,6 +7,7 @@ Build the local Vladivostok rental shortlist app by the sprint plan in `docs/REA
 ## Verified
 - S0-T1 (#2) and S0-T2 (#3) merged: package `flats`, config, types, SQLite schema.
 - S1-T1 (#8), S1-T7 (#9), S1-T8 (#10) merged: money parsing, user profile/decisions repo, Flask shell.
+- S1-T2 (#14), S1-T3 (#15), S1-T5 (#16) merged: offer costs, eligibility, pre-viewing questions.
 - `pytest -q` passes locally (Python 3.11) and in CI (`.github/workflows/tests.yml`, runs on push to `main` and on every PR).
 
 ## Remaining
@@ -15,5 +16,5 @@ Build the local Vladivostok rental shortlist app by the sprint plan in `docs/REA
 - Sprints 1–6.
 
 ## Next
-Sprint 1 wave 1A merged (#8 money, #9 user repo, #10 web shell; 159 tests green in CI).
-Wave 1B in progress: #14 (S1-T2 costs), #15 (S1-T3 eligibility), #16 (S1-T5 questions) — three parallel branches. After merge: wave 1C issue S1-T4 grouping. See `docs/sprint-1.md`.
+Sprint 1 waves 1A and 1B merged (#8, #9, #10, #14, #15, #16; 233 tests green in CI).
+Remaining in Sprint 1: wave 1C issue S1-T4 grouping (needs `flats.costs`). See `docs/sprint-1.md`.
