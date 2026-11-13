@@ -29,7 +29,7 @@ Closed study project, run locally by one user.
 - **Inside one sprint no two tasks touch the same file.** Tasks of one sprint can run in parallel.
 - A sprint starts only after the previous sprint is merged and its sprint check passes.
 - Interfaces between tasks are fixed in [contracts.md](contracts.md). A task never changes a contract; if a contract is wrong, the agent stops and reports it.
-- Work goes straight to `main` (no feature branches). Each task is one commit.
+- Each task is a GitHub issue, worked in its own branch `s<x>-t<y>-<slug>` and merged into `main` by PR. Tasks of one sprint run in parallel branches.
 
 ## Sprint order
 

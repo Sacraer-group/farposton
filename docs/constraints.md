@@ -12,4 +12,4 @@
 | Daily rent is excluded by the source | Metrapi docs | Request `deal_type=rent&rent_period=long&realty_type=flat&city=vladivostok` |
 | Vladivostok code is `vladivostok` | `GET /v1/cities`, observed 2026-11-13 | Use this code in import |
 | Local single-user study project | User decision | No auth, no accounts, bind Flask to `127.0.0.1` |
-| Push directly to `main` | User decision | No feature branches or PRs |
+| One branch per task, merged into `main` | User decision | Parallel executors never share a branch; the plan docs themselves go straight to `main` |
