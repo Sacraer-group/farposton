@@ -47,7 +47,7 @@ def _uses_messages(settings: WebSettings) -> bool:
     parsed = urlsplit(getattr(settings, "llm_base_url", ""))
     return (parsed.hostname == "opencode.ai"
             and parsed.path.rstrip("/") == "/zen/go/v1"
-            and str(getattr(settings, "llm_model", "")).lower() == "qwen3.8-flash")
+            and str(getattr(settings, "llm_model", "")).lower() in {"qwen3.8-flash", "qwen3.8-max"})
 
 
 def _uses_responses(settings: WebSettings) -> bool:
@@ -230,10 +230,14 @@ async def stream_chat(messages: list[dict], settings: WebSettings,
                     if chunk.get("type") == "error":
                         raise RuntimeError("LLM API прервал поток")
                     delta = chunk.get("delta") or {}
+                    if delta.get("stop_reason") == "max_tokens":
+                        raise RuntimeError("Модель не завершила ответ; попробуйте короче")
                     if chunk.get("type") == "content_block_delta" and delta.get("type") == "text_delta":
                         yield delta.get("text", "")
                     continue
                 choices = chunk.get("choices") or []
+                if choices and choices[0].get("finish_reason") == "length":
+                    raise RuntimeError("Модель не завершила ответ; попробуйте короче")
                 delta = (choices[0].get("delta") or {}).get("content") if choices else None
                 if delta:
                     yield delta
@@ -287,6 +291,8 @@ async def chat_raw(messages: list[dict], settings: WebSettings,
         if not choices:
             return {"message": {"role": "assistant", "content": ""},
                     "finish_reason": "stop"}
+        if choices[0].get("finish_reason") == "length":
+            raise RuntimeError("Модель не завершила ответ; попробуйте короче")
         return choices[0]
 
 
@@ -320,6 +326,8 @@ async def chat(messages: list[dict], settings: WebSettings | None = None,
         if _uses_responses(settings):
             return _response_text(data)
         choices = data.get("choices") or []
+        if choices and choices[0].get("finish_reason") == "length":
+            raise RuntimeError("Модель не завершила ответ; попробуйте короче")
         return ((choices[0].get("message") or {}).get("content") or "") if choices else ""
 
 

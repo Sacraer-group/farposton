@@ -29,7 +29,7 @@ from .logging_setup import setup_logging
 from .auth import (
     RateLimiter, authenticate_user, client_ip, ip_allowed, require_auth, session_is_valid,
 )
-from .access import principal_from_session, demo_no_auth
+from .access import principal_from_session, demo_no_auth, demo_date
 
 settings = load_settings()
 
@@ -98,7 +98,9 @@ async def security_headers(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
-    response.headers["Referrer-Policy"] = "same-origin"
+    response.headers["Referrer-Policy"] = ("strict-origin-when-cross-origin"
+        if request.url.path == "/places" or (request.url.path == "/" and demo_no_auth())
+        else "same-origin")
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     response.headers["Content-Security-Policy"] = "frame-ancestors 'none'; base-uri 'self'; object-src 'none'"
     if settings.public_https:
@@ -111,7 +113,7 @@ app.mount("/assets", StaticFiles(directory=STATIC / "assets"), name="assets")
 
 # Разделы: каждый живёт своим APIRouter-ом (все под require_auth внутри)
 from . import (routes_accuracy, routes_analytics, routes_chat,  # noqa: E402
-               routes_comparison, routes_order, routes_reports, routes_weekly_demo)
+               routes_comparison, routes_order, routes_places, routes_reports, routes_weekly_demo)
 
 app.include_router(routes_order.router)
 app.include_router(routes_accuracy.router)
@@ -120,6 +122,7 @@ app.include_router(routes_analytics.router)
 app.include_router(routes_reports.router)
 app.include_router(routes_chat.router)
 app.include_router(routes_weekly_demo.router)
+app.include_router(routes_places.router)
 
 
 # ----- страницы ---------------------------------------------------------------
@@ -142,6 +145,11 @@ def _admin_page(request: Request, name: str):
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
+    return _page(request, "places.html" if demo_no_auth() else "index.html")
+
+
+@app.get("/forecast", response_class=HTMLResponse)
+async def forecast_page(request: Request):
     return _page(request, "index.html")
 
 
@@ -230,7 +238,8 @@ def health_payload() -> dict:
     age = data.snapshot_age_hours()
     dates = data.forecast_dates()
     latest = dates[-1] if dates else None
-    tomorrow = (date.today() + timedelta(days=1)).isoformat()
+    from .routes_order import _business_today
+    tomorrow = (_business_today() + timedelta(days=1)).isoformat()
     ok = age is not None and age < SNAPSHOT_STALE_H and latest is not None and latest >= tomorrow
     return {
         "ok": ok,
@@ -296,6 +305,8 @@ async def api_meta(request: Request, _: None = Depends(require_auth)):
         # страница открывает её по умолчанию; правки — завтра и послезавтра,
         # дальние даты помечает как предварительные (см. routes_order)
         "demo_no_auth": demo_no_auth(),
+        "demo_login": os.getenv("DA_PUBLIC_LOGIN") == "1",
+        "demo_date": demo_date().isoformat() if demo_date() else None,
         "business_date": business_today.isoformat(),
         "operational_date": _operational_date(business_today).isoformat(),
         "points": fresh["points"],

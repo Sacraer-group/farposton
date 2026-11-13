@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from datetime import date
 
 from fastapi import HTTPException, Request, status
 
@@ -25,6 +26,12 @@ class Principal:
 def demo_no_auth() -> bool:
     return (os.environ.get("WEB_DEMO_NO_AUTH") == "1"
             and os.environ.get("DEPLOYMENT_PROFILE", "local").lower() == "local")
+
+
+def demo_date() -> date | None:
+    """Explicit fixture clock; never enabled for authenticated/client deployments."""
+    raw = os.environ.get("WEB_DEMO_DATE", "").strip()
+    return date.fromisoformat(raw) if raw and demo_no_auth() else None
 
 
 def principal_from_session(request: Request) -> Principal:

@@ -232,7 +232,7 @@ async function applyAccessNavigation() {
     if (r.status === 401) return;
     const meta = await r.json();
     const logout = document.getElementById('logoutBtn');
-    if (meta.demo_no_auth && logout) logout.style.display = 'none';
+    if (meta.demo_no_auth && !meta.demo_login && logout) logout.style.display = 'none';
     if (meta && meta.access && meta.access.analytics)
       document.documentElement.dataset.adminAccess = '1';
   } catch (e) {

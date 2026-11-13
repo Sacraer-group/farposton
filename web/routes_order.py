@@ -21,7 +21,7 @@ from web import edits as edits_store
 from web import export as export_mod
 from web import order as order_mod
 from web.auth import client_ip, require_auth
-from web.access import principal_from_session, request_point, require_owned_point
+from web.access import principal_from_session, request_point, require_owned_point, demo_date
 from web.config import writer_path as _writer_path  # noqa: F401 — единая точка правды пути
 
 router = APIRouter(prefix="/api", dependencies=[Depends(require_auth)])
@@ -83,7 +83,7 @@ def _check_date(raw: str) -> str:
 
 def _business_today() -> _date:
     """Дата операционного дня Прогноз заказов (UTC+10, UTC+10)."""
-    return datetime.now(_LOCAL_TZ).date()
+    return demo_date() or datetime.now(_LOCAL_TZ).date()
 
 
 # Рабочая заявка — на ЗАВТРА по UTC+10: ночной цикл выпускает её в 05:30,

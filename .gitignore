@@ -25,3 +25,5 @@ meetings/
 .DS_Store
 .playwright-cli/
 .test-results/
+.demo/
+output/playwright/

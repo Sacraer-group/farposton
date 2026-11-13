@@ -63,6 +63,8 @@
     box-shadow:var(--shadow);
 
   }
+  .back-link{display:inline-block;color:var(--accent);font-size:13px;margin-bottom:14px;text-underline-offset:3px}
+  .back-link:focus-visible{outline:2px solid var(--accent);outline-offset:4px}
   .brand{text-align:center; margin-bottom:4px}
   .serial-plate{display:block;width:148px;height:72px;object-fit:cover;object-position:50% 36%;margin:0 auto;border-radius:4px}
   .service{font-size:15px; font-weight:600; margin-top:6px; color:var(--ink)}
@@ -89,6 +91,7 @@
 </head>
 <body>
   <form class="card" id="form" autocomplete="off">
+    <a class="back-link" href="/about">О проекте Forecast</a>
     <div class="brand"><img class="serial-plate" src="/assets/serial-plate.png" alt="SERIAL NO.">
       
       
@@ -100,7 +103,7 @@
     <label for="pwd">Пароль</label>
     <input type="password" id="pwd" name="password" required autocomplete="current-password">
     <button type="submit" id="btn">Войти</button>
-    <div class="err" id="err"></div>
+    <div class="err" id="err" role="alert" aria-live="polite"></div>
     <div class="foot">Демонстрационные данные</div>
   </form>
 

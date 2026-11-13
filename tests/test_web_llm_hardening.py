@@ -51,6 +51,37 @@ def test_non_gpt_payload_keeps_classic_max_tokens():
     assert "reasoning_effort" not in payload
 
 
+@pytest.mark.parametrize("model", ["glm-5.3", "qwen3.8-max"])
+def test_opencode_rejects_truncated_answers_in_all_transports(monkeypatch, model):
+    import httpx
+    settings = SimpleNamespace(llm_base_url="https://opencode.ai/zen/go/v1",
+                               llm_model=model, llm_api_key="test-key",
+                               llm_timeout_s=60, llm_proxy_url="")
+    messages_api = model == "qwen3.8-max"
+    data = ({"content": [{"type": "text", "text": "Оборванный ответ"}],
+             "stop_reason": "max_tokens"} if messages_api else
+            {"choices": [{"message": {"content": "Оборванный ответ"}, "finish_reason": "length"}]})
+    chunks = ([{"type": "content_block_delta", "delta": {"type": "text_delta", "text": "Оборванный ответ"}},
+               {"type": "message_delta", "delta": {"stop_reason": "max_tokens"}}] if messages_api else
+              [{"choices": [{"delta": {"content": "Оборванный ответ"}}]},
+               {"choices": [{"delta": {}, "finish_reason": "length"}]}])
+    def handler(request):
+        if json.loads(request.content).get("stream"):
+            return httpx.Response(200, text="".join("data: " + json.dumps(chunk) + "\n\n" for chunk in chunks))
+        return httpx.Response(200, json=data)
+    original_client = httpx.AsyncClient
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **kwargs: original_client(
+        **kwargs, transport=httpx.MockTransport(handler)))
+    async def run():
+        for call in (llm.chat_raw, llm.chat):
+            with pytest.raises(RuntimeError, match="не завершила"):
+                await call([{"role": "user", "content": "test"}], settings)
+        with pytest.raises(RuntimeError, match="не завершила"):
+            async for _ in llm.stream_chat([{"role": "user", "content": "test"}], settings):
+                pass
+    asyncio.run(run())
+
+
 def test_opencode_gpt6_responses_payload_replays_tool_state():
     settings = SimpleNamespace(llm_base_url="https://opencode.ai/zen/go/v1",
                                llm_model="gpt-6-luna", llm_api_key="test-key")
@@ -148,9 +179,10 @@ def test_opencode_transport_reads_responses_and_stream_deltas(monkeypatch):
     assert all(url == "https://opencode.ai/zen/go/v1/responses" for url, _ in sent)
 
 
-def test_opencode_qwen_messages_payload_and_tool_replay():
+@pytest.mark.parametrize("model", ["qwen3.8-flash", "qwen3.8-max"])
+def test_opencode_qwen_messages_payload_and_tool_replay(model):
     settings = SimpleNamespace(llm_base_url="https://opencode.ai/zen/go/v1",
-                               llm_model="qwen3.8-flash", llm_api_key="test-key")
+                               llm_model=model, llm_api_key="test-key")
     output = [{"type": "text", "text": "Checking"}, {
         "type": "tool_use", "id": "toolu-1", "name": "get_meta", "input": {}}]
     messages = [

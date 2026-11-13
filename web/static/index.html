@@ -168,9 +168,9 @@
     </div>
   </div>
 
-  <div class="footnote">
-    Демонстрационный сервис прогноза. Прогнозы считаются на этом сервере по данным
-    продаж 1С. При включённом помощнике вопросы и разрешённые демонстрационные данные передаются OpenCode.
+  <div class="footnote" id="demoNote">
+    Демонстрационный сервис прогноза. Страница показывает выпущенные заявки.
+    При включённом помощнике разрешённые данные передаются настроенному ИИ-сервису.
   </div>
   
 </div>
@@ -208,7 +208,7 @@
   // начинается с рабочей заявки (завтра по UTC+10); сервер отдаёт точный
   // флаг meta.editable, здесь — быстрая проверка без запроса.
   const isLocked = () => !!curDate && !!(META && META.operational_date)
-    && curDate < META.operational_date;
+    && (curDate < META.operational_date || (ORDER && ORDER.meta && ORDER.meta.editable === false));
   const ruDate = iso => (iso || '').split('-').reverse().join('.');       // 14.08.2026
   const ruDayMon = iso => (iso || '').slice(5).split('-').reverse().join('.'); // 14.08
 
@@ -331,7 +331,9 @@
   function renderFreshline() {
     const parts = [];
     const mt = META && META.snapshot_mtime;   // ISO; поля может и не быть — терпим
-    if (mt) {
+    if (META && META.demo_date) {
+      parts.push('Синтетический снимок · сценарий на ' + ruDate(META.demo_date));
+    } else if (mt) {
       const d = new Date(mt);
       if (!isNaN(d)) {
         const day = d.toLocaleDateString('sv');
@@ -805,6 +807,9 @@
     if (!hasKrap) showKrap = false;
     renderHead();
     renderFreshline();
+    if (META.demo_date) $('demoNote').textContent =
+      'Синтетическое демо: фиксированная дата ' + ruDate(META.demo_date) +
+      '. Заявки предрассчитаны; правки сохраняются только в локальном демо. 1С и внешний ИИ отключены.';
     renderPointTabs();
     renderTable();
     updateEditBar();
