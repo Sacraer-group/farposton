@@ -11,6 +11,7 @@ Closed study project, run locally by one user.
 | File | Purpose |
 | --- | --- |
 | [architecture.md](architecture.md) | Scope, modules, data flow, stack, out-of-scope list |
+| [ui-design.md](ui-design.md) | UI hierarchy, data boundaries and responsive design |
 | [constraints.md](constraints.md) | Real restrictions (source API, secrets, money rules) |
 | [contracts.md](contracts.md) | DB schema, data types, function signatures every task must follow |
 | [agent-rules.md](agent-rules.md) | How an executor agent takes, does, checks, and hands over a task |
@@ -34,7 +35,7 @@ Closed study project, run locally by one user.
 
 ## Status (2026-11-13)
 
-All five v1 features are built: search by conditions, clear flat card, similar-interior search, favorites + comparison, swipe mode. Critical rules are covered by `tests/test_critical.py`. Current snapshot: `state.md`.
+Before the current UI redesign, all five v1 features were built: search by conditions, clear flat card, similar-interior search, favorites + comparison, swipe mode. Critical rules are covered by `tests/test_critical.py`. Current snapshot: `state.md`.
 
 Not done: the manual usefulness session (Sprint 6, S6-T3) and a style-level check of visual search (`ml-check.md`).
 

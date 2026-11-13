@@ -1,18 +1,31 @@
 {% set o = row.offer %}{% set c = row.costs %}
-<article class="card">
-  {% if row.similar %}<img class="thumb" src="{{ row.similar[1] }}" alt="Похожий интерьер: {{ o.address or '' }}" loading="lazy" referrerpolicy="no-referrer"><p class="similar-label">Похожий интерьер</p>
-  {% elif o.photos %}<img class="thumb" src="{{ o.photos[0] }}" alt="Фото квартиры: {{ o.address or '' }}" loading="lazy" referrerpolicy="no-referrer">{% endif %}
-  <p class="status status-{{ row.verdict.status }}">{{ row.verdict.status|status_label }}{% if row.decision == 'save' %} · в избранном{% endif %}</p>
-  <h2><a href="{{ url_for('pages.flat', key=row.card.key) }}">{{ room_label(o.rooms) }}, {{ o.area_total or '?' }} м² · {{ o.district or 'район не указан' }}</a></h2>
-  <p>{{ o.address or 'Адрес не указан' }}{% if o.floor %}, этаж {{ o.floor }}/{{ o.floors_total or '?' }}{% endif %}</p>
-  <p><strong>Ежемесячно:</strong> {{ c.monthly_known|rub }}{% if 'utilities' in c.monthly_unknown %} + коммунальные (уточнить){% endif %}</p>
-  <p><strong>На въезд:</strong> {{ c.move_in_known|rub }}{% if c.move_in_unknown %} <span class="status-unknown">+ не указано: {{ c.move_in_unknown|map('part_label')|join(', ') }}</span>{% endif %}</p>
-  {% if row.verdict.reasons %}<ul class="reasons">{% for r in row.verdict.reasons %}<li>{{ r }}</li>{% endfor %}</ul>{% endif %}
-  <form method="post" action="/api/decide" class="actions">
-    <input type="hidden" name="source" value="{{ o.source }}">
-    <input type="hidden" name="source_id" value="{{ o.source_id }}">
-    <button name="action" value="save">Сохранить</button>
-    <button name="action" value="skip">Пропустить</button>
-    <a href="{{ url_for('pages.flat', key=row.card.key) }}">Подробнее</a>
-  </form>
+<article class="listing-card" data-listing-key="{{ row.card.key }}">
+  <div class="listing-photo">
+    <a href="{{ url_for('pages.flat', key=row.card.key) }}" tabindex="-1" aria-hidden="true">
+      {% if row.similar %}<img class="thumb" src="{{ row.similar[1] }}" alt="Похожий интерьер: {{ o.address or '' }}" loading="lazy" referrerpolicy="no-referrer">
+      {% elif o.photos %}<img class="thumb" src="{{ o.photos[0] }}" alt="Фото квартиры: {{ o.address or '' }}" loading="lazy" referrerpolicy="no-referrer">
+      {% else %}<div class="photo-placeholder">{{ icon('image') }}<span>Фотографий пока нет</span></div>{% endif %}
+    </a>
+    <span class="status-badge status-{{ row.verdict.status }}">{{ icon('check') if row.verdict.status == 'match' else icon('clock-3') }}{{ row.verdict.status|status_label }}</span>
+    {% if o.photos %}<span class="photo-count">{{ icon('image') }}{{ o.photos|length }}</span>{% endif %}
+  </div>
+  <div class="listing-body">
+    <div class="price-line"><strong>{{ c.monthly_known|rub }}</strong><span>/ месяц</span></div>
+    <h2><a href="{{ url_for('pages.flat', key=row.card.key) }}">{{ room_label(o.rooms) }} · {{ o.area_total or '?' }} м²{% if o.floor is not none %} · {{ o.floor }}/{{ o.floors_total or '?' }} эт.{% endif %}</a></h2>
+    <p class="listing-address">{{ o.address or 'Адрес не указан' }}</p>
+    <p class="listing-district">{{ o.district or 'Район не указан' }}</p>
+    <div class="move-in-line"><span>На въезд, известно</span><strong>{{ c.move_in_known|rub }}</strong></div>
+    <p class="cost-note">{% if c.move_in_unknown %}Не указано: {{ c.move_in_unknown|map('part_label')|join(', ') }}.{% else %}Предоплата, залог и комиссия учтены.{% endif %}{% if 'utilities' in c.monthly_unknown %} Коммунальные — уточнить.{% endif %}</p>
+    {% if row.similar %}<p class="similar-label">{{ icon('scan-eye') }}Похожий интерьер</p>{% endif %}
+    {% if row.verdict.reasons %}<details class="verdict-details"><summary>Почему нужно уточнить</summary><ul class="reasons">{% for r in row.verdict.reasons %}<li>{{ r }}</li>{% endfor %}</ul></details>{% endif %}
+    <div class="listing-bottom">
+      <form method="post" action="/api/decide" class="actions">
+        <input type="hidden" name="source" value="{{ o.source }}"><input type="hidden" name="source_id" value="{{ o.source_id }}">
+        <button name="action" value="save" class="button button-small{% if row.decision == 'save' %} button-saved{% else %} button-soft{% endif %}">{{ icon('heart') }}{{ 'В избранном' if row.decision == 'save' else 'Сохранить' }}</button>
+        <button name="action" value="skip" class="icon-button skip-button" aria-label="Пропустить: {{ o.address or o.source_id }}" title="Пропустить">{{ icon('x') }}</button>
+      </form>
+      {% if o.lat is not none and o.lon is not none %}<button type="button" class="icon-button" data-map-focus="{{ row.card.key }}" aria-label="На карте: {{ o.address or o.source_id }}" title="Показать на карте">{{ icon('map-pinned') }}</button>{% endif %}
+      <a class="details-link" href="{{ url_for('pages.flat', key=row.card.key) }}">Подробнее {{ icon('arrow-up-right') }}</a>
+    </div>
+  </div>
 </article>

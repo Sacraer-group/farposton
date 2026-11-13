@@ -1,3 +1,5 @@
+import re
+
 import pytest
 
 from flats import db
@@ -48,6 +50,41 @@ def test_flat_page_escapes_description_and_404(client):
     assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
     assert "<script>alert(1)" not in html
     assert client.get("/flat/nope").status_code == 404
+
+
+def test_each_grouped_offer_can_be_saved_from_its_own_panel(client):
+    html = client.get("/flat/demo-g1").get_data(as_text=True)
+    forms = re.findall(r'<form[^>]*class="offer-save-form"[^>]*>(.*?)</form>', html, re.S)
+    pairs = set()
+    for form in forms:
+        payload = dict(re.findall(r'name="(source|source_id|action)" value="([^"]+)"', form))
+        pairs.add((payload["source"], payload["source_id"]))
+        assert payload["action"] == "save"
+        assert client.post("/api/decide", data=payload).status_code == 303
+    assert pairs == {("farpost", "demo-12"), ("avito", "demo-13"), ("cian", "demo-14")}
+    favorites = client.get("/favorites").get_data(as_text=True)
+    for source, source_id in pairs:
+        assert f'value="{source}:{source_id}"' in favorites
+
+
+def test_house_data_is_distinguished_from_listing_data(client):
+    html = client.get("/flat/demo-g1").get_data(as_text=True)
+    assert "Дом требует проверки" in html
+    assert "Этажность по объявлению" in html
+    assert "Сведения не получены" in html
+    assert "Это не означает, что отключений нет" in html
+    assert 'href="https://dom.gosuslugi.ru/#!/houses"' in html
+
+
+def test_map_preserves_coordinates_and_escapes_listing_address(client):
+    conn = db.connect(client.application.config["DB_PATH"])
+    run_import(conn, [{"source": "farpost", "source_id": "map-xss", "lat": 43.125,
+                      "lon": 131.875, "address": '<img src=x onerror="alert(1)">'}])
+    conn.close()
+    html = client.get("/").get_data(as_text=True)
+    assert 'data-lat="43.125" data-lon="131.875"' in html
+    assert 'data-address="&lt;img src=x onerror=&#34;alert(1)&#34;&gt;"' in html
+    assert '<img src=x onerror="alert(1)">' not in html
 
 
 def test_sample_banner_and_similar_photo(tmp_path):

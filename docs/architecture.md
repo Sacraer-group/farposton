@@ -1,6 +1,6 @@
 # Architecture
 
-## Scope (v1)
+## Implemented baseline
 
 | Feature | What is built |
 | --- | --- |
@@ -10,9 +10,15 @@
 | Favorites and comparison | Save flats, compare up to 5 by the same fields, questions for missing data |
 | Swipe mode | Save / skip / details / undo over the same list, filters and favorites |
 
-## Out of scope (v1)
+## Product direction and data boundary
 
-House passport (management company, outages, complaints); route calculation; fair price prediction; own parsers; own duplicate model; AI chat and long reports; owner/fraud/defect checks; notifications, accounts, shared choice, mobile app; scheduler, Redis, vector DB, SPA, model server; uploading external reference photos; learning from swipes.
+The primary journey is map and address → house passport → managing and utility companies → outages and repairs → monthly and move-in costs with sources and dates → comparison and viewing questions. The shortlist targets 3–5 flats. Swipe is a secondary way to review the same offers.
+
+The redesign exposes this hierarchy using the existing offer data. The source snapshot has addresses, coordinates and floors; it does not supply building year, material, managing company, outages or repairs. Missing house information must be shown as unavailable, not inferred. Offer eligibility is separate from verification of the house address. A real house passport and its source/date provenance require additional data and are not yet implemented.
+
+## Out of scope
+
+Route calculation; fair price prediction; own parsers; own duplicate model; AI chat and long reports; owner/fraud/defect checks; notifications, accounts, shared choice, mobile app; scheduler, Redis, vector DB, SPA, model server; uploading external reference photos; learning from swipes.
 
 ## Data flow
 
@@ -59,7 +65,7 @@ Package name: `flats` (directory `flats/`). Each module has one owner task per s
 
 ## Stack
 
-Python 3.11+, Flask (Jinja), `sqlite3` from stdlib, `requests`, NumPy; Transformers + PyTorch + Pillow only for sprint 4. Plain HTML/CSS/JS. `pytest` for tests.
+Python 3.11+, Flask (Jinja), `sqlite3` from stdlib, `requests`, NumPy; Transformers + PyTorch + Pillow only for sprint 4. Plain HTML/CSS/JS. The map uses locally served Leaflet assets and OpenStreetMap tiles; tiles require a network connection and OpenStreetMap attribution. `pytest` for tests.
 
 ## Key rules
 
