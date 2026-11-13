@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Квартиры{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+</head>
+<body>
+  <header>
+    <nav aria-label="Основная навигация">
+      <a href="/">Поиск</a>
+      <a href="/favorites">Избранное</a>
+      <a href="/swipe">Свайпы</a>
+    </nav>
+    <p class="import-status">{% if last_import %}Данные от {{ last_import }}{% else %}Данные не загружены{% endif %}</p>
+  </header>
+  <main>{% block content %}{% endblock %}</main>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
