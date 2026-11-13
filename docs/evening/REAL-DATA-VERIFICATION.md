@@ -80,3 +80,9 @@
 - `/health` real; 8 реальных событий; 4567 карточек / 1344 общепита; `POST` 201 с `synthetic:false`, `GET→restart→GET` сохранил id/event/primary/alternative/synthetic. План `5ddb500c-b7ae-4e62-9ca9-3a013637003b`.
 - `CLEAN_GIT_ARCHIVE_REAL_HTTP_PERSISTENCE_OK`, `CLEAN_CATALOG_OK`. Созданные для проверки временные контейнер/volume удалены; основной volume сохранён.
 - Изменения после проверенного code commit затрагивают только документацию. Real mode намеренно требует внешнюю базу каталога; без неё операции подбора возвращают 503, а не вымышленные заведения.
+
+## Согласование с текущей историей GitHub
+
+На origin история ветки была заменена на базу `4b74da9` с изменёнными README и учебным notebook. Только два коммита этой задачи перенесены поверх новой базы (code `ffa67bd`, clean-check docs `902d039`), без force push и без возврата прежней истории.
+
+README до раздела Evening и notebook сохранены из origin; раздел Evening сохранён из этой задачи. Побайтовое сравнение Git tree/blob `evening`, `web`, `src`, `tests`, `evening_app.py`, `Dockerfile.evening`, `compose.evening.yaml` с проверенной версией до переноса подтвердило идентичность. Поэтому чистый образ `e71b1dbd550b` содержит тот же runtime-код, что `ffa67bd`; изменились только история и README/notebook. Повторные профильные тесты: **69 passed, 1 warning**, OpenCode shell `sh_1d441757b001EiBAuFSV0CyT72`, exit 0.
