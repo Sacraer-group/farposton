@@ -27,9 +27,9 @@ Open http://127.0.0.1:5000: search, flat page, «Избранное» (compare u
 
 ## Advisor
 
-Open «Помощник» to set requirements and a priority, review candidates and evidence, compare them, and prepare viewing questions. The route link opens an external map with the destination; choose the starting point and travel mode there. House records are dated evidence, not live outage status.
+Open «Мой выбор» (`/advisor`) to set requirements and a priority, review candidates and evidence, compare them, and prepare viewing questions. The route link opens an external map with the destination; choose the starting point and travel mode there. House records are dated evidence, not live outage status.
 
-Without a configured model provider, the advisor clearly uses retrieval. An optional OpenAI-compatible provider can be configured locally with `FLATS_LLM_BASE_URL`, `FLATS_LLM_MODEL` and `FLATS_LLM_API_KEY`; keep the key secret. Live provider behavior has not been verified. See [decision flow and demo](docs/decision-flow.md).
+Without a configured model provider, the advisor clearly uses retrieval. An optional OpenAI-compatible provider can be configured locally with `FLATS_LLM_BASE_URL` and `FLATS_LLM_MODEL`. The app appends `/chat/completions` to the base URL; for a compatible service, the base may end in `/v1`. Set `FLATS_LLM_API_KEY` if the provider requires a key, and keep it secret; a keyless local provider does not need one. Live provider behavior has not been verified. See [decision flow and demo](docs/decision-flow.md).
 
 ## Refresh real data
 
