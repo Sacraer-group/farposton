@@ -11,6 +11,9 @@ __pycache__/
 
 # Данные — приходят из сетевой папки (share), в git не кладутся
 data/
+!evening/data/
+evening/data/*
+!evening/data/vladivostok_events.json
 analysis/db/
 analysis/output/
 notebooks/_sandbox/

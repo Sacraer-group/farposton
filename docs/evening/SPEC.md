@@ -1,140 +1,124 @@
-# «Готовый вечер» — спецификация MVP
+# Evening — спецификация
 
-Документ фиксирует контракт, правила и границы MVP для ветки `feature/evening-planner`. Источник — `docs/evening/FABLE-DRAFT.md` (автоматические обрывки/повторы) с уточнениями координатора. Весь seed и UI — вымышленные данные; это не измерение, не прогноз загруженности и не проверка наличия свободных мест.
+MVP «Готовый вечер»: подбор места для еды до события. Поддерживает два режима данных:
+
+- **`real` (по умолчанию)**: каталог — снимок 2ГИС-карточек `profiles-separated-v1` (4567 карточек, общепит 1344), события — ручная проверенная подборка `evening/data/vladivostok_events.json` (8 событий 15–27.11.2026, 3 площадки; все 7 URL и venue ID проверены data-агентом и независимым review). Синтетическая загруженность из карточек игнорируется.
+- **`demo` (явный opt-in для fixtures)**: вымышленный runtime seed (25 мест, 6 событий) в `.demo/evening/`, не перезаписывается.
+
+Недоступная реальная база или файл событий в `real` → `503` (в т.ч. при ошибке доступа/OSError к каталогу/файлам), **без fallback на fictional**. Повреждение/невалидность данных событий (включая все записи) не должно становиться тихим успехом.
+
+## Режимы и конфигурация
+
+| Переменная | Назначение | По умолчанию |
+|---|---|---|
+| `EVENING_DATA_MODE` | `real` или `demo` | `real` |
+| `EVENING_CATALOG_DIR` | Корень `profiles-separated-v1` (`01_2gis/`, `02_generated/profiles.jsonl`) | — (обязателен для `real`) |
+| `EVENING_EVENTS_PATH` | Путь к `vladivostok_events.json` | `evening/data/vladivostok_events.json` |
+| `EVENING_DEMO_DIR` | Runtime demo seed/state dir (demo mode) | `.demo/evening` |
+| `EVENING_DB_PATH` | SQLite планов | `<EVENING_DEMO_DIR>/plans.sqlite3` |
+
+Production compose: один сервис `evening`, `EVENING_DATA_MODE=real`, readonly bind mount каталога с `create_host_path: false`, env host path config (`EVENING_CATALOG_HOST_DIR`). Demo — явный opt-in отдельным `docker run` (без второго сервиса/конфликтов портов в compose). Публичный `evening/data/vladivostok_events.json` включён в git/образ узким исключением `.gitignore`/`.dockerignore`.
+
+## Источники данных (real)
+
+- **Каталог мест**: полный снимок для поиска координат площадок событий по `venue_id` (любой ID в полном каталоге 4567). Рекомендации — **только общепит** по нормализованным категориям (`web/places.py`-совместимая нормализация rubrics): кафе/кофейни/рестораны/бары/быстрое питание/пекарни. Карточки 2ГИС (даже если `profile_type=synthetic` в файле профилей) используются как карточки; `synthetic_congestion`/загруженность **полностью игнорируется**.
+- **События**: ручная проверенная подборка, файл готовится отдельно (data-агент). Метаданные с источниками могут быть в image.
+
+Сохраняются реальные поля карточек: `id`, `name`, `address`, `lat`, `lon`, `rating`, `review_count`, `schedule`, `attribute_groups`, `updated_at`. UI/API должны явно указывать: каталог — снимок, события — ручная проверенная подборка, факт наличия столов неизвестен, статусы билетов неизвестны.
+
+## Схема событий
+
+```json
+{
+  "schema_version": 1,
+  "events": [
+    {
+      "id": "UUID",
+      "title": "string",
+      "starts_at": "aware ISO 8601, +10:00",
+      "date": "YYYY-MM-DD",
+      "status": "scheduled|cancelled|rescheduled|past",
+      "synthetic": false,
+      "venue_id": "любой ID полного каталога 4567",
+      "venue_name": "string",
+      "source_url": "https://...",
+      "source_name": "string",
+      "checked_at": "ISO datetime",
+      "age_restriction": "optional string"
+    }
+  ]
+}
+```
+
+`venue_id` обязан находить координаты в полном каталоге; если нет — площадка недоступна (не выдумывать/не подменять рестораном). `GET /api/evening/events` возвращает только `scheduled` future (для создания плана). `current` при чтении плана перепроверяет файлы; если при том же `id` и `status=scheduled` изменились каноническое `starts_at` или `venue_id` относительно снимка (сравнение времени по `datetime`, эквивалентный offset не считается переносом; `venue_id` — если оба значения присутствуют), `current.event_status=rescheduled` с актуальным `starts_at`, snapshot не меняется и план не пересчитывается автоматически. Явная `cancelled` в приоритете.
+
+## Маппинг признаков (real)
+
+`true` только при проверяемой положительной отметке в `attribute_groups[].attributes[].name`:
+
+| Признак | Отметка |
+|---|---|
+| `dog` | «Можно с собакой» |
+| `laptop` | «Можно с ноутбуком» |
+| `children` | «Детское меню» (UI label) |
+| `terrace` | «Летняя веранда» или «Столики на улице» (сезонная доступность не проверена) |
+| `reservations` | «Заказ столиков» (не подтверждённая бронь) |
+
+Отсутствие → `unknown` (не `false`). `unknown` не проходит required.
+
+## Расписание (real)
+
+- Проверка по weekday реальной даты (Asia/Vladivostok), минутная точность, полный интервал `[meal_start, meal_end)`.
+- Overnight: интервал предыдущего дня, пересекающий полночь, учитывается для текущего дня.
+- Split segments/holes: интервал должен полностью помещаться в доступный сегмент.
+- Missing/неизвестное/специальные расписания (комментарии, нестандартные поля) → не обещать открыто (`unknown`, место не проходит фильтр открытости).
+- Праздничные исключения не гарантируются; если не подтверждено — не обещать.
+
+Demo mode сохраняет прежнюю упрощённую модель `hours {open, close}`.
+
+## Расстояние
+
+`distance_m` — Haversine от координат **площадки конкретного события** (`venue_id` → точка в полном каталоге) до точки места. Не предвычислять fake-значения и не показывать минуты пути.
 
 ## Маршруты
 
 | Метод/путь | Назначение | Авторизация |
 |---|---|---|
-| `GET /evening` | Страница выбора события, даты, окна еды и предпочтений | `require_auth` |
-| `GET /evening/p/{id}` | Страница сохранённого плана (ссылка) | `require_auth` |
-| `GET /api/evening/events` | Только `scheduled` future-события, доступные для `POST /api/evening/plans` (rescheduled/cancelled/past не возвращаются) | `require_auth` |
+| `GET /evening` | UI выбора | `require_auth` |
+| `GET /evening/p/{id}` | UI сохранённого плана | `require_auth` |
+| `GET /api/evening/events` | События, доступные для создания плана | `require_auth` |
 | `POST /api/evening/plans` | Создание плана | `require_auth` |
-| `GET /api/evening/plans/{id}` | Чтение сохранённого плана | `require_auth` |
+| `GET /api/evening/plans/{id}` | Чтение плана + `current` | `require_auth` |
+| `GET /health` | Liveness (режим) | public |
 
-Авторизация API соответствует существующему `web.auth.require_auth`: без валидной сессии API возвращает `401`. В local demo с `WEB_DEMO_NO_AUTH=1` пользователь может получить ссылку и открыть страницы/читать план без учётки только в этом режиме (поведение `session_is_valid`).
+`503` в real mode при недоступных каталоге/событиях (`real_data_unavailable`/`events_unavailable`). `409 event_venue_unavailable` если площадка события не найдена в каталоге с координатами.
 
 ## Вход `POST /api/evening/plans`
 
-Тело — JSON-объект. Лишние поля, неизвестные поля, неверные типы и нарушение границ дают `422`. Валидация строгая.
-
-```json
-{
-  "event_id": "string, UUID, 1-64 символа",
-  "date": "YYYY-MM-DD, дата события в Asia/Vladivostok",
-  "meal_start": "HH:MM",
-  "meal_end": "HH:MM",
-  "required_features": ["dog", "laptop", "children", "terrace", "reservations"],
-  "preferred_features": ["dog", "laptop", "children", "terrace", "reservations"],
-  "max_distance_m": 1500
-}
-```
-
-Правила валидации:
-- `event_id`: строка, валидный UUID (формат проверяется), длина 1–64.
-- `date`: `YYYY-MM-DD`, должна совпадать с датой события в `Asia/Vladivostok`.
-- `meal_start`, `meal_end`: `HH:MM` (24 часа), `meal_end > meal_start`, `meal_end <= starts_at_event_local_time`.
-- Интервал еды `[meal_start, meal_end)` проверяется полностью: место должно быть открыто на всём интервале.
-- `required_features`, `preferred_features`: массивы, max 5 элементов, только значения enum `{dog,laptop,children,terrace,reservations}`, уникальные внутри массива, без пересечения между required и preferred.
-- `max_distance_m`: integer, 100–5000.
-- `bool` не принимается как `int` там, где ожидается integer; типы проверяются строго.
-
-## Seed и runtime-данные
-
-- Runtime fictionalseed: 25 мест и 6 событий на ближайшие даты, хранится отдельно в игнорируемой `.demo/evening/`.
-- Seed не перезаписывается при повторных запусках; по умолчанию открыт только этот источник.
-- UI чётко помечает данные как вымышленные.
-- `GET /api/evening/events` возвращает только события со статусом `scheduled` и `starts_at` в будущем — то есть доступные для создания плана через `POST /api/evening/plans`; `rescheduled`, `cancelled` и `past` не выбираются.
-- Отсутствующий/удалённый event не превращается в 404 сохранённого плана: `GET plans/{id}` возвращает снимок и `current` со статусом; сохранённый план с `current.event_status = rescheduled` остаётся доступным по `GET` (снимок не меняется).
+Строгая валидация (Pydantic, `extra=forbid`, строгие типы): `event_id` UUID, `date` совпадает с датой события (Asia/Vladivostok), `meal_start`/`meal_end` `HH:MM`, `meal_end > meal_start`, `meal_end <= starts_at`, `max_distance_m` 100–5000 (int, не bool), признаки из `{dog,laptop,children,terrace,reservations}` max 5 уникальных, без пересечения required/preferred.
 
 ## Рекомендация
 
-- Рекомендатор — чистая функция, без LLM, 2ГИС и Forecast.
-- Кандидаты: открыты на всём `[meal_start, meal_end)`, в пределах `max_distance_m`, все `required_features` подтверждены (`true` в seed). Неизвестное required не проходит.
-- Порядок: больше совпавших `preferred_features`, затем меньше `distance_m`, затем `id` места.
-- `alternative` (plan B): другая `category`, если есть подходящая; иначе следующее по тому же порядку. Те же ограничения (окно, distance, required). Если подходящих мест меньше двух — `409 not_enough_places`.
+Чистая функция: кандидаты открыты на всём `[meal_start, meal_end)`, `distance_m <= max_distance_m`, все required `true`. Сортировка: больше matched preferred, затем меньше distance_m, затем id. `alternative` — другая категория если есть, иначе следующее. Менее двух подходящих → `409 not_enough_places`.
 
-## Выход `POST /api/evening/plans` (201) и `GET /api/evening/plans/{id}` (200)
+## Снимок/чтение плана
 
-```json
-{
-  "id": "uuid4",
-  "created_at": "2026-11-13T19:00:00+10:00",
-  "expires_at": "2026-11-14T19:00:00+10:00",
-  "synthetic": true,
-  "request": {
-    "event_id": "...",
-    "date": "YYYY-MM-DD",
-    "meal_start": "HH:MM",
-    "meal_end": "HH:MM",
-    "required_features": [],
-    "preferred_features": [],
-    "max_distance_m": 1500
-  },
-  "event": {
-    "id": "...",
-    "title": "...",
-    "starts_at": "ISO +10:00",
-    "status": "scheduled"
-  },
-  "primary": {
-    "place_id": "...",
-    "name": "...",
-    "category": "...",
-    "distance_m": 420,
-    "confirmed": ["dog"],
-    "unknown": ["terrace"],
-    "matched_preferred": ["dog"]
-  },
-  "alternative": {
-    "place_id": "...",
-    "name": "...",
-    "category": "...",
-    "distance_m": 500,
-    "confirmed": [],
-    "unknown": [],
-    "matched_preferred": []
-  },
-  "current": {
-    "event_status": "scheduled|cancelled|rescheduled|past|unavailable|stale",
-    "starts_at": "ISO +10:00 или null",
-    "stale": false,
-    "checked_at": "ISO +10:00"
-  },
-  "sources": [
-    {"name": "fictional_seed", "checked_at": "ISO +10:00", "note": "Вымышленные данные, не реальная проверка"}
-  ],
-  "disclaimer": "Наличие столов не проверено. Данные вымышленные. Минуты пути и гарантии мест не показываются."
-}
-```
+- Snapshot сохраняется в SQLite, TTL 24h. `GET` после истечения → `410 plan_expired`.
+- `current` пересчитывается при чтении (revalidate) по актуальным файлам, snapshot не меняется.
+- `current.event_status`: `scheduled|cancelled|rescheduled|past|unavailable|stale` (`rescheduled` также при обнаруженном изменении времени/площадки относительно снимка без явного статуса `rescheduled` в источнике).
+- Старые fictional/demo планы сохраняют `synthetic:true` и свои источники; при отсутствии события `current` → `unavailable`, план не стирается.
 
-- `snapshot` сохраняется в SQLite; `current` пересчитывается при чтении (revalidate) и не меняет снимок.
-- `current.event_status`: `cancelled`, `rescheduled`, `past`, `unavailable` (отсутствует/удалён), `stale` (источник недоступен/нельзя проверить) — по состоянию seed на момент чтения.
-- План живёт 24 часа: после истечения `GET` возвращает `410`.
+## Источники, synthetic, stale
 
-## Ошибки
-
-| Код | `error` | Когда |
-|---|---|---|
-| 401 | `unauthorized` | Нет валидной сессии (соответствует `require_auth`) |
-| 404 | `event_not_found` | `event_id` неизвестен при создании плана |
-| 404 | `plan_not_found` | План не найден (валидный UUID, запись отсутствует) |
-| 409 | `event_unavailable` | Событие отменено/прошло/rescheduled/недоступно для создания плана |
-| 409 | `not_enough_places` | Менее двух подходящих мест (нет primary+alternative) |
-| 410 | `plan_expired` | План старше 24 ч |
-| 422 | `validation_error` | Формат, типы, границы, UUID, дата, окно, лишние/неизвестные поля, bool/int, дубли/пересечение признаков; невалидный UUID в `GET /api/evening/plans/{id}` |
-
-Тело ошибки: `{"detail": {"error": "<code>", "message": "<понятный текст>"}}` (или совместимая форма FastAPI с сохранением кода).
+- Real: `synthetic:false` для событий/мест/источников; источники включают каталог-снимок и источник события с `source_url` (кликабельный https), `checked_at`, понятные примечания. Без автоматического «проверено».
+- `checked_at` события старше 24h → видимое предупреждение при list/plan/read.
+- Demo: `synthetic:true`, источник `fictional_seed`.
+- Disclaimer: наличие столов и статусы билетов не проверены.
 
 ## UI
 
-- `/evening`: выбор события, даты, окна еды, required/preferred признаков, max_distance_m; показ результата, plan B, объяснения (confirmed/unknown/matched_preferred), копирование ссылки, состояния loading/error/empty; mobile/keyboard доступны.
-- `/evening/p/{id}`: отображение сохранённого плана, `current` статус, источники/дата проверки, disclaimer.
-- Без минут пути и без гарантий мест. Данные явно вымышленные.
+`/evening` и `/evening/p/{id}`: событие/дата/окно/предпочтения, результат + plan B + объяснения, копирование ссылки, loading/error/empty/mobile/keyboard. Показывать год/таймзону/площадку/адрес, кликабельный https source, предупреждения stale, корректные метки признаков. Без минут пути и без гарантий мест. Убрать hardcoded fictional в real mode.
 
-## Ограничения MVP
+## Ограничения
 
-- Никаких LLM или внешних API в MVP.
-- Никакого raw текста/контактов в хранилище.
-- SQL параметризованный.
-- Текущие запросы к 2ГИС не выполняются.
+Без LLM/внешних API/2ГИС-запросов в MVP. Без raw текста/контактов в хранилище. SQL параметризованный. Синтетическая загруженность игнорируется. Clean clone требует каталог+события или явный demo.

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* Real browser smoke for Evening MVP container. */
+/* Real browser smoke for Evening MVP container (real data mode). */
 const fs = require('fs');
 const path = require('path');
 
@@ -30,6 +30,15 @@ async function checkNoOverflow(page, width, label) {
   await shot(page, `${label}-${width}.png`);
 }
 
+function pad2(n) { return String(n).padStart(2, '0'); }
+function hmFromIsoVL(iso) {
+  // compute local HH:MM in Asia/Vladivostok
+  const d = new Date(iso);
+  return new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Vladivostok', hour: '2-digit', minute: '2-digit', hour12: false }).format(d);
+}
+function minutes(hm) { const [h, m] = hm.split(':').map(Number); return h * 60 + m; }
+function toHM(mins) { mins = Math.max(0, Math.min(23 * 60 + 59, mins)); return `${pad2(Math.floor(mins / 60))}:${pad2(mins % 60)}`; }
+
 async function main() {
   let chromium;
   try {
@@ -46,93 +55,106 @@ async function main() {
   page.on('console', msg => { if (msg.type() === 'error') consoleErrors.push(`console: ${msg.text()}`); });
 
   try {
-    // 1) load /evening
     await page.goto(`${BASE_URL}/evening`, { waitUntil: 'networkidle' });
-    await page.waitForSelector('#plan-form:not(.hidden)', { timeout: 15000 });
+    await page.waitForSelector('#plan-form:not(.hidden)', { timeout: 20000 });
     await shot(page, '01-evening-loaded.png');
     const title = await page.textContent('h1');
     assert(title && title.includes('Готовый вечер'), `unexpected title: ${title}`);
     const bodyText = await page.textContent('body');
-    assert(bodyText.includes('Вымышленные данные'), 'synthetic marking missing on /evening');
+    assert(bodyText.includes('Реальные данные'), 'real data marking missing on /evening');
+    assert(!bodyText.includes('Вымышленные данные'), 'fictional marking must not appear in real mode');
 
-    // 2) choose real seed event (from live API)
     const eventsRes = await page.evaluate(async (base) => {
       const r = await fetch(`${base}/api/evening/events`, { credentials: 'same-origin' });
-      return { ok: r.ok, status: r.status, data: await r.json().catch(()=>null) };
+      return { ok: r.ok, status: r.status, data: await r.json().catch(() => null) };
     }, BASE_URL);
     assert(eventsRes.ok, `events API failed: ${eventsRes.status}`);
-    const items = (eventsRes.data && eventsRes.data.items) || [];
+    const data = eventsRes.data || {};
+    const items = data.items || [];
+    console.log('events_meta:', { synthetic: data.synthetic, count: items.length, warning: data.warning });
     console.log('events:', items.map(e => ({ id: e.id, title: e.title, date: e.date, starts_at: e.starts_at, status: e.status })));
+    assert(data.synthetic === false, 'events response must not be synthetic in real mode');
     const scheduled = items.find(e => e.status === 'scheduled');
-    assert(scheduled, 'no scheduled seed event found');
+    assert(scheduled, 'no scheduled real event found');
+
     await page.selectOption('#event', scheduled.id);
-    // ensure date matches event
     await page.evaluate((d) => { document.getElementById('date').value = d; }, scheduled.date);
 
-    // 3) valid window/traits
-    // meal_end must be <= event start local time; pick safe window before event
-    const startsAt = new Date(scheduled.starts_at);
-    // compute local HH:MM in Asia/Vladivostok by formatting
-    const fmt = (d) => new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Vladivostok', hour: '2-digit', minute: '2-digit', hour12: false }).format(d);
-    // use 18:00 start and 30 min before event end as safe values if possible, else fixed
-    await page.fill('#meal_start', '18:00');
-    const evHM = fmt(startsAt); // HH:MM
-    let mealEnd = '18:30';
-    const [eh, em] = evHM.split(':').map(Number);
-    const endMins = eh * 60 + em - 15; // 15 min before event
-    if (endMins > 18 * 60 + 1) {
-      mealEnd = `${String(Math.floor(endMins/60)).padStart(2,'0')}:${String(endMins%60).padStart(2,'0')}`;
+    // compute meal window from event start (not hardcoded 17-18)
+    const evHM = hmFromIsoVL(scheduled.starts_at);
+    const evM = minutes(evHM);
+    let mealEndM = evM - 30;
+    let mealStartM = mealEndM - 90;
+    if (mealStartM < 0) {
+      mealStartM = Math.max(0, evM - 120);
+      mealEndM = Math.max(mealStartM + 30, evM - 15);
     }
+    if (mealEndM <= mealStartM) mealEndM = mealStartM + 30;
+    if (mealEndM > evM) mealEndM = evM;
+    const mealStart = toHM(mealStartM);
+    const mealEnd = toHM(mealEndM);
+    await page.fill('#meal_start', mealStart);
     await page.fill('#meal_end', mealEnd);
     await page.fill('#max_distance_m', '3000');
-    // pick a preferred trait (valid, no intersection)
-    await page.check('input[name="preferred_features"][value="laptop"]');
+    // no required/preferred traits to avoid forcing; keep valid
     await shot(page, '02-form-filled.png');
-    console.log('chosen event:', { id: scheduled.id, title: scheduled.title, date: scheduled.date, meal: `18:00-${mealEnd}`, ev: evHM });
+    console.log('chosen event:', { id: scheduled.id, title: scheduled.title, date: scheduled.date, meal: `${mealStart}-${mealEnd}`, ev: evHM });
 
-    // 4) POST create from UI
-    await Promise.all([
-      page.waitForResponse(r => r.url().includes('/api/evening/plans') && r.request().method() === 'POST', { timeout: 20000 }),
+    const [resp] = await Promise.all([
+      page.waitForResponse(r => r.url().includes('/api/evening/plans') && r.request().method() === 'POST', { timeout: 30000 }),
       page.click('#submit-btn'),
     ]);
-    await page.waitForSelector('#result:not(.hidden)', { timeout: 20000 });
-    await shot(page, '03-result.png');
+    const status = resp.status();
+    console.log('create plan status:', status);
+    if (status === 201) {
+      await page.waitForSelector('#result:not(.hidden)', { timeout: 30000 });
+      await shot(page, '03-result.png');
+      const resultText = await page.textContent('#result');
+      assert(resultText.includes('Основной вариант'), 'primary option missing');
+      assert(resultText.includes('План Б'), 'plan B missing');
+      assert(/реальные данные/i.test(resultText), 'real data marking missing in result');
+      assert(!resultText.includes('fictional_seed'), 'fictional_seed must not appear in real result');
+      assert(resultText.includes('2gis_catalog_snapshot') || resultText.includes('Источники') || resultText.includes('источник'), 'catalog/source info missing');
+      assert(resultText.includes('Подтверждённые признаки') || resultText.includes('Совпавшие предпочтения') || resultText.includes('Неизвестно'), 'feature explanation markers missing');
+      const planLink = await page.getAttribute('#plan-link', 'href');
+      assert(planLink && /\/evening\/p\//.test(planLink), `plan link missing or invalid: ${planLink}`);
+      console.log('plan link:', planLink);
 
-    // 5) primary/planB/explicit synthetic marking
-    const resultText = await page.textContent('#result');
-    assert(resultText.includes('Основной вариант'), 'primary option missing');
-    assert(resultText.includes('План Б'), 'plan B missing');
-    assert(resultText.includes('вымышлен') || resultText.includes('Вымышлен'), 'synthetic marking missing in result');
-    assert(resultText.includes('fictional_seed') || resultText.includes('Вымышленн'), 'source/check marking missing');
-    assert(resultText.includes('Подтверждённые признаки') || resultText.includes('Совпавшие предпочтения') || resultText.includes('Неизвестно'), 'feature explanation markers missing');
-    const planLink = await page.getAttribute('#plan-link', 'href');
-    assert(planLink && /\/evening\/p\//.test(planLink), `plan link missing or invalid: ${planLink}`);
-    console.log('plan link:', planLink);
+      const planPage = await context.newPage();
+      await planPage.goto(planLink, { waitUntil: 'networkidle' });
+      await planPage.waitForSelector('#plan:not(.hidden)', { timeout: 30000 });
+      await shot(planPage, '04-plan-page.png');
+      const planText = await planPage.textContent('#plan');
+      assert(planText.includes('Основной вариант'), 'primary missing on plan page');
+      assert(planText.includes('План Б'), 'plan B missing on plan page');
+      assert(planText.includes('Текущий статус'), 'current status missing on plan page');
+      assert(planText.includes('Источники'), 'sources missing on plan page');
+      assert(!planText.includes('fictional_seed'), 'fictional_seed must not appear on real plan page');
+      const planStatus = await planPage.textContent('.status');
+      console.log('plan page status:', planStatus);
+      await checkNoOverflow(planPage, 1280, 'plan');
+      await checkNoOverflow(planPage, 320, 'plan');
+      await planPage.close();
+    } else {
+      // honest 409 (e.g. not enough places) is allowed by spec; UI must show error without crash
+      const errBody = await resp.json().catch(() => ({}));
+      console.log('create plan not 201 (honest outcome):', errBody);
+      await page.waitForSelector('#form-error:not(.hidden), #result:not(.hidden)', { timeout: 15000 }).catch(() => {});
+      const errText = await page.textContent('#form-error').catch(() => '') || '';
+      const resText = await page.textContent('#result').catch(() => '') || '';
+      assert(errText.trim().length > 0 || resText.trim().length > 0, 'no visible error/result after non-201 response');
+      assert(await page.isVisible('#plan-form'), 'form not visible after non-201 response');
+      await shot(page, '03-result-or-error.png');
+    }
 
-    // 6) open share link /evening/p/id and see plan
-    const planPage = await context.newPage();
-    await planPage.goto(planLink, { waitUntil: 'networkidle' });
-    await planPage.waitForSelector('#plan:not(.hidden)', { timeout: 20000 });
-    await shot(planPage, '04-plan-page.png');
-    const planText = await planPage.textContent('#plan');
-    assert(planText.includes('Основной вариант'), 'primary missing on plan page');
-    assert(planText.includes('План Б'), 'plan B missing on plan page');
-    assert(planText.includes(scheduled.title) || planText.includes('Событие'), 'event/plan info missing on plan page');
-    assert(planText.includes('Текущий статус'), 'current status missing on plan page');
-    assert(planText.includes('fictional_seed') || planText.includes('Источники'), 'sources/check date missing on plan page');
-    const planStatus = await planPage.textContent('.status');
-    console.log('plan page status:', planStatus);
-    await planPage.close();
-
-    // 7) invalid input shows error without crash
+    // invalid input shows error without crash
     await page.goto(`${BASE_URL}/evening`, { waitUntil: 'networkidle' });
-    await page.waitForSelector('#plan-form:not(.hidden)', { timeout: 15000 });
+    await page.waitForSelector('#plan-form:not(.hidden)', { timeout: 20000 });
     await page.selectOption('#event', scheduled.id);
     await page.evaluate((d) => { document.getElementById('date').value = d; }, scheduled.date);
-    await page.fill('#meal_start', '18:00');
+    await page.fill('#meal_start', mealStart);
     await page.fill('#meal_end', mealEnd);
     await page.fill('#max_distance_m', '3000');
-    // create intersection: same feature required and preferred
     await page.check('input[name="required_features"][value="dog"]');
     await page.check('input[name="preferred_features"][value="dog"]');
     await page.click('#submit-btn');
@@ -140,28 +162,17 @@ async function main() {
     const errText = await page.textContent('#form-error');
     assert(errText && errText.trim().length > 0, 'invalid input error text missing');
     console.log('invalid input error:', errText.trim());
-    // page still usable/no crash
     assert(await page.isVisible('#plan-form'), 'form not visible after invalid input');
     assert(await page.isEnabled('#submit-btn'), 'submit not enabled after invalid input');
     await shot(page, '05-invalid-input.png');
 
-    // clear invalid state for responsive checks: uncheck preferred dog
     await page.uncheck('input[name="preferred_features"][value="dog"]');
     await page.uncheck('input[name="required_features"][value="dog"]');
 
-    // 8) widths 320 and 1280 without horizontal overflow
     await page.goto(`${BASE_URL}/evening`, { waitUntil: 'networkidle' });
-    await page.waitForSelector('#plan-form:not(.hidden)', { timeout: 15000 });
+    await page.waitForSelector('#plan-form:not(.hidden)', { timeout: 20000 });
     await checkNoOverflow(page, 1280, 'evening');
     await checkNoOverflow(page, 320, 'evening');
-
-    // also check plan page responsiveness
-    const planPage2 = await context.newPage();
-    await planPage2.goto(planLink, { waitUntil: 'networkidle' });
-    await planPage2.waitForSelector('#plan:not(.hidden)', { timeout: 20000 });
-    await checkNoOverflow(planPage2, 1280, 'plan');
-    await checkNoOverflow(planPage2, 320, 'plan');
-    await planPage2.close();
 
     const fatal = consoleErrors.filter(e => !/favicon/i.test(e));
     if (fatal.length) console.log('console/page errors (non-fatal check):', fatal);

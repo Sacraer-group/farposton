@@ -1,22 +1,15 @@
 from __future__ import annotations
 
 import json
-import os
-from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from uuid import UUID, uuid5, NAMESPACE_URL
+from uuid import uuid5, NAMESPACE_URL
 
+from .config import demo_dir
 from .timeutil import TZ, today_vl
 
-DEFAULT_DEMO_DIR = Path(".demo/evening")
 SEED_FILENAME = "seed.json"
-
 FEATURES = ("dog", "laptop", "children", "terrace", "reservations")
-
-
-def demo_dir() -> Path:
-    return Path(os.getenv("EVENING_DEMO_DIR", DEFAULT_DEMO_DIR))
 
 
 def seed_path() -> Path:
@@ -33,7 +26,6 @@ def _ensure_dir(path: Path) -> None:
 
 def generate_seed(base_day=None) -> dict:
     base = base_day or today_vl()
-    # 6 events on nearest dates: mix of statuses/times for acceptance scenarios
     event_specs = [
         ("Концерт в вымышленном зале", 1, "19:30", "scheduled"),
         ("Лекция в воображаемой библиотеке", 2, "18:45", "scheduled"),
@@ -71,19 +63,17 @@ def generate_seed(base_day=None) -> dict:
         ("10:00", "21:00"),
         ("08:00", "20:00"),
         ("12:00", "23:00"),
-        ("11:00", "18:00"),  # closes early - useful for F4
+        ("11:00", "18:00"),
     ]
     places = []
     for i in range(1, 26):
         cat = categories[(i - 1) % len(categories)]
         feats = feature_patterns[(i - 1) % len(feature_patterns)].copy()
-        # ensure variety: make every feature appear as true somewhere
         if i == 25:
             feats = {"dog": True, "laptop": True, "children": True, "terrace": True, "reservations": True}
         if i == 24:
             feats = {"dog": True, "laptop": False, "children": False, "terrace": True, "reservations": False}
         open_t, close_t = hours_patterns[(i - 1) % len(hours_patterns)]
-        # some places farther away
         dist = 200 + (i * 170) % 4800
         places.append({
             "id": f"place-{i:02d}",
@@ -117,8 +107,6 @@ def load_or_create_seed() -> dict:
 
 
 def get_seed(refresh: bool = False) -> dict:
-    # for runtime reads we can cache in module; but keep simple and deterministic
-    # refresh=False means read existing without regeneration; load_or_create handles that
     return load_or_create_seed()
 
 

@@ -3,12 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Сохранённый план вечера (вымышленное демо)</title>
+  <title>Сохранённый план вечера</title>
   <style>
-    :root { --bg:#f6f4ef; --card:#fff; --text:#1f2937; --muted:#6b7280; --accent:#0f766e; --err:#b91c1c; --border:#d1d5db; }
+    :root { --bg:#f6f4ef; --card:#fff; --text:#1f2937; --muted:#6b7280; --accent:#0f766e; --err:#b91c1c; --warn:#92400e; --border:#d1d5db; }
     *{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text);line-height:1.4}
     main{max-width:860px;margin:0 auto;padding:16px} h1{margin:0 0 8px;font-size:1.6rem}
     .notice{background:#fff7ed;border:1px solid #fdba74;padding:10px 12px;border-radius:10px;margin:10px 0}
+    .notice.real{background:#ecfeff;border-color:#67e8f9}
+    .warn{background:#fffbeb;border:1px solid #fcd34d;color:var(--warn);padding:10px 12px;border-radius:10px;margin:10px 0}
     .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin:12px 0}
     .error{color:var(--err);margin:8px 0} .muted{color:var(--muted)} .hidden{display:none}
     .pill{display:inline-block;background:#ecfeff;border:1px solid #99f6e4;border-radius:999px;padding:2px 8px;margin:2px 4px 2px 0;font-size:.9rem}
@@ -16,12 +18,14 @@
     .status{font-weight:700} .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
     button.secondary{background:#eef2f7;color:var(--text);border:1px solid var(--border);padding:9px 12px;border-radius:10px;cursor:pointer;font:inherit}
     a{color:var(--accent)} button:focus,a:focus{outline:3px solid #99f6e4;outline-offset:1px}
+    .small{font-size:.92rem}
   </style>
 </head>
 <body>
 <main>
   <h1>Сохранённый план вечера</h1>
-  <div class="notice"><strong>Вымышленное демо.</strong> Наличие столов не проверено. Минуты пути и гарантии мест не показываются.</div>
+  <div id="mode-notice" class="notice"></div>
+  <div id="warning" class="warn hidden"></div>
   <div id="loading" class="muted">Загрузка плана…</div>
   <div id="error" class="error hidden" role="alert"></div>
   <section id="plan" class="card hidden" aria-live="polite"></section>
@@ -29,22 +33,52 @@
 </main>
 <script>
 const $ = (id) => document.getElementById(id);
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
+function safeLink(url){ if(typeof url==='string' && /^https:\/\//i.test(url)) return url; return null; }
+function fmtDateTime(iso){ try { return new Date(iso).toLocaleString('ru-RU', {timeZone:'Asia/Vladivostok', year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit'}); } catch { return iso||''; } }
 function pills(arr, label) {
-  if (!arr || !arr.length) return `<div><span class="muted">${label}: нет</span></div>`;
-  return `<div><strong>${label}:</strong> ${arr.map(x=>`<span class="pill">${x}</span>`).join(' ')}</div>`;
+  if (!arr || !arr.length) return `<div><span class="muted">${esc(label)}: нет</span></div>`;
+  const names = {dog:'Можно с собакой', laptop:'Можно с ноутбуком', children:'Детское меню', terrace:'Летняя веранда / столики на улице', reservations:'Заказ столиков'};
+  return `<div><strong>${esc(label)}:</strong> ${arr.map(x=>`<span class="pill">${esc(names[x]||x)}</span>`).join(' ')}</div>`;
 }
 function renderPlace(title, place) {
   if (!place) return '';
-  return `<div class="plan-block"><h3>${title}</h3>
-    <p><strong>${place.name}</strong> (${place.category}), расстояние ${place.distance_m} м</p>
+  const addr = place.address ? `<div class="muted small">${esc(place.address)}</div>` : '';
+  const meta = [];
+  if (typeof place.rating === 'number') meta.push(`рейтинг ${place.rating}`);
+  if (typeof place.review_count === 'number') meta.push(`отзывов ${place.review_count}`);
+  return `<div class="plan-block"><h3>${esc(title)}</h3>
+    <p><strong>${esc(place.name)}</strong> (${esc(place.category||'')})</p>
+    ${addr}
+    <p>Расстояние от площадки события: ${esc(place.distance_m)} м${meta.length?` · ${esc(meta.join(', '))}`:''}</p>
     ${pills(place.confirmed,'Подтверждённые признаки')}
     ${pills(place.matched_preferred,'Совпавшие предпочтения')}
     ${pills(place.unknown,'Неизвестно')}
   </div>`;
 }
+function renderSources(plan){
+  const items = (plan.sources||[]).map(s=>{
+    const url = safeLink(s.url);
+    const name = url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(s.name||'Источник')}</a>` : esc(s.name||'Источник');
+    const checked = s.checked_at ? `, проверено: ${esc(fmtDateTime(s.checked_at))}` : '';
+    const note = s.note ? ` — ${esc(s.note)}` : '';
+    return `<li>${name}${checked}${note}</li>`;
+  }).join('');
+  return `<ul class="small">${items}</ul>`;
+}
 function planIdFromPath() {
   const m = location.pathname.match(/\/evening\/p\/([^/?#]+)/);
   return m ? decodeURIComponent(m[1]) : '';
+}
+function setModeNotice(plan){
+  const n = $('mode-notice');
+  if (plan.synthetic) {
+    n.className = 'notice';
+    n.innerHTML = '<strong>Вымышленное демо.</strong> Наличие столов не проверено. Минуты пути и гарантии мест не показываются.';
+  } else {
+    n.className = 'notice real';
+    n.innerHTML = '<strong>Реальные данные.</strong> Каталог — снимок 2ГИС-карточек; синтетическая загруженность не используется. События — ручная проверенная подборка. Факт наличия столов и статусы билетов не проверены.';
+  }
 }
 async function loadPlan() {
   const id = planIdFromPath();
@@ -58,19 +92,31 @@ async function loadPlan() {
       $('error').classList.remove('hidden');
       return;
     }
+    setModeNotice(data);
+    const warn = data.warning || (data.current && data.current.stale ? 'Проверка источника недоступна или устарела.' : '');
+    if (warn) { $('warning').textContent = warn; $('warning').classList.remove('hidden'); }
     const current = data.current || {};
+    const ev = data.event || {};
     const url = location.href;
+    const evSrc = safeLink(ev.source_url);
+    const evMeta = [
+      ev.venue_name ? `<div><strong>Площадка:</strong> ${esc(ev.venue_name)}</div>` : '',
+      (ev.source_name || evSrc) ? `<div><strong>Источник события:</strong> ${evSrc ? `<a href="${esc(evSrc)}" target="_blank" rel="noopener noreferrer">${esc(ev.source_name||'Источник')}</a>` : esc(ev.source_name||'')}</div>` : '',
+      ev.checked_at ? `<div><strong>Проверено:</strong> ${esc(fmtDateTime(ev.checked_at))}</div>` : ''
+    ].join('');
     $('plan').innerHTML = `
-      <h2>План ${data.id}</h2>
-      <p><strong>Событие:</strong> ${data.event?.title || ''} — ${data.event?.starts_at ? new Date(data.event.starts_at).toLocaleString('ru-RU',{timeZone:'Asia/Vladivostok'}) : ''}</p>
-      <p><strong>Текущий статус:</strong> <span class="status">${current.event_status || 'unknown'}</span> ${current.stale ? '(stale)' : ''} <span class="muted">(проверено: ${current.checked_at || ''})</span></p>
-      <p><strong>Окно еды:</strong> ${data.request?.meal_start}–${data.request?.meal_end}, дата ${data.request?.date}</p>
+      <h2>План ${esc(data.id)}</h2>
+      <p><strong>Событие:</strong> ${esc(ev.title || '')} — ${esc(ev.starts_at ? fmtDateTime(ev.starts_at) : '')} (Asia/Vladivostok)</p>
+      ${evMeta}
+      <p><strong>Текущий статус:</strong> <span class="status">${esc(current.event_status || 'unknown')}</span> ${current.stale ? '(stale)' : ''} <span class="muted">(перепроверено: ${esc(current.checked_at || '')})</span></p>
+      <p><strong>Окно еды:</strong> ${esc(data.request?.meal_start)}–${esc(data.request?.meal_end)}, дата ${esc(data.request?.date)} (Asia/Vladivostok)</p>
       ${renderPlace('Основной вариант', data.primary)}
       ${renderPlace('План Б', data.alternative)}
       <div class="plan-block">
-        <p class="muted">${data.disclaimer || ''}</p>
-        <p><strong>Создан:</strong> ${data.created_at || ''} · <strong>Истекает:</strong> ${data.expires_at || ''}</p>
-        <p><strong>Источники/дата проверки:</strong> ${(data.sources||[]).map(s=>`${s.name} (${s.checked_at}) — ${s.note||''}`).join('; ')}</p>
+        <p class="muted">${esc(data.disclaimer || '')}</p>
+        <p><strong>Создан:</strong> ${esc(data.created_at || '')} · <strong>Истекает:</strong> ${esc(data.expires_at || '')}</p>
+        <p><strong>Источники:</strong></p>
+        ${renderSources(data)}
         <div class="actions"><button type="button" class="secondary" id="copy-link">Скопировать ссылку</button></div>
         <div id="copy-status" class="muted" aria-live="polite"></div>
       </div>`;

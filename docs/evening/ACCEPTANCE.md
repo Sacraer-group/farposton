@@ -1,59 +1,39 @@
-# «Готовый вечер» — приёмка MVP
+# Evening — приёмка
 
-## Уточнения координатора (обязательные)
+## Режимы
 
-- Enum признаков (5): `dog`, `laptop`, `children`, `terrace`, `reservations`.
-- Интервалы еды `[meal_start, meal_end)` проверяются полностью.
-- `current` при чтении: `cancelled`, `rescheduled`, `past`, `unavailable`, `stale` со снимком; отсутствующий/удалённый event не превращает сохранённый план в 404. Сохранённый план с `current.event_status = rescheduled` остаётся доступным по `GET`.
-- `GET /api/evening/events` возвращает только `scheduled` future-события, доступные для `POST /api/evening/plans`; `rescheduled`, `cancelled`, `past` не выбираются.
-- `GET /api/evening/plans/{id}`: невалидный UUID → `422 validation_error`; валидный неизвестный → `404 plan_not_found`; истёкший → `410 plan_expired`.
-- UUID валидировать.
-- SQL параметризованный; никакого raw текста/контактов.
-- Пользователь может получить ссылку без учётки только в local demo.
-- Авторизация API соответствует существующему `require_auth`.
-- Runtime fictionalseed: 25 мест и 6 событий на ближайшие даты, в отдельной игнорируемой `.demo/evening/`, не перезаписывать, открыт только этот источник по умолчанию, UI чётко вымышленный.
-- POST strict validation: bool/int, max 5 уникальных фич, неизвестные/лишние поля.
-- Нет 2 подходящих — 409 `not_enough_places`; неизвестное required не проходит; предпочтения затем distance затем id; plan B другая category если есть.
-- Сохранение SQLite, expiry 24h, read current revalidate, источники/дата проверки.
-- UI `/evening` и `/evening/p/{id}`: событие, дата, окно еды, предпочтения, результат+plan B+объяснения+копирование ссылки, errors/loading/mobile/keyboard, без минут пути/гарантий мест.
-- Никаких LLM или внешних API в MVP.
-- Docker: `Dockerfile.evening`, `compose.evening.yaml`, `DOCKER-EVENING.md`, `.dockerignore` если нет; allowlist COPY, без ключей/2GIS/.git/.venv/.opencode/.demo хоста; nonroot, `127.0.0.1:18447`, volume для состояния, healthcheck.
+- `EVENING_DATA_MODE=real` по умолчанию (production compose — один сервис `evening`). Недоступная реальная база/события или ошибка доступа (OSError/Permission) → `503`, **никогда не fallback на fictional**. Demo — явный opt-in отдельным `docker run` (без второго сервиса в compose).
+- Старые demo тесты выставляют `EVENING_DATA_MODE=demo`.
 
-## Матрица F1–F8 → тесты
+## Real data
 
-Каждому ID соответствует хотя бы один автотест с этим ID в имени.
+- Каталог: полный `profiles-separated-v1` (4567) для venue coords; рекомендации только общепит (нормализованные категории, `web.places.CATEGORY_LABELS`). Реальные поля сохранены: `id/name/address/lat/lon/rating/review_count/schedule/attribute_groups/updated_at`. `synthetic_congestion` игнорируется. `checked_at` каталога `null/unknown` (mtime не дата проверки).
+- События: публичный `evening/data/vladivostok_events.json` (8, 15–27.11.2026, 3 площадки, проверенные URL/venue ID) включён узким исключением `.gitignore`/`.dockerignore`. Строгая валидация: UUID, `https://` `source_url`, aware `starts_at` (+10), `date == starts_at` (VL), `synthetic:false`, обязательные поля, корректный `checked_at`; повреждение/невалидность (в т.ч. всех записей) → `503`, не тихий успех. `venue_id` резолвится в полном каталоге; иначе `409 event_venue_unavailable`.
+- Признаки true только при позитивных отметках: `dog`=«Можно с собакой», `laptop`=«Можно с ноутбуком», `children`=«Детское меню», `terrace`=«Летняя веранда»/«Столики на улице» (сезонность не проверена), `reservations`=«Заказ столиков» (не подтверждённая бронь). Отсутствие → `unknown`; `unknown` required не проходит.
+- Расписание: weekday реальной даты, overnight (предыдущий день), merge смежных/перекрывающихся сегментов, `24:00` как конец дня, полный `[start,end)` поминутно; missing/unknown/special → не обещать открыто.
+- Distance: haversine от координат площадки события до точки места (не минуты, не fake precomputed).
 
-| ID | Требование | Проверка | Ожидаемые тесты (имена содержат ID) |
-|---|---|---|---|
-| F1 | События | `GET /api/evening/events` возвращает только `scheduled` future-события, доступные для `POST`; `rescheduled/cancelled/past` excluded. POST на отменённое/прошедшее даёт 409 | `test_F1_events_list_returns_seed`, `test_F1_create_plan_rejects_cancelled_event`, `test_F1_create_plan_rejects_past_event`, `test_F1_events_excludes_scheduled_event_in_past`, `test_F1_events_excludes_rescheduled_future_event` |
-| F2 | Валидация | неверные типы, границы, лишние/неизвестные поля, bool/int, UUID дают 422; неизвестный `event_id` при POST — 404; `GET /api/evening/plans/{id}`: невалидный UUID → 422, валидный неизвестный → 404 | `test_F2_validation_*`, `test_F2_unknown_event_404`, `test_F2_get_plan_invalid_uuid_returns_422_validation_error`, `test_F7_plan_not_found_404` |
-| F3 | Еда до события | `meal_end > meal_start`, `meal_end <= starts_at`; дата совпадает с датой события; нарушения → 422 | `test_F3_meal_end_after_start_rejected`, `test_F3_meal_end_after_event_start_rejected`, `test_F3_date_mismatch_rejected` |
-| F4 | Часы работы | Место, закрытое в любой части `[meal_start, meal_end)`, не попадает в выдачу | `test_F4_place_closed_in_window_excluded`, `test_F4_full_interval_required` |
-| F5 | Обязательные признаки | Только `true`; `unknown` не засчитан и показан отдельно; неизвестное required не проходит | `test_F5_only_confirmed_required_pass`, `test_F5_unknown_required_rejected`, `test_F5_unknown_listed_separately` |
-| F6 | План Б | `alternative` проходит те же ограничения; другая category если есть; меньше двух мест → 409 `not_enough_places` | `test_F6_alternative_different_category_preferred`, `test_F6_alternative_same_constraints`, `test_F6_not_enough_places_409` |
-| F7 | Сохранённый план | `current` считается при чтении, снимок не меняется; после 24 ч → 410; отсутствующий/удалённый event не 404 плана; saved plan при rescheduled показывает `current.event_status=rescheduled` | `test_F7_current_revalidated_snapshot_unchanged`, `test_F7_expired_plan_410`, `test_F7_missing_event_not_plan_404`, `test_F7_cancelled_current_status`, `test_F7_rescheduled_current_status`, `test_F7_broken_seed_json_returns_snapshot_stale`, `test_F7_unreadable_seed_returns_snapshot_stale` |
-| F8 | Docker из чистого clone | Порт `127.0.0.1:18447`, nonroot, healthcheck `/api/evening/events` проходит; в image только вымышленный seed, без секретов/2GIS/.git/.venv/.opencode/.demo | `test_F8_*` (конфигурационные проверки файлов/compose/dockerfile где применимо) + реальные Docker проверки в VERIFICATION |
+## Источники и состояние
 
-## Дополнительные тесты
+- Real ответы: `synthetic:false`, источники каталог+событие с `source_url` (https), `checked_at`, примечания; наличие столов/статусы билетов не проверены. `checked_at` старше 24h → видимое предупреждение при list/plan/read. Не писать «автоматически проверено».
+- `current` перепроверяет файлы; snapshot не меняется. Статусы: `scheduled/cancelled/rescheduled/past/unavailable/stale`. Изменение канонического `starts_at`/`venue_id` у события с тем же `id` и `status=scheduled` (время по `datetime`, `venue_id` при наличии обоих) даёт `current.event_status=rescheduled` с актуальным `starts_at`, без пересчёта плана; явная `cancelled` в приоритете.
+- Старые fictional планы: сохраняют `synthetic:true` и источники; при отсутствии события `current=unavailable`; планы/volume не стираются.
 
-- Timezone: вычисления дат/окон в `Asia/Vladivostok`.
-- SQL injection safety: параметризованные запросы (проверка через опасные строки/ids не ломает и не исполняет).
-- TTL: expiry ровно/после 24h.
-- Отмена/полное окно: cancelled/rescheduled/past/unavailable/stale состояния current; `[start,end)` полное покрытие.
-- План Б сортировка: предпочтения desc, distance asc, id asc.
+## Матрица требований → тесты
 
-## Коды ошибок
-
-| Код | Случай |
+| Область | Проверка |
 |---|---|
-| 401 | Нет авторизации (require_auth) |
-| 404 | event_not_found / plan_not_found |
-| 409 | event_unavailable / not_enough_places |
-| 410 | plan_expired |
-| 422 | validation_error |
+| 503/no fallback | отсутствующие events/catalog в real → 503, нет fictional |
+| Adapter | schematic temp JSONL, полный каталог для venue, рекомендации только общепит, реальные поля/`synthetic:false` |
+| Distance | haversine known pair, dateline, error coords исключены, от venue события |
+| Schedule | weekday, overnight prev day, holes/split, full interval, minute precision, missing/unknown/special |
+| Mapping | только позитивные отметки true, отсутствие unknown, terrace/reservations semantics |
+| Stale/source | checked_at > 24h warning list/plan/read, source links/meta, synthetic markers |
+| Current | removed/cancelled/rescheduled/past/unavailable/stale, snapshot unchanged; time/venue change (same id/status) → rescheduled |
+| Legacy plans | fictional `synthetic:true` читается в real как unavailable при отсутствии события |
+| F1–F7 demo | существующие сценарии в явном demo mode |
+| F8 Docker | real default env, readonly bind mount `create_host_path:false`, no DB packed, docs/modes |
 
-## Проверки исполнения
+## Документация/артефакты
 
-- `make test VENV=/home/recara/farposton/.venv/bin/python` (после `demo.local prepare` в worktree при необходимости) — существующие + новые тесты.
-- Docker: build, реальный HTTP сквозной сценарий POST/GET на `127.0.0.1:18447`, перезапуск с volume.
-- Результаты и ограничения фиксируются в `docs/evening/VERIFICATION.md` и продолжении README.
+Обновить `docs/evening/SPEC.md`, `ARCHITECTURE.md`, `ACCEPTANCE.md`, `VERIFICATION.md`, добавить `REAL-DATA-VERIFICATION.md`, обновить `DOCKER-EVENING.md`, `README.md`, `compose.evening.yaml`, `Dockerfile.evening`, UI.

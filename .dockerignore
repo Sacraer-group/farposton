@@ -12,6 +12,8 @@ __pycache__
 *.pem
 *.key
 data/
+evening/data/*
+!evening/data/vladivostok_events.json
 analysis/db/
 analysis/output/
 logs/

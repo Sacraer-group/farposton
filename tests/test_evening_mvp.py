@@ -24,6 +24,7 @@ def make_app():
 @pytest.fixture()
 def env_evening(tmp_path, monkeypatch):
     demo_dir = tmp_path / "demo-evening"
+    monkeypatch.setenv("EVENING_DATA_MODE", "demo")
     monkeypatch.setenv("EVENING_DEMO_DIR", str(demo_dir))
     monkeypatch.setenv("EVENING_DB_PATH", str(demo_dir / "plans.sqlite3"))
     monkeypatch.setenv("WEB_DEMO_NO_AUTH", "1")

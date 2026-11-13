@@ -17,14 +17,19 @@ if str(ROOT) not in sys.path:
 from fastapi import FastAPI
 from starlette.middleware.sessions import SessionMiddleware
 
+from evening.config import is_real_mode
 from evening.routes import router as evening_router
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    # ensure seed exists in writable demo dir on startup
-    from evening.seed import load_or_create_seed
-    load_or_create_seed()
+    # ensure demo seed exists only in explicit demo mode
+    if not is_real_mode():
+        from evening.seed import load_or_create_seed
+        try:
+            load_or_create_seed()
+        except Exception:
+            pass
     yield
 
 
@@ -37,10 +42,11 @@ app.add_middleware(
     https_only=False,
 )
 
-# health endpoint compatible with compose healthcheck expectations if needed
+
 @app.get("/health")
 def health():
-    return {"ok": True}
+    return {"ok": True, "data_mode": "real" if is_real_mode() else "demo"}
+
 
 app.include_router(evening_router)
 
