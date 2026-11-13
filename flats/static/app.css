@@ -98,3 +98,4 @@ button:hover { background: #eff6ff; }
 .offer { margin-top: 1rem; }
 .raw { color: #4b5563; }
 .description { white-space: pre-line; }
+.table-wrap { overflow-x: auto; }

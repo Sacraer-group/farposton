@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Сравнение{% endblock %}
+{% block content %}
+<p><a href="/favorites">← К избранному</a></p>
+<h1>Сравнение</h1>
+{% for n in notes %}<p class="status-unknown" role="status">{{ n }}</p>{% endfor %}
+{% if not columns %}
+<p>Выберите варианты в <a href="/favorites">избранном</a>.</p>
+{% else %}
+<div class="table-wrap">
+<table>
+  <thead><tr><th scope="col">Поле</th>{% for o, c, q in columns %}<th scope="col">{{ o.address or o.source_id }}</th>{% endfor %}</tr></thead>
+  <tbody>
+    <tr><th scope="row">Ежемесячно</th>{% for o, c, q in columns %}<td>{{ c.monthly_known|rub }}{% if c.monthly_unknown %}<br><span class="status-unknown">+ {{ c.monthly_unknown|map('part_label')|join(', ') }}: уточнить</span>{% endif %}</td>{% endfor %}</tr>
+    <tr><th scope="row">На въезд</th>{% for o, c, q in columns %}<td><strong>{{ c.move_in_known|rub }}</strong><br>предоплата: {{ c.prepayment.rub|rub }}<br>залог: {{ c.deposit.rub|rub }}<br>комиссия: {{ c.commission.rub|rub }}{% if c.move_in_unknown %}<br><span class="status-unknown">не указано: {{ c.move_in_unknown|map('part_label')|join(', ') }}</span>{% endif %}</td>{% endfor %}</tr>
+    <tr><th scope="row">Квартира</th>{% for o, c, q in columns %}<td>{{ room_label(o.rooms) }}, {{ o.area_total or '?' }} м²{% if o.floor %}, этаж {{ o.floor }}/{{ o.floors_total or '?' }}{% endif %}</td>{% endfor %}</tr>
+    <tr><th scope="row">Место</th>{% for o, c, q in columns %}<td>{{ o.district or 'район не указан' }}<br>{{ o.address or '' }}</td>{% endfor %}</tr>
+    <tr><th scope="row">Условия</th>{% for o, c, q in columns %}<td>Животные: {{ o.pets_raw if o.pets_raw is not none else 'не указано' }}<br>Срок: {{ o.rent_period_raw or 'не указан' }}</td>{% endfor %}</tr>
+    <tr><th scope="row">Что уточнить</th>{% for o, c, q in columns %}<td><ul>{% for item in q %}<li>{{ item }}</li>{% endfor %}</ul></td>{% endfor %}</tr>
+    <tr><th scope="row">Источник</th>{% for o, c, q in columns %}<td>{{ o.source }}{% if o.url %}<br><a href="{{ o.url }}" target="_blank" rel="noopener noreferrer">Объявление</a>{% endif %}</td>{% endfor %}</tr>
+  </tbody>
+</table>
+</div>
+{% endif %}
+{% endblock %}

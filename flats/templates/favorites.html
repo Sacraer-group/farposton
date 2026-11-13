@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Избранное{% endblock %}
+{% block content %}
+<h1>Избранное</h1>
+{% if not saved %}
+<p>Пока ничего не сохранено. Нажмите «Сохранить» в <a href="/">подборке</a>.</p>
+{% else %}
+<form method="get" action="/compare">
+  <p>Отметьте до {{ max_compare }} вариантов и нажмите «Сравнить».</p>
+  <div class="cards">
+  {% for o, c, card in saved %}
+    <article class="card">
+      {% if o.photos %}<img class="thumb" src="{{ o.photos[0] }}" alt="Фото квартиры: {{ o.address or '' }}" loading="lazy" referrerpolicy="no-referrer">{% endif %}
+      <label><input type="checkbox" name="o" value="{{ o.source }}:{{ o.source_id }}"> Сравнить</label>
+      <h2><a href="{{ url_for('pages.flat', key=card.key) }}">{{ room_label(o.rooms) }}, {{ o.area_total or '?' }} м² · {{ o.district or 'район не указан' }}</a></h2>
+      <p>{{ o.address or 'Адрес не указан' }}</p>
+      <p><strong>Ежемесячно:</strong> {{ c.monthly_known|rub }} · <strong>На въезд:</strong> {{ c.move_in_known|rub }}</p>
+    </article>
+  {% endfor %}
+  </div>
+  <p><button>Сравнить</button></p>
+</form>
+{% for o, c, card in saved %}
+<form method="post" action="/api/decide" class="actions">
+  <input type="hidden" name="source" value="{{ o.source }}"><input type="hidden" name="source_id" value="{{ o.source_id }}">
+  <button name="action" value="skip">Убрать из избранного: {{ o.address or o.source_id }}</button>
+</form>
+{% endfor %}
+{% endif %}
+{% endblock %}
