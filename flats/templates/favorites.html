@@ -7,6 +7,7 @@
 <div class="empty-state favorites-empty">{{ icon('heart') }}<h2>Пока ничего не сохранено</h2><p>Нажмите «Сохранить» в подборке. Здесь будут квартиры, к которым стоит вернуться.</p><a href="/" class="button button-primary">Посмотреть квартиры {{ icon('arrow-right') }}</a></div>
 {% else %}
 <form method="get" action="/compare" id="compare-form"></form>
+<section class="decision-entry"><div><strong>С какой квартиры начать?</strong><p>Помощник сопоставит сохранённые предложения и соберёт план первых просмотров.</p></div><a class="button" href="/advisor?scope=saved">Разобрать избранное {{ icon('arrow-right') }}</a></section>
 <div class="results-toolbar"><strong>{{ saved|length }} сохранено</strong><span class="muted">Отметьте до {{ max_compare }} вариантов для сравнения</span></div>
 <div class="cards favorites-grid">
 {% for o, c, card in saved %}

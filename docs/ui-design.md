@@ -2,7 +2,7 @@
 
 ## Journey
 
-The primary task is to narrow Vladivostok rentals to 3–5 candidates worth visiting. Lead with location and address, then show the house context, costs and offer details; carry saved candidates into a consistent comparison and viewing questions. Swipe and visual similarity are secondary discovery tools.
+The primary task is to choose three Vladivostok addresses worth visiting. The four-stage decision flow and demo are specified in [decision-flow.md](decision-flow.md). Lead with location and address, then show the house context, costs and offer details; carry saved candidates into a consistent comparison and viewing questions. Swipe and visual similarity are secondary discovery tools.
 
 A house passport is the intended place for building characteristics, management and utilities, outages and repairs. The current offer snapshot does not provide those facts. Show missing fields as unavailable and retain the source and date when such data becomes available. An offer's match to search conditions does not verify its house address.
 

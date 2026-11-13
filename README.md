@@ -25,6 +25,12 @@ Then open a flat, click «Найти похожие интерьеры» under a
 
 Open http://127.0.0.1:5000: search, flat page, «Избранное» (compare up to 5), «Свайпы». The database file is `data/flats.db` (override with `FLATS_DB`).
 
+## Advisor
+
+Open «Помощник» to set requirements and a priority, review candidates and evidence, compare them, and prepare viewing questions. The route link opens an external map with the destination; choose the starting point and travel mode there. House records are dated evidence, not live outage status.
+
+Without a configured model provider, the advisor clearly uses retrieval. An optional OpenAI-compatible provider can be configured locally with `FLATS_LLM_BASE_URL`, `FLATS_LLM_MODEL` and `FLATS_LLM_API_KEY`; keep the key secret. Live provider behavior has not been verified. See [decision flow and demo](docs/decision-flow.md).
+
 ## Refresh real data
 
 Needs a Metrapi API key. Use the official API only: their terms forbid scraping the website.

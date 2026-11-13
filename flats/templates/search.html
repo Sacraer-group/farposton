@@ -6,7 +6,8 @@
   <div><p class="eyebrow">Долгосрочная аренда · Владивосток</p><h1>Квартиры для просмотра<span class="heading-dot">.</span></h1><p class="page-intro">Сравните расходы, расположение и сведения о доме.</p></div>
   <a class="button button-outline heading-action" href="/favorites">{{ icon('heart') }}К моей подборке {{ icon('arrow-right') }}</a>
 </div>
-<form method="get" class="filters" aria-label="Условия поиска">
+<section class="decision-entry" aria-label="Помощь с выбором"><div><strong>От объявлений — к трём адресам для просмотра</strong><p>Разберите расходы, сведения о доме и неизвестные условия вместе с помощником.</p></div><a class="button" href="/advisor">Собрать мой выбор {{ icon('arrow-right') }}</a></section>
+<form method="get" class="filters" id="search-filters" aria-label="Условия поиска">
   <input type="hidden" name="apply" value="1">
   <label class="money-filter"><span>Аренда в месяц до</span><span class="input-unit"><input name="monthly_max" inputmode="numeric" placeholder="Без ограничения" value="{{ profile.monthly_max or '' }}"><span>₽</span></span></label>
   <label class="money-filter"><span>На въезд до</span><span class="input-unit"><input name="move_in_max" inputmode="numeric" placeholder="Без ограничения" value="{{ profile.move_in_max or '' }}"><span>₽</span></span></label>

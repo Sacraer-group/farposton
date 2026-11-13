@@ -8,6 +8,7 @@
 {% for n in notes %}<p class="notice" role="status">{{ n }}</p>{% endfor %}
 {% if not columns %}<div class="empty-state">{{ icon('columns-3') }}<h2>Выберите квартиры для сравнения</h2><p>Добавьте варианты в избранное и отметьте до пяти предложений.</p><a class="button button-primary" href="/favorites">Открыть избранное {{ icon('arrow-right') }}</a></div>
 {% else %}
+<section class="decision-entry"><div><strong>Теперь — понять компромиссы</strong><p>Выберите приоритет и получите основания, неизвестные условия и вопросы по этим предложениям.</p></div><a class="button" href="/advisor?scope=offers{% for o, c, q in columns %}&amp;o={{ (o.source ~ ':' ~ o.source_id)|urlencode }}{% endfor %}">Разобрать с помощником {{ icon('arrow-right') }}</a></section>
 <div class="comparison-note">{{ icon('clock-3') }}<span>«Известно на въезд» — сумма только указанных платежей. Неизвестные суммы не равны нулю.</span></div>
 <div class="table-wrap comparison-wrap" tabindex="0" aria-label="Таблица сравнения квартир, прокручивается горизонтально">
 <table class="comparison-table"><caption class="visually-hidden">Сравнение расходов, квартиры, дома и источников</caption>
@@ -28,8 +29,9 @@
 <tr><th scope="row">Срок</th>{% for o, c, q in columns %}<td>{{ 'Долгосрочная аренда' if o.rent_period_raw == 'long' else (o.rent_period_raw or 'Не указан') }}</td>{% endfor %}</tr>
 <tr class="comparison-group"><th colspan="{{ columns|length + 1 }}" scope="colgroup">03 · Дом и службы</th></tr>
 <tr><th scope="row">Привязка к реестру</th>{% for o, c, q in columns %}<td class="data-missing">Дом требует проверки</td>{% endfor %}</tr>
-<tr><th scope="row">Управляющая организация</th>{% for o, c, q in columns %}<td class="data-missing">Нет сведений</td>{% endfor %}</tr>
-<tr><th scope="row">Отключения и капремонт</th>{% for o, c, q in columns %}<td class="data-missing">Сведения не получены<small>Отсутствие данных не означает отсутствие событий</small></td>{% endfor %}</tr>
+<tr><th scope="row">Управляющая организация</th>{% for o, c, q in columns %}<td>{% set records = house_by_offer.get(o.source ~ ':' ~ o.source_id, [])|selectattr('field', 'equalto', 'management')|list %}{% if records %}{% set fact = records[0] %}{{ fact.value }}<small>По данным VL.ru; актуальность не подтверждена</small><a class="text-link" href="{{ fact.url }}" target="_blank" rel="noopener noreferrer">Источник {{ icon('arrow-up-right') }}</a>{% else %}<span class="data-missing">Нет сведений</span>{% endif %}</td>{% endfor %}</tr>
+<tr><th scope="row">Текущие отключения</th>{% for o, c, q in columns %}<td class="data-missing">Актуальные сведения не получены<small>Отсутствие данных не означает отсутствие событий</small></td>{% endfor %}</tr>
+<tr><th scope="row">Капитальный ремонт</th>{% for o, c, q in columns %}<td>{% set records = house_by_offer.get(o.source ~ ':' ~ o.source_id, [])|selectattr('field', 'equalto', 'capital_program')|list %}{% if records %}{% set fact = records[0] %}<span>Есть запись в программе</span><small>{{ fact.text }}</small><a class="text-link" href="{{ fact.url }}" target="_blank" rel="noopener noreferrer">Документ {{ icon('arrow-up-right') }}</a>{% else %}<span class="data-missing">Сведения не получены</span>{% endif %}</td>{% endfor %}</tr>
 <tr class="comparison-group"><th colspan="{{ columns|length + 1 }}" scope="colgroup">04 · Перед просмотром</th></tr>
 <tr><th scope="row">Что уточнить</th>{% for o, c, q in columns %}<td><ul class="comparison-questions">{% for item in q %}<li>{{ item }}</li>{% endfor %}</ul></td>{% endfor %}</tr>
 <tr><th scope="row">Источник</th>{% for o, c, q in columns %}<td>{{ o.source }}{% if o.url %}<br><a class="text-link" href="{{ o.url }}" target="_blank" rel="noopener noreferrer">Объявление {{ icon('arrow-up-right') }}</a>{% endif %}{% if o.last_seen %}<small>Получено: {{ o.last_seen }}</small>{% endif %}</td>{% endfor %}</tr>

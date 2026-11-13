@@ -1,0 +1,256 @@
+{
+  "guides": [
+    {
+      "id": "guide:house-registry",
+      "title": "Дом и ответственная организация",
+      "kind": "guide",
+      "text": "В реестре ГИС ЖКХ можно сверить технические сведения о доме и связанные с ним организации. Полнота паспорта зависит от размещённых данных. Ссылка на реестр сама по себе не подтверждает сведения по выбранному адресу.",
+      "url": "https://cdn.dom.gosuslugi.ru/webhelp/topics/houses/och/r_card-och.html",
+      "source": "ГИС ЖКХ · справка по реестру домов",
+      "observed_at": "2026-11-13",
+      "priorities": [
+        "house"
+      ],
+      "topics": [
+        "управля",
+        "паспорт",
+        "лифт",
+        "год постройки",
+        "дом"
+      ]
+    },
+    {
+      "id": "guide:outages-vladivostok",
+      "title": "Вода, отопление и электричество",
+      "kind": "guide",
+      "text": "VL.ru публикует сообщения об отключениях по адресам, ресурсам и организациям. Для работы из дома полезно проверить события по электричеству и воде. Отсутствие найденного сообщения не доказывает отсутствие отключений; актуальность нужно сверить в источнике.",
+      "url": "https://www.vl.ru/off/",
+      "source": "VL.ru · отключения Владивостока",
+      "observed_at": "2026-11-13",
+      "priorities": [
+        "house"
+      ],
+      "topics": [
+        "отключ",
+        "вод",
+        "отоплен",
+        "электр",
+        "из дома",
+        "удалён",
+        "удален"
+      ]
+    },
+    {
+      "id": "guide:capital-repair",
+      "title": "План ремонта конкретного дома",
+      "kind": "guide",
+      "text": "Фонд капремонта Приморского края публикует выполнение плана по году и адресу. Запланированные и выполненные работы показаны отдельно. Наличие работы в плане не означает, что она уже завершена.",
+      "url": "https://fkr25.ru/RepairProgram2026",
+      "source": "ФКР Приморского края · план 2026 года",
+      "observed_at": "2026-11-13",
+      "priorities": [
+        "house"
+      ],
+      "topics": [
+        "ремонт",
+        "крыш",
+        "фасад",
+        "подъезд",
+        "подьезд"
+      ]
+    },
+    {
+      "id": "guide:daily-route",
+      "title": "Проверить повседневный путь",
+      "kind": "guide",
+      "text": "Проверьте маршрут от квартиры до работы или учёбы с выбранным видом транспорта. Расстояние между точками не равно длине пути или времени поездки. В Farposton время в пути, подъёмы и лестницы пока не рассчитаны.",
+      "url": "https://yandex.ru/dev/jsapi-v2-1/doc/en/v2-1/dg/concepts/router/about",
+      "source": "Яндекс Карты · возможности маршрутизации",
+      "observed_at": "2026-11-13",
+      "priorities": [
+        "commute"
+      ],
+      "topics": [
+        "дорог",
+        "маршрут",
+        "работ",
+        "учеб",
+        "учёб",
+        "пеш",
+        "автобус",
+        "мост",
+        "сопк",
+        "лестниц",
+        "подъём",
+        "подъем"
+      ]
+    }
+  ],
+  "houses": [
+    {
+      "address": "улица Тополевая 30",
+      "city": "Владивосток",
+      "listing_source_id": "139187320",
+      "address_match": "exact_city_street_house",
+      "gis_house_id": null,
+      "current_outage_status": "unknown",
+      "outage_history_complete": false,
+      "repair_schedule_verified": false,
+      "repair_completion_verified": false,
+      "facts": [
+        {
+          "id": "house:13835:management",
+          "kind": "house_fact",
+          "field": "management",
+          "value": "АО «Технология управления»",
+          "text": "По данным VL.ru, дом обслуживает АО «Технология управления». Актуальность не подтверждена.",
+          "url": "https://www.vl.ru/off/b/info/13835",
+          "source": "VL.ru · сведения об адресе",
+          "observed_at": "2026-11-13",
+          "source_updated_at": null,
+          "retrieval": "primary_source_search_index",
+          "current_status_verified": false,
+          "source_note": "Текст первичной страницы получен из поискового индекса; прямое открытие вернуло 502."
+        },
+        {
+          "id": "house:fkr844:4316",
+          "kind": "house_fact",
+          "field": "capital_program",
+          "value": true,
+          "text": "Дом указан в перечне программы капремонта 2014–2055 в редакции от 18.11.2025 (№ 4316). Сроки и выполнение работ этой записью не подтверждены; актуальность редакции на сегодня не установлена.",
+          "url": "https://fkr25.ru/files/2014-2055/844-%D0%BF%D0%BF%20%D0%BE%D1%82%2018.11.2025.pdf",
+          "source": "Правительство Приморского края · постановление № 844-пп",
+          "observed_at": "2026-11-13",
+          "source_document_date": "2025-11-18",
+          "retrieval": "primary_document_opened",
+          "current_status_verified": false,
+          "source_note": "Подтверждено содержание документа от 18.11.2025; это не действующий график и не отчёт о выполнении ремонта."
+        }
+      ]
+    },
+    {
+      "address": "улица Гамарника 21",
+      "city": "Владивосток",
+      "listing_source_id": "139158750",
+      "address_match": "exact_city_street_house",
+      "gis_house_id": null,
+      "current_outage_status": "unknown",
+      "outage_history_complete": false,
+      "repair_schedule_verified": false,
+      "repair_completion_verified": false,
+      "facts": [
+        {
+          "id": "house:3264:management",
+          "kind": "house_fact",
+          "field": "management",
+          "value": "ООО УК «Атлант»",
+          "text": "По данным VL.ru, дом обслуживает ООО УК «Атлант». Актуальность не подтверждена.",
+          "url": "https://www.vl.ru/off/b/info/3264",
+          "source": "VL.ru · сведения об адресе",
+          "observed_at": "2026-11-13",
+          "source_updated_at": null,
+          "retrieval": "primary_source_search_index",
+          "current_status_verified": false,
+          "source_note": "Текст первичной страницы получен из поискового индекса; прямое открытие вернуло 502."
+        },
+        {
+          "id": "house:3264:commissioned_year",
+          "kind": "house_fact",
+          "field": "commissioned_year",
+          "value": 1974,
+          "text": "В карточке VL.ru указан ввод дома в эксплуатацию в 1974 году. Актуальность не подтверждена.",
+          "url": "https://www.vl.ru/off/b/info/3264",
+          "source": "VL.ru · сведения об адресе",
+          "observed_at": "2026-11-13",
+          "source_updated_at": null,
+          "retrieval": "primary_source_search_index",
+          "current_status_verified": false,
+          "source_note": "Текст первичной страницы получен из поискового индекса; прямое открытие вернуло 502."
+        },
+        {
+          "id": "house:3264:wall_material",
+          "kind": "house_fact",
+          "field": "wall_material",
+          "value": "Панельные",
+          "text": "В карточке VL.ru указаны панельные стены. Актуальность не подтверждена.",
+          "url": "https://www.vl.ru/off/b/info/3264",
+          "source": "VL.ru · сведения об адресе",
+          "observed_at": "2026-11-13",
+          "source_updated_at": null,
+          "retrieval": "primary_source_search_index",
+          "current_status_verified": false,
+          "source_note": "Текст первичной страницы получен из поискового индекса; прямое открытие вернуло 502."
+        },
+        {
+          "id": "house:3264:floors",
+          "kind": "house_fact",
+          "field": "floors",
+          "value": 9,
+          "text": "В карточке VL.ru указаны 9 этажей и 2 подъезда. Актуальность не подтверждена.",
+          "url": "https://www.vl.ru/off/b/info/3264",
+          "source": "VL.ru · сведения об адресе",
+          "observed_at": "2026-11-13",
+          "source_updated_at": null,
+          "retrieval": "primary_source_search_index",
+          "current_status_verified": false,
+          "source_note": "Текст первичной страницы получен из поискового индекса; прямое открытие вернуло 502."
+        },
+        {
+          "id": "house:fkr844:2113",
+          "kind": "house_fact",
+          "field": "capital_program",
+          "value": true,
+          "text": "Дом указан в перечне программы капремонта 2014–2055 в редакции от 18.11.2025 (№ 2113). Сроки и выполнение работ этой записью не подтверждены; актуальность редакции на сегодня не установлена.",
+          "url": "https://fkr25.ru/files/2014-2055/844-%D0%BF%D0%BF%20%D0%BE%D1%82%2018.11.2025.pdf",
+          "source": "Правительство Приморского края · постановление № 844-пп",
+          "observed_at": "2026-11-13",
+          "source_document_date": "2025-11-18",
+          "retrieval": "primary_document_opened",
+          "current_status_verified": false,
+          "source_note": "Подтверждено содержание документа от 18.11.2025; это не действующий график и не отчёт о выполнении ремонта."
+        }
+      ]
+    },
+    {
+      "address": "улица Хабаровская 24",
+      "city": "Владивосток",
+      "listing_source_id": "138877224",
+      "address_match": "exact_city_street_house",
+      "gis_house_id": null,
+      "current_outage_status": "unknown",
+      "outage_history_complete": false,
+      "repair_schedule_verified": false,
+      "repair_completion_verified": false,
+      "facts": [
+        {
+          "id": "house:14646:management",
+          "kind": "house_fact",
+          "field": "management",
+          "value": "ООО «УК Эгершельд ДВ»",
+          "text": "По данным VL.ru, дом обслуживает ООО «УК Эгершельд ДВ». Актуальность не подтверждена.",
+          "url": "https://www.vl.ru/off/management-company/95.html",
+          "source": "VL.ru · сведения об адресе",
+          "observed_at": "2026-11-13",
+          "source_updated_at": null,
+          "retrieval": "primary_source_search_index",
+          "current_status_verified": false,
+          "source_note": "Текст первичной страницы получен из поискового индекса; прямое открытие вернуло 502."
+        },
+        {
+          "id": "house:fkr844:4500",
+          "kind": "house_fact",
+          "field": "capital_program",
+          "value": true,
+          "text": "Дом указан в перечне программы капремонта 2014–2055 в редакции от 18.11.2025 (№ 4500). Сроки и выполнение работ этой записью не подтверждены; актуальность редакции на сегодня не установлена.",
+          "url": "https://fkr25.ru/files/2014-2055/844-%D0%BF%D0%BF%20%D0%BE%D1%82%2018.11.2025.pdf",
+          "source": "Правительство Приморского края · постановление № 844-пп",
+          "observed_at": "2026-11-13",
+          "source_document_date": "2025-11-18",
+          "retrieval": "primary_document_opened",
+          "current_status_verified": false,
+          "source_note": "Подтверждено содержание документа от 18.11.2025; это не действующий график и не отчёт о выполнении ремонта."
+        }
+      ]
+    }
+  ]
+}

@@ -22,6 +22,14 @@ Checks on the working tree based on `a697ee5` (not a committed revision):
 - `node --check` passed for `app.js` and `map.js`; the map DOM smoke check passed.
 - Browser screenshot, visual and responsive checks were not completed: the local server was unreachable from the browser and browser policy blocked a data URL preview.
 
+## Decision-flow verification
+
+The integrated working tree based on `5089343` implements the four-stage advisor described in [decision-flow.md](decision-flow.md). The local evidence corpus contains nine house facts for three exact addresses and four source guides. Indexed primary Vladivostok pages were checked on 2026-11-13 UTC; the 2025 capital-repair program entries were checked against the PDF. These records are dated evidence, not live outage status.
+
+- Full pytest: 359 passed, 2 skipped. Advisor DTO and model tests include a fake HTTP provider and invalid or cross-offer facts. `node --check` passed for `advisor.js`, `app.js` and `map.js`; `git diff --check` passed.
+- Against the 50-offer dataset, POST `/api/advisor` returned HTTP 200 and retrieval mode for all four priorities. The house priority returned Гамарника 21, Хабаровская 24 and Тополевая 30 with house coverage and without route coverage.
+- No live model provider was configured or verified. The browser screenshot and responsive review remain outstanding.
+
 ## Remaining
 - Visual and responsive browser review of the redesigned UI.
 - Manual usefulness session with a real person (S6-T3).

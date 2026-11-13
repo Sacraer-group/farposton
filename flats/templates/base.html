@@ -16,7 +16,8 @@
       <a class="brand" href="/" aria-label="Farposton — поиск квартир">{{ icon('building-2') }}<span>farposton<span class="brand-dot">.</span></span></a>
       <span class="city-label">Владивосток</span>
       <nav class="main-nav" aria-label="Основная навигация">
-        <a href="/"{% if request.path == '/' %} aria-current="page"{% endif %}>Поиск</a>
+        <a href="/advisor"{% if request.path == '/advisor' %} aria-current="page"{% endif %}>Мой выбор</a>
+        <a href="/"{% if request.path == '/' %} aria-current="page"{% endif %}>Карта и квартиры</a>
         <a href="/favorites"{% if request.path in ['/favorites', '/compare'] %} aria-current="page"{% endif %}>Избранное</a>
       </nav>
       <a class="swipe-nav" href="/swipe"{% if request.path == '/swipe' %} aria-current="page"{% endif %}>{{ icon('layers-2') }}<span>Свайпы</span></a>

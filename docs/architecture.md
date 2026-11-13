@@ -12,13 +12,17 @@
 
 ## Product direction and data boundary
 
-The primary journey is map and address → house passport → managing and utility companies → outages and repairs → monthly and move-in costs with sources and dates → comparison and viewing questions. The shortlist targets 3–5 flats. Swipe is a secondary way to review the same offers.
+The decision journey is requirements and priority → three candidates → source-backed house check and comparison → viewing brief and questions. The goal is to understand cash, house evidence and route uncertainty before visiting. Swipe is secondary. See [decision-flow.md](decision-flow.md).
 
-The redesign exposes this hierarchy using the existing offer data. The source snapshot has addresses, coordinates and floors; it does not supply building year, material, managing company, outages or repairs. Missing house information must be shown as unavailable, not inferred. Offer eligibility is separate from verification of the house address. A real house passport and its source/date provenance require additional data and are not yet implemented.
+The redesign exposes this hierarchy using the existing offer data. The source snapshot has addresses, coordinates and floors; it does not supply building year, material, managing company, outages or repairs. Missing house information must be shown as unavailable, not inferred. Offer eligibility is separate from verification of the house address. Additional locally curated house records may have their own source and date; they are snapshots, not live provider data. Missing records remain unknown.
 
 ## Out of scope
 
-Route calculation; fair price prediction; own parsers; own duplicate model; AI chat and long reports; owner/fraud/defect checks; notifications, accounts, shared choice, mobile app; scheduler, Redis, vector DB, SPA, model server; uploading external reference photos; learning from swipes.
+Route calculation; fair price prediction; own parsers; own duplicate model; unrestricted AI chat and long reports; owner/fraud/defect checks; notifications, accounts, shared choice, mobile app; scheduler, Redis, vector DB, SPA, model server; uploading external reference photos; learning from swipes.
+
+## Advisor direction
+
+A bounded advisor is now in scope. It reuses eligibility and offer costs, retrieves at most five actual candidates lexically, and can call an optional OpenAI-compatible chat/completions provider. The model selects supplied candidate, fact and question IDs; server-side rendering rejects unknown and cross-offer IDs. Without a configured provider the response is explicitly retrieval-based. No new schema, packages or vector database are required. Implementation and verification are tracked in [state.md](state.md).
 
 ## Data flow
 

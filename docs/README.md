@@ -11,6 +11,7 @@ Closed study project, run locally by one user.
 | File | Purpose |
 | --- | --- |
 | [architecture.md](architecture.md) | Scope, modules, data flow, stack, out-of-scope list |
+| [decision-flow.md](decision-flow.md) | Four-stage decision journey and demo |
 | [ui-design.md](ui-design.md) | UI hierarchy, data boundaries and responsive design |
 | [constraints.md](constraints.md) | Real restrictions (source API, secrets, money rules) |
 | [contracts.md](contracts.md) | DB schema, data types, function signatures every task must follow |
