@@ -10,7 +10,11 @@
 | Favorites and comparison | Save flats, compare up to 5 by the same fields, questions for missing data |
 | Swipe mode | Save / skip / details / undo over the same list, filters and favorites |
 
-## Out of scope (v1)
+## Accepted next slice (proposed)
+
+The earlier v1 exclusion of house passports is superseded by the user's decision to use collected house evidence for rental decisions. [Product brief](product-brief.md), [house proposal](house-passport/README.md), and [dataset](../research/house-passports/README.md) describe the intended integration. House ingestion, storage and routes are not implemented on this baseline. The [open draft PR 38](https://github.com/Sacraer-group/farposton/pull/38) proposes UI changes; it is not merged. Separately, manual house-source collection may be considered subject to source access rules; listing ingestion remains through the official Metrapi API and existing security, privacy and money constraints remain in force.
+
+## Out of scope (v1, historical)
 
 House passport (management company, outages, complaints); route calculation; fair price prediction; own parsers; own duplicate model; AI chat and long reports; owner/fraud/defect checks; notifications, accounts, shared choice, mobile app; scheduler, Redis, vector DB, SPA, model server; uploading external reference photos; learning from swipes.
 
@@ -71,3 +75,4 @@ Python 3.11+, Flask (Jinja), `sqlite3` from stdlib, `requests`, NumPy; Transform
 - Visual search never brings back a `reject` flat.
 - Failed import keeps the previous working data.
 - A listing missing from a new import is not marked "rented".
+

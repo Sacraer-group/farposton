@@ -1,0 +1,51 @@
+{
+  "status": "passed",
+  "checked_at": "2026-11-13T19:09:01.039971+00:00",
+  "python": "3.12.14",
+  "sqlite": "3.53.1",
+  "base_schema": "/workspace/scratch/17b96a946d4e/farposton_house_data_20261114/architecture/reference_existing_schema.sql",
+  "base_schema_sha256": "38e06ac1b83cd87f3d5d1b8f40c2a4fac2e7ed99c66b215979b921004679ad59",
+  "addition_sha256": "f6d25234f6671aff2da9016ce8fedca422d4e49d326ace83b32bcfd370b50138",
+  "migration_applications": 3,
+  "added_tables": [
+    "house_contacts",
+    "house_events",
+    "house_facts",
+    "house_sources",
+    "houses",
+    "offer_houses"
+  ],
+  "fixture_row_counts": {
+    "import_runs": 1,
+    "offers": 3,
+    "photo_features": 1,
+    "search_profile": 1,
+    "decisions": 2,
+    "house_contacts": 2,
+    "house_events": 1,
+    "house_facts": 1,
+    "house_sources": 5,
+    "houses": 3,
+    "offer_houses": 1
+  },
+  "checks": [
+    "Original table DDL, columns and every seeded row unchanged after all applications",
+    "Three offers, two decisions (including undone), one photo vector and search profile preserved",
+    "Repeated migration preserved both legacy and new rows",
+    "Different corpus and slash identities stored as different houses",
+    "Foreign key rejects a link to a missing offer; exact match rejects NULL house",
+    "Two conflicting management claims remain; later HTTP 503 receipt removes neither",
+    "Unknown facts and omitted event years remain NULL",
+    "Incomplete coordinate pairs and house contacts without relationship evidence rejected",
+    "foreign_key_check empty; integrity_check ok"
+  ],
+  "not_implemented_or_tested": [
+    "Address parser",
+    "JSON importer",
+    "repository read helpers",
+    "HTTP fetchers",
+    "application routes"
+  ],
+  "production_modified": false,
+  "temporary_database_removed": true
+}

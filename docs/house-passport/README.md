@@ -1,0 +1,5 @@
+# House passport design
+
+These files are an editable architecture proposal, not implemented functionality. Main contains the v1 product described in [architecture](../architecture.md); [draft PR 38](https://github.com/Sacraer-group/farposton/pull/38) proposes a redesigned interface and remains unmerged. Neither establishes house-data ingestion or backend integration. The next slice is described in the [product brief](../product-brief.md).
+
+The [frozen dataset and extraction instructions](../../research/house-passports/README.md) provide the JSON and provenance. References to bundle paths in these design documents mean paths inside the extracted `data/farposton_house_data_20261114/` directory, unless explicitly identified as repository paths. The original designs remain unchanged in the archive. SQL is a proposal; `python docs/house-passport/check_house_schema.py` runs its offline schema check against the co-located reference fixture. A schema check does not verify an importer, application routes, or integration.

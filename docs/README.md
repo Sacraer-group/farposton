@@ -2,7 +2,7 @@
 
 Closed study project, run locally by one user.
 
-**Goal:** help a person pick 3–5 long-term rental flats in Vladivostok worth visiting: they match the conditions, their costs are clear, and their interior is attractive.
+**Goal:** help a person pick 3–5 long-term rental flats in Vladivostok worth visiting: they match the conditions, their known offer costs, interior and house context support a decision, with uncertainty visible.
 
 **User result:** a short candidate list, a payment comparison, and questions to ask before a viewing.
 
@@ -10,6 +10,8 @@ Closed study project, run locally by one user.
 
 | File | Purpose |
 | --- | --- |
+| [product-brief.md](product-brief.md) | Decision-support goal, current gap and next slice |
+| [house-passport/README.md](house-passport/README.md) | Proposed house architecture and dataset |
 | [architecture.md](architecture.md) | Scope, modules, data flow, stack, out-of-scope list |
 | [constraints.md](constraints.md) | Real restrictions (source API, secrets, money rules) |
 | [contracts.md](contracts.md) | DB schema, data types, function signatures every task must follow |
@@ -43,3 +45,4 @@ Not done: the manual usefulness session (Sprint 6, S6-T3) and a style-level chec
 - `GET https://api.metrapi.ru/v1/cities` (no key) lists `{"code":"vladivostok","name":"Владивосток"}`.
 - `GET https://api.metrapi.ru/v1/facets?city=vladivostok` (no key) returns Vladivostok districts (`Центр`, `Вторая речка`, `Чуркин`, ...).
 - Verified with a trial key: 50 real offers, see `source-sample.md`. Not yet verified: SigLIP 2 quality on these photos.
+
