@@ -147,3 +147,66 @@ Result: container healthy after restart; `GET /api/evening/plans/feceb528-b0f0-4
 
 ### Notes
 - Container remains running on `127.0.0.1:18447` after verification (not stopped/torn down). No commit/push performed. No 2ГИС/external API calls. Pre-existing unrelated dirty/untracked worktree items were not modified.
+
+## Clean Docker test from git archive (commit 60e916105da21a301e0794bacead4c2a15f3bd26)
+
+Date: 2026-11-13 (this pass). Tested from a **clean `git archive HEAD`** of commit `60e916105da21a301e0794bacead4c2a15f3bd26` extracted to a temporary directory (`/tmp/opencode/evening-clean-*`), with no bind mount of repo source or host `.demo`, and a **new** test volume/container (separate from running `farposton-evening-evening-1` on `127.0.0.1:18447`).
+
+### Commands
+
+```sh
+# extract clean archive
+COMMIT=$(git rev-parse HEAD) # 60e916105da21a301e0794bacead4c2a15f3bd26
+TMP=$(mktemp -d /tmp/opencode/evening-clean-XXXXXX)
+git archive "$COMMIT" | tar -x -C "$TMP"
+
+# build allowlisted image from clean archive
+cd "$TMP"
+sudo -n docker build -f Dockerfile.evening -t evening-clean-test:60e9161 .
+
+# run separate test container on 127.0.0.1:18448 with new volume
+sudo -n docker volume create evening_clean_test_state_60e9161
+sudo -n docker run -d --name evening-clean-test-run \
+  -p 127.0.0.1:18448:18447 \
+  -e DEPLOYMENT_PROFILE=local -e WEB_DEMO_NO_AUTH=1 -e WEB_HOST=0.0.0.0 -e WEB_PORT=18447 \
+  -e EVENING_DEMO_DIR=/app/.demo/evening -e EVENING_DB_PATH=/app/.demo/evening/plans.sqlite3 \
+  -v evening_clean_test_state_60e9161:/app/.demo/evening \
+  --user 10001:10001 \
+  evening-clean-test:60e9161
+
+# wait for healthy, verify nonroot
+sudo -n docker inspect -f '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' evening-clean-test-run
+sudo -n docker exec evening-clean-test-run id
+
+# HTTP checks
+curl -fsS http://127.0.0.1:18448/api/evening/events
+curl -sS -X POST http://127.0.0.1:18448/api/evening/plans -H 'Content-Type: application/json' \
+  -d '{"event_id":"04728bad-edd6-595b-98c2-35e47ebe7ae4","date":"2026-11-14","meal_start":"17:00","meal_end":"18:00","required_features":[],"preferred_features":["dog"],"max_distance_m":3000}'
+curl -fsS http://127.0.0.1:18448/api/evening/plans/<plan_id>
+
+# restart and re-check same plan
+sudo -n docker restart evening-clean-test-run
+# wait for healthy
+curl -fsS http://127.0.0.1:18448/api/evening/plans/<plan_id>
+
+# cleanup (only this temporary test container/volume/image/temp dir/logs; main 18447 left running)
+sudo -n docker rm -f evening-clean-test-run
+sudo -n docker volume rm evening_clean_test_state_60e9161
+sudo -n docker rmi evening-clean-test:60e9161
+rm -rf "$TMP"
+```
+
+### Results
+
+- Build: `Successfully built 150edfad61f1`, tagged `evening-clean-test:60e9161` (from clean archive contents; allowlisted Dockerfile).
+- Container started healthy on `127.0.0.1:18448->18447/tcp`; `docker exec ... id` → `uid=10001(appuser) gid=10001(appuser) groups=10001(appuser)` (nonroot).
+- `GET /api/evening/events` → 3 scheduled synthetic future events (`04728bad-... 2026-11-14T19:30:00+10:00`, `d60966dc-... 2026-11-15T18:45:00+10:00`, `0df439d7-... 2026-11-16T20:00:00+10:00`).
+- `POST /api/evening/plans` → `201`, plan `baab1a01-1ee7-4233-9638-b29f6190d34c` (event `04728bad-...`, `2026-11-14 17:00-18:00`, `preferred_features=["dog"]`, `max_distance_m=3000`), `primary=place-01`, `alternative=place-03`, `current.event_status=scheduled`.
+- `GET /api/evening/plans/baab1a01-1ee7-4233-9638-b29f6190d34c` → `200`, snapshot+`current` present, `event_status=scheduled`.
+- After `docker restart` and health restored: `GET /api/evening/plans/baab1a01-1ee7-4233-9638-b29f6190d34c` → `200`, same plan id and `scheduled` (new test volume persisted state across restart).
+- Cleanup completed: test container and volume `evening_clean_test_state_60e9161` removed, test image and temp archive dir/logs removed. Main container `farposton-evening-evening-1` remained running/healthy on `127.0.0.1:18447`.
+
+### Notes
+
+- Browser smoke was rerun on the current running container `127.0.0.1:18447` before this clean-archive test: `tests/evening_browser_smoke.cjs` → `SMOKE_OK`, exit code 0 (plan `df23a304-fbd9-488c-bec4-c179a1b492ac`), details in `docs/evening/BROWSER.md`.
+- No bind mounts of repo source or host `.demo` were used for this clean-archive test; runtime seed/state lived in the dedicated Docker volume.
