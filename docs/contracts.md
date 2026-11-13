@@ -1,0 +1,224 @@
+# Contracts
+
+Fixed interfaces between tasks. Tasks implement them exactly. Changing a contract is a separate task in a later sprint.
+
+## 1. Environment
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `METRAPI_KEY` | none (required for import) | Metrapi API key |
+| `FLATS_DB` | `data/flats.db` | SQLite file |
+| `FLATS_PHOTO_DIR` | `data/photos` | Cached photos |
+
+`data/` is in `.gitignore`.
+
+## 2. SQLite schema (`flats/schema.sql`)
+
+```sql
+CREATE TABLE IF NOT EXISTS import_runs (
+  id INTEGER PRIMARY KEY,
+  started_at TEXT NOT NULL,
+  finished_at TEXT,
+  status TEXT NOT NULL CHECK (status IN ('running','ok','failed')),
+  fetched INTEGER NOT NULL DEFAULT 0,
+  error TEXT
+);
+
+CREATE TABLE IF NOT EXISTS offers (
+  source TEXT NOT NULL,
+  source_id TEXT NOT NULL,
+  group_id TEXT,
+  url TEXT,
+  address TEXT,
+  district TEXT,
+  lat REAL, lon REAL,
+  rooms INTEGER,
+  area_total REAL,
+  floor INTEGER, floors_total INTEGER,
+  price INTEGER,
+  deposit_raw TEXT, commission_raw TEXT, prepayment_raw TEXT,
+  utilities_raw TEXT, pets_raw TEXT, rent_period_raw TEXT,
+  description TEXT,
+  photos_json TEXT NOT NULL DEFAULT '[]',
+  published_at TEXT, last_seen TEXT,
+  raw_json TEXT NOT NULL,
+  import_run_id INTEGER NOT NULL REFERENCES import_runs(id),
+  PRIMARY KEY (source, source_id)
+);
+CREATE INDEX IF NOT EXISTS offers_group ON offers(group_id);
+
+CREATE TABLE IF NOT EXISTS photo_features (
+  photo_url TEXT NOT NULL,
+  source TEXT NOT NULL,
+  source_id TEXT NOT NULL,
+  content_sha256 TEXT NOT NULL,
+  model TEXT NOT NULL,
+  vector BLOB NOT NULL,
+  PRIMARY KEY (photo_url, model),
+  FOREIGN KEY (source, source_id) REFERENCES offers(source, source_id)
+);
+
+CREATE TABLE IF NOT EXISTS search_profile (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  monthly_max INTEGER,
+  move_in_max INTEGER,
+  rooms_json TEXT NOT NULL DEFAULT '[]',
+  districts_json TEXT NOT NULL DEFAULT '[]',
+  pets_required INTEGER NOT NULL DEFAULT 0,
+  sample_photo_url TEXT
+);
+
+CREATE TABLE IF NOT EXISTS decisions (
+  id INTEGER PRIMARY KEY,
+  source TEXT NOT NULL,
+  source_id TEXT NOT NULL,
+  action TEXT NOT NULL CHECK (action IN ('save','skip')),
+  created_at TEXT NOT NULL,
+  undone INTEGER NOT NULL DEFAULT 0
+);
+```
+
+Rules: offers are upserted by `(source, source_id)`; old offers are never deleted by import. Totals are not stored. Current decision for an offer = latest row with `undone = 0`.
+
+## 3. Domain types (`flats/types.py`)
+
+Plain `dataclasses`, `frozen=True`. Money is integer rubles. `None` = unknown.
+
+```python
+Status = Literal["match", "unknown", "reject"]
+
+@dataclass(frozen=True)
+class Amount:            # parsed money term
+    rub: int | None      # known sum in rubles, None if unknown
+    kind: Literal["none", "rub", "percent", "months", "unknown"]
+    value: float | None  # percent or months count when kind is percent/months
+    raw: str | None      # original string
+
+@dataclass(frozen=True)
+class Offer:             # one row of `offers`, parsed
+    source: str; source_id: str; group_id: str | None; url: str | None
+    address: str | None; district: str | None; lat: float | None; lon: float | None
+    rooms: int | None; area_total: float | None
+    floor: int | None; floors_total: int | None
+    price: int | None
+    deposit_raw: str | None; commission_raw: str | None; prepayment_raw: str | None
+    utilities_raw: str | None; pets_raw: str | None; rent_period_raw: str | None
+    description: str | None; photos: tuple[str, ...]
+    published_at: str | None; last_seen: str | None
+
+@dataclass(frozen=True)
+class Costs:
+    rent: int | None
+    monthly_known: int | None        # rent + known mandatory monthly payments
+    monthly_unknown: tuple[str, ...] # e.g. ("utilities",)
+    prepayment: Amount
+    deposit: Amount
+    commission: Amount
+    move_in_known: int | None        # prepayment + deposit + commission, known parts only
+    move_in_unknown: tuple[str, ...] # e.g. ("deposit", "commission")
+
+@dataclass(frozen=True)
+class Profile:
+    monthly_max: int | None; move_in_max: int | None
+    rooms: tuple[int, ...]; districts: tuple[str, ...]
+    pets_required: bool; sample_photo_url: str | None
+
+@dataclass(frozen=True)
+class Verdict:
+    status: Status
+    reasons: tuple[str, ...]          # human Russian text, why reject/unknown
+
+@dataclass(frozen=True)
+class FlatCard:                       # one flat = offers sharing group_id
+    key: str                          # group_id or f"{source}:{source_id}"
+    offers: tuple[Offer, ...]
+    best: Offer                       # offer used for list display (see grouping rule)
+```
+
+## 4. Function signatures
+
+| Module | Signature |
+| --- | --- |
+| `flats/config.py` | `metrapi_key() -> str` (raises `RuntimeError` if missing); `db_path() -> Path`; `photo_dir() -> Path` |
+| `flats/db.py` | `connect(path: Path \| None = None) -> sqlite3.Connection` (row_factory=Row, foreign_keys on); `init_db(conn) -> None` |
+| `flats/money.py` | `parse_deposit(raw: str \| None, rent: int \| None) -> Amount`; `parse_commission(raw, rent) -> Amount`; `parse_prepayment(raw, rent) -> Amount`; `utilities_included(raw: str \| None) -> bool \| None`; `pets_allowed(raw: str \| None) -> bool \| None` |
+| `flats/costs.py` | `compute_costs(offer: Offer) -> Costs` |
+| `flats/eligibility.py` | `check(offer: Offer, costs: Costs, profile: Profile) -> Verdict` |
+| `flats/questions.py` | `questions_for(card: FlatCard, chosen: Offer) -> list[str]` |
+| `flats/source.py` | `fetch_all(key: str, params: dict, *, page_size=1000, sleep=time.sleep, http=requests) -> Iterator[dict]` |
+| `flats/importer.py` | `run_import(conn, items: Iterable[dict]) -> int` (returns run id) |
+| `flats/repo_offers.py` | `upsert_offer(conn, item: dict, run_id: int) -> None`; `all_offers(conn) -> list[Offer]`; `offers_by_key(conn, key: str) -> list[Offer]`; `last_ok_run(conn) -> sqlite3.Row \| None` |
+| `flats/repo_user.py` | `get_profile(conn) -> Profile`; `save_profile(conn, p: Profile) -> None`; `decide(conn, source, source_id, action) -> int`; `undo_last(conn) -> int \| None`; `current_decisions(conn) -> dict[tuple[str, str], str]` |
+| `flats/grouping.py` | `group_offers(offers: list[Offer]) -> list[FlatCard]` |
+| `flats/search.py` | `search(conn, profile: Profile, *, include_skipped=False) -> list[SearchRow]` |
+| `flats/embed.py` | `embed_missing(conn, *, model_name: str, limit: int \| None = None) -> int` |
+| `flats/similar.py` | `cosine_scores(sample: np.ndarray, matrix: np.ndarray) -> np.ndarray`; `rank_by_photo(conn, sample_url: str, keys: list[str], model: str) -> dict[str, tuple[float, str]]` (key -> score, best photo url) |
+| `flats/cli.py` | `main(argv=None) -> int`; subcommands `init-db`, `import [--limit N]`, `embed [--limit N]` |
+| `flats/web/__init__.py` | `create_app(db_path: Path \| None = None) -> Flask` |
+
+`SearchRow` (in `flats/types.py`): `card: FlatCard`, `offer: Offer` (offer used for costs), `costs: Costs`, `verdict: Verdict`, `decision: str | None`, `similar: tuple[float, str] | None`.
+
+## 5. Business rules
+
+### Money parsing (`flats/money.py`)
+
+| Raw (case-insensitive, spaces/NBSP ignored) | Result |
+| --- | --- |
+| `None` or empty | `kind="unknown", rub=None` |
+| contains `без залога` / `без комиссии` / `без предоплаты` / `нет` | `kind="none", rub=0` |
+| digits with `₽` or `руб` (e.g. `63 000 ₽`) | `kind="rub", rub=63000` |
+| `N%` and `rent` known | `kind="percent", value=N, rub=round(rent*N/100)` |
+| `N%` and `rent` unknown | `kind="percent", value=N, rub=None` |
+| `за N месяц(а/ев)` and `rent` known (prepayment) | `kind="months", value=N, rub=rent*N` |
+| anything else (`по договорённости`, `частично`) | `kind="unknown", rub=None` |
+
+`raw` always keeps the original string. `utilities_included`: text with `включ` / `собственник` -> `True`; `арендатор` / `отдельно` / `счётчик` -> `False`; else `None`. `pets_allowed`: `можно`/`да`/`true` -> `True`; `нельзя`/`нет`/`false` -> `False`; else `None`. Exact source values are confirmed by S0-T3; if they differ, S1 tasks follow `docs/source-sample.md`.
+
+### Costs (`flats/costs.py`)
+
+- `rent = offer.price`.
+- `monthly_known = rent` if rent known; utilities not included or unknown -> `"utilities"` in `monthly_unknown`.
+- Prepayment unknown -> assume nothing, put `"prepayment"` in `move_in_unknown`. Prepayment "за 1 месяц" = first month rent paid once; never add rent again.
+- `move_in_known` = sum of known `rub` of prepayment, deposit, commission; `None` only if all three unknown.
+- Each unknown component name goes to `move_in_unknown`.
+
+Example (test fixture): rent 40000, deposit `40 000 ₽`, commission `50%`, prepayment `за 1 месяц`, utilities `оплачиваются отдельно` -> `monthly_known=40000`, `monthly_unknown=("utilities",)`, `move_in_known=100000`, `move_in_unknown=()`.
+
+### Eligibility (`flats/eligibility.py`)
+
+Check in order; any reject -> `reject`; else any unknown -> `unknown`; else `match`.
+
+| Condition | reject when | unknown when |
+| --- | --- | --- |
+| `monthly_max` | `monthly_known > monthly_max` | rent unknown |
+| `move_in_max` | `move_in_known > move_in_max` | `move_in_unknown` not empty and known part ≤ max |
+| `rooms` (if non-empty) | rooms known and not in list | rooms unknown |
+| `districts` (if non-empty) | district known and not in list | district unknown |
+| `pets_required` | pets explicitly not allowed | pets unknown |
+
+Reasons are short Russian strings, e.g. `"Залог не указан"`, `"Аренда выше бюджета: 55 000 ₽ > 50 000 ₽"`.
+
+### Grouping (`flats/grouping.py`)
+
+- Key = `group_id`, or `f"{source}:{source_id}"` if `group_id` is `None`.
+- `best` = offer with the lowest known `move_in_known + monthly_known`; offers with unknowns go after known ones; tie -> latest `last_seen`.
+- Offers are never merged field by field.
+
+### Search order (`flats/search.py`)
+
+1. Drop `reject`. Drop `skip` decisions unless `include_skipped`.
+2. For each card, evaluate every offer; the card's offer = best non-reject offer by grouping rule.
+3. Without sample photo: `match` before `unknown`, then by `monthly_known` ascending (unknown last).
+4. With sample photo: same filter, then by similarity descending; cards without photo vectors go last in rule-3 order.
+
+### Questions (`flats/questions.py`)
+
+| Trigger on chosen offer | Question (Russian) |
+| --- | --- |
+| utilities unknown / not included | `Какова обычная сумма коммунальных платежей?` |
+| deposit unknown | `Какой залог и на каких условиях он возвращается?` |
+| commission unknown | `Есть ли комиссия и какой она суммы?` |
+| prepayment unknown | `За сколько месяцев нужна предоплата?` |
+| pets unknown | `Можно ли жить с животными?` |
+| other offers of card have different price/deposit/commission | `Условия на площадках различаются — подтвердите условия этого предложения` |
+| always | `Есть ли другие платежи при въезде?` |
