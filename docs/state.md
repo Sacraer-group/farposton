@@ -5,16 +5,16 @@ Updated: 2026-11-13
 Build the local Vladivostok rental shortlist app by the sprint plan in `docs/README.md`.
 
 ## Verified
-- S0-T1 (#2) and S0-T2 (#3) merged: package `flats`, config, types, SQLite schema.
-- S1-T1 (#8), S1-T7 (#9), S1-T8 (#10) merged: money parsing, user profile/decisions repo, Flask shell.
-- S1-T2 (#14), S1-T3 (#15), S1-T5 (#16) merged: offer costs, eligibility, pre-viewing questions.
-- `pytest -q` passes locally (Python 3.11) and in CI (`.github/workflows/tests.yml`, runs on push to `main` and on every PR).
+- Sprint 0: package `flats`, config, types, SQLite schema (#2, #3).
+- Sprint 1 done: money parsing, costs, eligibility, questions, grouping, user repo, offers repo, Flask shell, actions API (#8, #9, #10, #14, #15, #16, #20, #21, #22).
+- Sprint 2 wave 2A done: search service, importer (one transaction, failed run keeps data), demo dataset of 26 invented offers (#23, #24, #25).
+- `pytest -q` -> 279 passed locally (Python 3.11); CI green on `main`.
+- End-to-end on demo data (import -> search): reference offer move-in 100000; group `demo-g1` shows the conflict question.
 
 ## Remaining
-- S0-T3 (#4, draft PR #5) on hold: listings will be delivered later as a separate database (owner decision, 2026-11-13). When it arrives, profile it instead of the Metrapi probe and check its raw terms against contracts §5.
-- S1-T6 (Metrapi client) on hold until the listings database format is known; it may be replaced by a loader from that database.
-- Sprints 1–6.
+- S0-T3 (#4, draft PR #5) on hold until the listings database arrives; then profile it and write a loader to normalized dicts.
+- Sprint 2 wave 2B: CLI (`init-db`, `import-json`, `demo`) and README.
+- Sprint 3 wave B pages, Sprint 4 visual search, Sprint 5 swipes, Sprint 6 checks.
 
 ## Next
-Sprint 1 wave 1C in progress: #20 (grouping), #21 (offers repository), #22 (actions API).
-Sprint 2 wave 2A issues ready, start after 1C merge: #23 (S2-T6 search), #24 (S2-T3 importer), #25 (S2-T7 demo dataset). See `docs/sprint-2.md`.
+Create Sprint 2 wave 2B issues (CLI, README) and Sprint 3 page issues (search + flat pages, favorites + compare).
