@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "flats"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = ["flask", "requests", "numpy"]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+ml = ["torch", "transformers", "pillow"]
+
+[project.scripts]
+flats = "flats.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["flats*"]
+
+[tool.setuptools.package-data]
+flats = ["*.sql", "templates/*", "static/*"]
