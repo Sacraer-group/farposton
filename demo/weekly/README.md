@@ -1,9 +1,0 @@
-# Weekly ordering demo fixture
-
-Fictional data for a small shawarma business. `history.csv` contains daily finished-product demand and sales for three points and six menu SKUs over 12 complete weeks, 2026-07-07 through 2026-09-28. Demand includes simulated lost sales on occasional stockout days; it is never lower than sales. The point and SKU keys match the forecast demo dimensions (`DEMO-POINT-01`…`03`, `DEMO-SKU-01`…`06`). Quantities are individual ready-to-sell units.
-
-`planning.csv` is an **independent fictional stock snapshot as of 2026-09-29**. `stock_on_hand` is available now; `incoming_qty` is assumed to arrive before the forecast week starts, so both quantities can cover demand during lead time. `safety_stock`, `pack_size`, `min_order`, `shelf_life_days`, and `lead_time_days` are explicit scenario assumptions; lead time must be less than seven days. The products are chilled and delivered frequently from a central kitchen; a weekly plan may require more than one delivery within the week. A positive order must meet `min_order` and be rounded to `pack_size`. The demand window is limited by shelf life, but safety stock and pack rounding can leave excess that expires; this rehearsal does not optimize writeoffs.
-
-Inventory demo revisions concern raw ingredients and packaging at periodic count dates. They are related operational context, **not a live finished-product stock feed** for these order calculations. No customer data, 1C access, credentials, or network service is used.
-
-`generate.py` creates the exact CSVs with Python standard library and a fixed random seed; it reads no external data and refuses an existing output directory. Reproduce with `python generate.py /tmp/weekly-order-fixture` and compare the two CSVs to this directory. Run `python validate.py` here to check dates, keys, quantities, and planning constraints.
