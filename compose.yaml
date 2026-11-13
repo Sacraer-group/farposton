@@ -3,6 +3,8 @@ services:
     build: .
     ports:
       - "127.0.0.1:8445:8445"
+    environment:
+      MAPGL_KEY: ${MAPGL_KEY:-}
     volumes:
       - forecast-demo:/app/.demo/forecast
       - ./data/2gis:/app/data/2gis:ro
