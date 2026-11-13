@@ -15,15 +15,7 @@ Split into two waves so no task waits on a file it does not own. Wave B starts a
 
 ### S3-T2 Web shell
 
-- **Owns:** `flats/web/__init__.py`, `flats/web/format.py`, `flats/templates/base.html`, `flats/static/app.css`, `tests/test_web_shell.py`
-- **Steps:**
-  1. `create_app(db_path)`: Flask app, `app.config["DB_PATH"]`; `get_conn()` helper in `flats/web/__init__.py` storing connection on `flask.g`, closed on teardown. Register blueprints by importing `flats.web.pages`, `flats.web.actions`, `flats.web.compare` (each exposes `bp`) **inside** `create_app`, each in `try/except ImportError` so the shell works before wave B. Run command: `flask --app flats.web:create_app run --host 127.0.0.1`.
-  2a. Inject `last_import` into every template with a context processor using `repo_offers.last_ok_run`.
-  2. Jinja filters in `format.py`, registered in `create_app`: `rub(n)` -> `"40 000 ₽"` or `"не указано"` for `None`; `status_label(s)` -> `Подходит` / `Нужно уточнить` / `Не подходит`.
-  3. `base.html`: `<html lang="ru">`, nav links Поиск `/`, Избранное `/favorites`, last import date from context var `last_import` (or "данные не загружены"), `{% block content %}`. Load `app.css` and `{% block scripts %}`.
-  4. `app.css`: readable cards grid, table styles, visible focus outline, `.unknown` highlight (amber), `.reject` (red). No framework.
-- **Tests:** `create_app(tmp db).test_client().get("/static/app.css")` -> 200; `rub(40000) == "40 000 ₽"`, `rub(None) == "не указано"`.
-- **Accept:** `pytest -q tests/test_web_shell.py`.
+Moved to Sprint 1 as S1-T8.
 
 ## Wave 3B (after 3A merged)
 

@@ -1,6 +1,6 @@
 # Sprint 2 — import pipeline and repositories
 
-Goal: `flats import` fills SQLite with real Vladivostok offers; a failed import keeps old data; user state can be stored.
+Goal: `flats import` fills SQLite with real Vladivostok offers (source: the listings database; S2-T3/S2-T4 are re-scoped when its format is known); a failed import keeps old data; user state can be stored.
 
 ## S2-T1 Offer repository
 
@@ -14,10 +14,7 @@ Goal: `flats import` fills SQLite with real Vladivostok offers; a failed import 
 
 ## S2-T2 User repository
 
-- **Owns:** `flats/repo_user.py`, `tests/test_repo_user.py`
-- **Steps:** functions from contracts §4. `get_profile` returns an empty `Profile` (all `None`/empty, `pets_required=False`) when no row. `save_profile` uses `INSERT OR REPLACE` with `id=1`. `decide` inserts a row with UTC ISO time, returns id. `undo_last` sets `undone=1` on the latest not-undone row, returns its id or `None`. `current_decisions` returns latest not-undone action per offer.
-- **Tests:** profile round-trip; save then skip same offer -> `skip`; undo -> back to `save`; undo on empty -> `None`.
-- **Accept:** `pytest -q tests/test_repo_user.py`.
+Moved to Sprint 1 as S1-T7.
 
 ## S2-T3 Importer
 

@@ -162,17 +162,24 @@ class FlatCard:                       # one flat = offers sharing group_id
 
 ### Money parsing (`flats/money.py`)
 
-| Raw (case-insensitive, spaces/NBSP ignored) | Result |
-| --- | --- |
-| `None` or empty | `kind="unknown", rub=None` |
-| contains `без залога` / `без комиссии` / `без предоплаты` / `нет` | `kind="none", rub=0` |
-| digits with `₽` or `руб` (e.g. `63 000 ₽`) | `kind="rub", rub=63000` |
-| `N%` and `rent` known | `kind="percent", value=N, rub=round(rent*N/100)` |
-| `N%` and `rent` unknown | `kind="percent", value=N, rub=None` |
-| `за N месяц(а/ев)` and `rent` known (prepayment) | `kind="months", value=N, rub=rent*N` |
-| anything else (`по договорённости`, `частично`) | `kind="unknown", rub=None` |
+Parsing order for `parse_deposit` / `parse_commission` / `parse_prepayment` (first match wins). Text is normalized first: lowercase, `ё` -> `е`, NBSP/thin space -> space, spaces between digits removed.
 
-`raw` always keeps the original string. `utilities_included`: text with `включ` / `собственник` -> `True`; `арендатор` / `отдельно` / `счётчик` -> `False`; else `None`. `pets_allowed`: `можно`/`да`/`true` -> `True`; `нельзя`/`нет`/`false` -> `False`; else `None`. Exact source values are confirmed by S0-T3; if they differ, S1 tasks follow `docs/source-sample.md`.
+| # | Raw | Result |
+| --- | --- | --- |
+| 1 | `None`, empty or only spaces | `kind="unknown", rub=None, value=None` |
+| 2 | starts with `без` or is the word `нет` | `kind="none", rub=0, value=None` |
+| 3 | `N%` (N may be decimal with `,` or `.`) | `kind="percent", value=N`; `rub=round(rent*N/100)` if rent known else `None` |
+| 4 | `N мес...` or `за мес...` without N (N=1) | `kind="months", value=N`; `rub=rent*N` if rent known else `None` |
+| 5 | number followed by `₽`, `руб` or `р` | `kind="rub", rub=<int>, value=None` |
+| 6 | anything else (`по договоренности`, `частично`) | `kind="unknown", rub=None, value=None` |
+
+`raw` always keeps the original, un-normalized string.
+
+`utilities_included(raw)`: `None`/empty -> `None`; contains `не включ`, `арендатор`, `отдельно` or `счетчик` -> `False`; else contains `включ` or `собственник` -> `True`; else `None`.
+
+`pets_allowed(raw)`: a Python `bool` is returned as is; `None`/empty -> `None`; contains `нельзя` or `запрещ`, or is `нет`/`false`/`0` -> `False`; contains `можно` or `разреш`, or is `да`/`true`/`1` -> `True`; else `None`.
+
+These rules come from the Metrapi docs, not from observed data. When the listings database arrives, its real strings are added here and to `tests/test_money.py`.
 
 ### Costs (`flats/costs.py`)
 

@@ -14,4 +14,4 @@ Build the local Vladivostok rental shortlist app by the sprint plan in `docs/REA
 - Sprints 1–6.
 
 ## Next
-Create Sprint 1 issues for S1-T1..S1-T5 (pure logic, no source dependency). Money parsing follows contracts §5 until real listings arrive.
+Sprint 1 wave 1A in progress: #8 (S1-T1 money), #9 (S1-T7 user repo), #10 (S1-T8 web shell) — three parallel branches. After merge: wave 1B issues (S1-T2 costs, S1-T3 eligibility, S1-T5 questions), then 1C (S1-T4 grouping). See `docs/sprint-1.md`.
