@@ -22,3 +22,47 @@ Docker между перезапусками. LLM и интеграция с 1С
 заведений не покажет каталог и прогноз; раздел `/forecast` продолжит работать.
 Данные заведений и права на их использование необходимо проверить перед
 публикацией. На чистой копии Docker создаст отсутствующие каталоги пустыми.
+
+## CI/CD на production
+
+GitHub Actions проверяет тесты и синтетическую аналитику на PR и push. После
+успешного CI только текущая `main` (push или ручной запуск `CI` на main)
+собирается в `farposton:release-<40-character SHA>` и отправляется по SSH на
+`176.53.253.25`. Environment `production` разрешает только main; его secrets:
+`PROD_HOST`, `PROD_SSH_KEY`, `PROD_KNOWN_HOSTS`. Ключ временно создаётся на runner
+с правами 0600 и удаляется при завершении. PR не получает production secrets.
+
+Серверный пользователь `farposton-ci` имеет forced command
+`/usr/local/bin/farposton-ci-gate`: только `deploy <SHA>`, `status`, `rollback`.
+Оператор устанавливает `deploy/production/release.py` как root-owned
+`/usr/local/sbin/farposton-release`, gate — как `/usr/local/bin/farposton-ci-gate`,
+а Compose — как `/etc/farposton/compose.yaml`, и выдаёт только этот sudo command.
+Изменения этих root-owned файлов требуют отдельной установки оператором.
+
+Агент проверяет revision label образа и запускает candidate на loopback 18450
+с новым временным томом. Проверяются HTTP health/meta, real events и страницы.
+Только после этого обновляется основной контейнер на loopback 8445. Проверяются
+его image ID, локальный HTTP и публичный HTTPS. При ошибке запуска прежний образ
+возвращается автоматически, команда завершается ошибкой.
+
+Том `farposton_forecast-demo`, существующий `.env` и readonly базы/модели
+сохраняются. Агент никогда не делает `down -v` для production. Временный candidate
+использует собственный том и не изменяет production данные. Образы текущего и
+предыдущего релизов нужны для отката; не удаляйте их при ручной очистке Docker.
+Состояние — `/var/lib/farposton/deployment.json`, commit marker —
+`/home/tech/farposton/.deployed-commit`.
+
+Проверка и ручной откат от пользователя tech:
+
+```sh
+sudo /usr/local/sbin/farposton-release status
+sudo /usr/local/sbin/farposton-release rollback
+```
+
+`/health` может вернуть HTTP 200 с `ok:false` из-за фиксированной даты
+синтетического Forecast — readiness проверяет доступность процесса и API,
+а не обещает свежесть данных. Наличие настоящего каталога/модели проверяется
+отдельно: они не попадают в Git или Docker-образ, автоматически не копируются.
+Если каталога на production нет, real-подбор вернёт 503 без вымышленных мест.
+Миграции данных и восстановление тома из резервной копии не автоматизированы;
+rollback меняет образ и сохраняет текущие данные.
