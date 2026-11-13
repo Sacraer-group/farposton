@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Свайпы{% endblock %}
+{% block content %}
+<h1>Ленивый просмотр</h1>
+<p>Те же фильтры и порядок, что в <a href="/">подборке</a>. Клавиши: ← пропустить, → сохранить, Z — отменить.</p>
+<div class="stack" id="stack" aria-live="polite">
+  {% for row in rows|reverse %}{% set o = row.offer %}{% set c = row.costs %}
+  <article class="card swipe-card" data-source="{{ o.source }}" data-source-id="{{ o.source_id }}">
+    {% set photo = row.similar[1] if row.similar else (o.photos[0] if o.photos else none) %}
+    {% if photo %}<img class="thumb" src="{{ photo }}" alt="Фото квартиры: {{ o.address or '' }}" draggable="false" referrerpolicy="no-referrer">{% endif %}
+    {% if row.similar %}<p class="similar-label">Похожий интерьер</p>{% endif %}
+    <p class="status status-{{ row.verdict.status }}">{{ row.verdict.status|status_label }}</p>
+    <h2>{{ room_label(o.rooms) }}, {{ o.area_total or '?' }} м² · {{ o.district or 'район не указан' }}</h2>
+    <p>{{ o.address or 'Адрес не указан' }}</p>
+    <p><strong>Ежемесячно:</strong> {{ c.monthly_known|rub }}{% if 'utilities' in c.monthly_unknown %} + коммунальные{% endif %}
+       · <strong>На въезд:</strong> {{ c.move_in_known|rub }}{% if c.move_in_unknown %} + не указано: {{ c.move_in_unknown|map('part_label')|join(', ') }}{% endif %}</p>
+    <a class="details" href="{{ url_for('pages.flat', key=row.card.key) }}">Подробнее</a>
+  </article>
+  {% endfor %}
+  <p class="empty" id="empty"{% if rows %} hidden{% endif %}>Подборка закончилась. <a href="/favorites">Избранное</a> · <a href="/">Изменить фильтры</a></p>
+</div>
+<div class="actions swipe-actions">
+  <button type="button" id="skip">← Пропустить</button>
+  <button type="button" id="details">Подробнее</button>
+  <button type="button" id="save">Сохранить →</button>
+  <button type="button" id="undo">Отменить</button>
+</div>
+<p id="swipe-error" class="status-reject" role="alert"></p>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='swipe.js') }}"></script>{% endblock %}
