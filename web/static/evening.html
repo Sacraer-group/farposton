@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Готовый вечер (вымышленное демо)</title>
+  <style>
+    :root { --bg:#f6f4ef; --card:#fff; --text:#1f2937; --muted:#6b7280; --accent:#0f766e; --err:#b91c1c; --border:#d1d5db; }
+    *{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text);line-height:1.4}
+    main{max-width:860px;margin:0 auto;padding:16px} h1{margin:0 0 8px;font-size:1.6rem}
+    .notice{background:#fff7ed;border:1px solid #fdba74;padding:10px 12px;border-radius:10px;margin:10px 0}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin:12px 0}
+    label{display:block;font-weight:600;margin:10px 0 4px} input,select,button{font:inherit}
+    input[type=text],input[type=time],input[type=number],input[type=date],select{width:100%;padding:10px;border:1px solid var(--border);border-radius:8px}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:10px} @media(max-width:640px){.row{grid-template-columns:1fr}}
+    fieldset{border:1px solid var(--border);border-radius:10px;padding:10px;margin:10px 0} legend{font-weight:600;padding:0 6px}
+    .checks{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:6px}
+    .checks label{font-weight:500;margin:0;display:flex;gap:8px;align-items:center}
+    button.primary{background:var(--accent);color:#fff;border:none;padding:11px 14px;border-radius:10px;cursor:pointer;font-weight:600}
+    button.secondary{background:#eef2f7;color:var(--text);border:1px solid var(--border);padding:9px 12px;border-radius:10px;cursor:pointer}
+    button:focus,input:focus,select:focus{outline:3px solid #99f6e4;outline-offset:1px}
+    .error{color:var(--err);margin:8px 0} .muted{color:var(--muted)} .hidden{display:none}
+    .result h2{margin-top:0} .pill{display:inline-block;background:#ecfeff;border:1px solid #99f6e4;border-radius:999px;padding:2px 8px;margin:2px 4px 2px 0;font-size:.9rem}
+    .plan-block{border-top:1px solid var(--border);padding-top:10px;margin-top:10px}
+    .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+    a{color:var(--accent)}
+  </style>
+</head>
+<body>
+<main>
+  <h1>Готовый вечер</h1>
+  <div class="notice"><strong>Вымышленные данные.</strong> Все события и места — синтетический seed для демо. Наличие столов не проверено. Минуты пути и гарантии мест не показываются.</div>
+
+  <section class="card" aria-labelledby="form-title">
+    <h2 id="form-title">Параметры вечера</h2>
+    <div id="loading" class="muted">Загрузка событий…</div>
+    <div id="load-error" class="error hidden" role="alert"></div>
+    <form id="plan-form" class="hidden">
+      <label for="event">Событие</label>
+      <select id="event" name="event_id" required></select>
+      <div class="row">
+        <div>
+          <label for="date">Дата (Asia/Vladivostok)</label>
+          <input id="date" name="date" type="date" required>
+        </div>
+        <div>
+          <label for="max_distance_m">Макс. расстояние, м (100–5000)</label>
+          <input id="max_distance_m" name="max_distance_m" type="number" min="100" max="5000" step="1" value="2000" required>
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label for="meal_start">Начало еды (HH:MM)</label>
+          <input id="meal_start" name="meal_start" type="time" required>
+        </div>
+        <div>
+          <label for="meal_end">Конец еды (HH:MM, не позже начала события)</label>
+          <input id="meal_end" name="meal_end" type="time" required>
+        </div>
+      </div>
+      <fieldset>
+        <legend>Обязательные признаки (max 5)</legend>
+        <div class="checks" id="required_features"></div>
+      </fieldset>
+      <fieldset>
+        <legend>Предпочтения (max 5, без пересечения с обязательными)</legend>
+        <div class="checks" id="preferred_features"></div>
+      </fieldset>
+      <div id="form-error" class="error hidden" role="alert"></div>
+      <div class="actions">
+        <button type="submit" class="primary" id="submit-btn">Подобрать план</button>
+      </div>
+    </form>
+  </section>
+
+  <section id="result" class="card result hidden" aria-live="polite"></section>
+</main>
+<script>
+const FEATURES = [
+  ['dog','Можно с собакой'], ['laptop','Можно с ноутбуком'], ['children','Можно с детьми'],
+  ['terrace','Терраса'], ['reservations','Бронирование']
+];
+let events = [];
+const $ = (id) => document.getElementById(id);
+
+function renderFeatureChecks(containerId, name) {
+  const el = $(containerId);
+  el.innerHTML = FEATURES.map(([v,l]) => `<label><input type="checkbox" name="${name}" value="${v}"> ${l}</label>`).join('');
+}
+
+function selected(name) {
+  return Array.from(document.querySelectorAll(`input[name="${name}"]:checked`)).map(x=>x.value);
+}
+
+function showError(id, msg) { const e=$(id); e.textContent=msg; e.classList.toggle('hidden', !msg); }
+function setLoading(on) { $('submit-btn').disabled = on; $('submit-btn').textContent = on ? 'Подбираем…' : 'Подобрать план'; }
+
+function optionLabel(ev) {
+  const d = ev.starts_at ? new Date(ev.starts_at).toLocaleString('ru-RU', {timeZone:'Asia/Vladivostok'}) : ev.date;
+  return `${ev.title} — ${d}`;
+}
+
+async function loadEvents() {
+  try {
+    const r = await fetch('/api/evening/events', {credentials:'same-origin'});
+    if (!r.ok) throw await r.json().catch(()=>({detail:{message:`HTTP ${r.status}`}}));
+    const data = await r.json();
+    events = data.items || [];
+    const sel = $('event');
+    sel.innerHTML = events.length ? events.map(ev => `<option value="${ev.id}" data-date="${ev.date||''}">${optionLabel(ev)}</option>`).join('') : '<option value="">Нет доступных событий</option>';
+    if (events[0] && events[0].date) $('date').value = events[0].date;
+    $('loading').classList.add('hidden');
+    $('plan-form').classList.remove('hidden');
+  } catch (e) {
+    $('loading').classList.add('hidden');
+    const msg = e?.detail?.message || e?.message || 'Не удалось загрузить события';
+    showError('load-error', msg);
+  }
+}
+
+$('event').addEventListener('change', () => {
+  const opt = $('event').selectedOptions[0];
+  if (opt && opt.dataset.date) $('date').value = opt.dataset.date;
+});
+
+function pills(arr, label) {
+  if (!arr || !arr.length) return `<div><span class="muted">${label}: нет</span></div>`;
+  return `<div><strong>${label}:</strong> ${arr.map(x=>`<span class="pill">${x}</span>`).join(' ')}</div>`;
+}
+
+function renderPlace(title, place) {
+  if (!place) return '';
+  return `<div class="plan-block"><h3>${title}</h3>
+    <p><strong>${place.name}</strong> (${place.category}), расстояние ${place.distance_m} м</p>
+    ${pills(place.confirmed,'Подтверждённые признаки')}
+    ${pills(place.matched_preferred,'Совпавшие предпочтения')}
+    ${pills(place.unknown,'Неизвестно')}
+  </div>`;
+}
+
+function renderResult(plan) {
+  const url = `${location.origin}/evening/p/${plan.id}`;
+  $('result').innerHTML = `
+    <h2>Результат (вымышленный)</h2>
+    <p><strong>Событие:</strong> ${plan.event.title} — ${new Date(plan.event.starts_at).toLocaleString('ru-RU',{timeZone:'Asia/Vladivostok'})}</p>
+    <p><strong>Окно еды:</strong> ${plan.request.meal_start}–${plan.request.meal_end}, дата ${plan.request.date}</p>
+    ${renderPlace('Основной вариант', plan.primary)}
+    ${renderPlace('План Б', plan.alternative)}
+    <div class="plan-block">
+      <p class="muted">${plan.disclaimer || ''}</p>
+      <p><strong>Источники/проверка:</strong> ${(plan.sources||[]).map(s=>`${s.name} (${s.checked_at})`).join(', ')}</p>
+      <p><strong>Ссылка на план:</strong> <a id="plan-link" href="${url}">${url}</a></p>
+      <div class="actions">
+        <button type="button" class="secondary" id="copy-link">Скопировать ссылку</button>
+        <a class="secondary" href="${url}" style="text-decoration:none;display:inline-block">Открыть план</a>
+      </div>
+      <div id="copy-status" class="muted" aria-live="polite"></div>
+    </div>`;
+  $('result').classList.remove('hidden');
+  $('copy-link').onclick = async () => {
+    try { await navigator.clipboard.writeText(url); $('copy-status').textContent = 'Ссылка скопирована.'; }
+    catch { $('copy-status').textContent = 'Не удалось скопировать автоматически. Скопируйте ссылку вручную.'; }
+  };
+}
+
+$('plan-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  showError('form-error', '');
+  $('result').classList.add('hidden');
+  const req = Array.from(document.querySelectorAll('input[name="required_features"]:checked')).map(x=>x.value);
+  const pref = Array.from(document.querySelectorAll('input[name="preferred_features"]:checked')).map(x=>x.value);
+  const inter = req.filter(x=>pref.includes(x));
+  if (inter.length) { showError('form-error', 'Обязательные признаки и предпочтения не должны пересекаться.'); return; }
+  if (req.length > 5 || pref.length > 5) { showError('form-error', 'Не более 5 признаков в каждом списке.'); return; }
+  const body = {
+    event_id: $('event').value,
+    date: $('date').value,
+    meal_start: $('meal_start').value,
+    meal_end: $('meal_end').value,
+    required_features: req,
+    preferred_features: pref,
+    max_distance_m: Number($('max_distance_m').value)
+  };
+  setLoading(true);
+  try {
+    const r = await fetch('/api/evening/plans', {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+    const data = await r.json().catch(()=>({}));
+    if (!r.ok) {
+      const msg = data?.detail?.message || data?.detail || `Ошибка ${r.status}`;
+      showError('form-error', msg);
+      return;
+    }
+    renderResult(data);
+  } catch (err) {
+    showError('form-error', 'Сетевая ошибка. Попробуйте ещё раз.');
+  } finally {
+    setLoading(false);
+  }
+});
+
+renderFeatureChecks('required_features', 'required_features');
+renderFeatureChecks('preferred_features', 'preferred_features');
+loadEvents();
+</script>
+</body>
+</html>

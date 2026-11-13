@@ -575,3 +575,29 @@ For a server refresh, extract into a **new staging directory**, validate there, 
 ## Continuous integration
 
 GitHub Actions runs Python 3.12 regression checks and the dependency-free DOM check on the organization's `self-hosted`, `Linux`, `X64` runners. Actions are pinned; the workflow has read-only repository permissions and does not run code from fork pull requests. Deployment to the local VM is separate from CI. `actions/checkout` v5 is retained because v6's credential include paths do not match the runners' symlinked work directories.
+
+## Evening MVP (`feature/evening-planner`)
+
+Standalone fictional MVP “Готовый вечер”: подбор места для еды до события по вымышленному seed (без 2ГИС, LLM, Forecast, реальных мест/проверки наличия столов/гарантий времени в пути). Реализация: [`evening/`](evening/), [`evening_app.py`](evening_app.py), UI [`web/static/evening.html`](web/static/evening.html) и [`web/static/evening-plan.html`](web/static/evening-plan.html), минимальная интеграция в [`web/app.py`](web/app.py). Спека и история проверок:
+- Спецификация: [`docs/evening/SPEC.md`](docs/evening/SPEC.md)
+- Архитектура: [`docs/evening/ARCHITECTURE.md`](docs/evening/ARCHITECTURE.md)
+- Приёмка/матрица F1–F8: [`docs/evening/ACCEPTANCE.md`](docs/evening/ACCEPTANCE.md)
+- Тесты: [`tests/test_evening_mvp.py`](tests/test_evening_mvp.py), [`tests/test_evening_docker_config_F8.py`](tests/test_evening_docker_config_F8.py), browser smoke [`tests/evening_browser_smoke.cjs`](tests/evening_browser_smoke.cjs)
+- Docker: [`Dockerfile.evening`](Dockerfile.evening), [`compose.evening.yaml`](compose.evening.yaml), [`DOCKER-EVENING.md`](DOCKER-EVENING.md), [`.dockerignore`](.dockerignore)
+- Верификация: [`docs/evening/VERIFICATION.md`](docs/evening/VERIFICATION.md), browser: [`docs/evening/BROWSER.md`](docs/evening/BROWSER.md), журнал review/fix: [`docs/evening/REVIEW.md`](docs/evening/REVIEW.md)
+
+### Данные и отличие от старого каталога
+
+- **Отдельный fictional runtime seed**: 25 вымышленных мест и 6 вымышленных событий на ближайшие даты, генерируется/читается в игнорируемой `.demo/evening/` (`seed.py`), не перезаписывается, открыт только этот источник по умолчанию. UI и API явно маркируют данные как вымышленные.
+- **Отличие от старого каталога “Не тесно”/`/places`**: старый каталог — отдельный демо-поиск заведений Владивостока по локальным карточкам/профилям (в т.ч. 2ГИС-выборки и сгенерированные профили, demo-история/индексы) в `web/places.py`/`routes_places.py`; Evening MVP — самостоятельный сценарий “событие → окно еды → предпочтения → primary/plan B + сохранённый план”, со своим seed, SQLite-снимками планов, ревалидацией `current`, и без использования карточек/истории/ML старого каталога.
+- Контракт/уточнения: 5 признаков `{dog,laptop,children,terrace,reservations}`, интервал `[meal_start, meal_end)` полностью, строгая валидация/UUID/типы, 24h snapshot+current revalidate в SQLite, события в списке только `scheduled` future, local demo no-auth доступ по ссылке в demo-режиме, никаких внешних API.
+
+### Итоговые проверки после fix2 (зафиксировано в VERIFICATION/BROWSER)
+
+- `demo/local.py prepare`: `.demo/forecast` уже существовал — не перезаписан (ожидаемое поведение).
+- Evening tests: **45 passed, 1 warning** (`tests/test_evening_mvp.py`, `tests/test_evening_docker_config_F8.py`).
+- Full `make test` (`VENV=/home/recara/farposton/.venv/bin/python`): pytest **440 passed, 6 skipped, 1 warning** + `node tests/test_dom_helper.cjs` passed. Skips pre-existing: `facts.json` not built.
+- Docker compose (`127.0.0.1:18447`, healthy): реальные HTTP проверки `GET events` (только scheduled future), `POST /api/evening/plans` 201, `GET plan` 200, invalid UUID 422, unknown UUID 404, restart + повторный GET подтвердили сохранение в volume.
+- Browser smoke rerun на текущем контейнере: `tests/evening_browser_smoke.cjs` → **`SMOKE_OK`, exit code 0** (Playwright/Chromium headless из `.demo/evening-browser/`); созданный план `df23a304-fbd9-488c-bec4-c179a1b492ac` доступен по `/evening/p/{id}`. Детали/скриншоты в `.demo/evening-browser/` и [`docs/evening/BROWSER.md`](docs/evening/BROWSER.md).
+
+Ограничения: только вымышленные данные; нет реальной доступности/столов/времени в пути; созданные при проверках планы остаются в соответствующем состоянии контейнера/volume до очистки. Подробности, команды и чистый Docker-тест из git archive — в [`docs/evening/VERIFICATION.md`](docs/evening/VERIFICATION.md).

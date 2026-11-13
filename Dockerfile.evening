@@ -1,0 +1,36 @@
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app:/app/src \
+    DEPLOYMENT_PROFILE=local \
+    WEB_DEMO_NO_AUTH=1 \
+    EVENING_DEMO_DIR=/app/.demo/evening \
+    EVENING_DB_PATH=/app/.demo/evening/plans.sqlite3 \
+    WEB_HOST=0.0.0.0 \
+    WEB_PORT=18447
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd -m -u 10001 appuser \
+    && mkdir -p /app/.demo/evening \
+    && chown -R appuser:appuser /app
+
+# allowlist COPY: only required runtime files
+COPY web/requirements.txt /app/web/requirements.txt
+RUN pip install --no-cache-dir -r /app/web/requirements.txt
+
+COPY web/ /app/web/
+COPY evening/ /app/evening/
+COPY evening_app.py /app/evening_app.py
+COPY src/ /app/src/
+
+USER appuser
+EXPOSE 18447
+
+HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=5 \
+  CMD curl -fsS http://127.0.0.1:18447/api/evening/events >/dev/null || exit 1
+
+CMD ["python", "-m", "uvicorn", "evening_app:app", "--host", "0.0.0.0", "--port", "18447"]
