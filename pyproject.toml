@@ -9,7 +9,7 @@ requires-python = ">=3.11"
 dependencies = ["flask", "requests", "numpy"]
 
 [project.optional-dependencies]
-dev = ["pytest"]
+dev = ["pytest", "pillow"]
 ml = ["torch", "transformers", "pillow"]
 
 [project.scripts]

@@ -31,6 +31,8 @@ def main(argv=None) -> int:
     p.add_argument("path", type=Path)
     p = sub.add_parser("demo", help="load the bundled dataset")
     p.add_argument("--set", choices=sorted(DEMO_FILES), default="real")
+    p = sub.add_parser("embed", help="compute photo vectors for visual search (needs .[ml])")
+    p.add_argument("--limit", type=int)
     args = parser.parse_args(argv)
 
     if args.command == "init-db":
@@ -39,6 +41,13 @@ def main(argv=None) -> int:
         return 0
     if args.command == "import-json":
         return _import(args.path)
+    if args.command == "embed":
+        from flats import embed, similar
+
+        conn = db.connect()
+        db.init_db(conn)
+        print(f"embedded {embed.embed_missing(conn, model_name=similar.MODEL, limit=args.limit)} photos")
+        return 0
     return _import(DEMO_FILES[args.set])
 
 
