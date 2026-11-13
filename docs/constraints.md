@@ -2,8 +2,9 @@
 
 | Restriction | Source | Consequence |
 | --- | --- | --- |
-| Metrapi `/v1/items` and `/v1/item` allow at most 1 request per 2 s per key; 429 body has `detail.retry_after` (no header) | https://metrapi.ru/api-docs.html | `flats/source.py` sleeps ≥2 s between calls and honors `retry_after` from the body |
-| Max 1000 items per response, 50 on trial | Metrapi docs | Page with `cursor`/`next_cursor` until `null` |
+| Metrapi `/v1/items` and `/v1/item` allow at most 1 request per 2 s per key; 429 body has `detail.retry_after` (no header) | https://metrapi.ru/api-docs.html | `scripts/fetch_metrapi.py` makes one call per run |
+| Max 1000 items per response, 50 on trial | Metrapi docs | Snapshot is 50 offers; paging with `cursor` only if a full key is bought |
+| Website scraping is forbidden (offer §6.1–6.2) | https://metrapi.ru/offer.html | Data only through the official API |
 | API key is a secret | Metrapi docs | Key only in env var `METRAPI_KEY`; never in templates, JS, commits, logs |
 | `deposit`, `commission`, `prepayment`, `rent_period` are free strings ("63 000 ₽", "Без залога", "50%", "за 1 месяц") | Metrapi docs | Parse in `flats/money.py`; keep raw string; unparseable -> unknown |
 | `price` for rent is per month for the whole flat | Metrapi docs | `price` = monthly rent |

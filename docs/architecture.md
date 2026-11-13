@@ -43,7 +43,7 @@ Package name: `flats` (directory `flats/`). Each module has one owner task per s
 | --- | --- | --- |
 | Config | `flats/config.py` | Read env vars (`METRAPI_KEY`, `FLATS_DB`, `FLATS_PHOTO_DIR`) |
 | DB | `flats/db.py`, `flats/schema.sql` | Connect, create schema |
-| Source client | `flats/source.py` | Call `/v1/items` with paging, rate limit, retries |
+| Source loader | `flats/metrapi.py`, `scripts/fetch_metrapi.py` | One official API call; Metrapi item -> normalized offer dict |
 | Money parsing | `flats/money.py` | Parse deposit/commission/prepayment strings into typed terms |
 | Costs | `flats/costs.py` | Monthly and move-in cost of one offer |
 | Eligibility | `flats/eligibility.py` | `match` / `unknown` / `reject` per offer and profile |
@@ -54,7 +54,7 @@ Package name: `flats` (directory `flats/`). Each module has one owner task per s
 | Search service | `flats/search.py` | Profile -> ordered list of flat cards with reasons |
 | Embeddings | `flats/embed.py` | Download photos, compute vectors |
 | Similarity | `flats/similar.py` | Cosine similarity with NumPy |
-| CLI | `flats/cli.py` | `init-db`, `import`, `embed` |
+| CLI | `flats/cli.py` | `init-db`, `import-json`, `demo`, `embed` |
 | Web | `flats/web/*.py`, `flats/templates/*`, `flats/static/*` | Pages and JSON actions |
 
 ## Stack
