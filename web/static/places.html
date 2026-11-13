@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f4ef">
+  <title>Не тесно — куда пойти во Владивостоке</title>
+  <link rel="icon" href="/assets/places-icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/assets/leaflet/leaflet.css">
+  <link rel="stylesheet" href="/assets/places.css?v=forecast2">
+  <script src="/assets/leaflet/leaflet.js" defer></script>
+  <script src="/assets/places.js?v=forecast2" defer></script>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/places" aria-label="Не тесно — на главную"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>не тесно<span class="brand-dot">.</span><small>ВЛАДИВОСТОК</small></span></a>
+  <div class="header-right"><span class="city-indicator"><span></span> Владивосток</span><button class="header-info" id="about-button" type="button">О данных <span>↗</span></button></div>
+</header>
+<main class="shell">
+  <section class="intro" aria-labelledby="page-title">
+    <div><div class="eyebrow"><span class="signal"></span> ГОРОДСКОЙ ГИД <span class="eyebrow-line"></span> ДЕМО 01</div>
+      <h1 id="page-title">Место для <em>своих</em> планов<span class="heading-dot">.</span></h1>
+      <p>Кафе, рестораны и другие места Владивостока — на одной карте.</p>
+    </div>
+    <div class="intro-aside"><span class="aside-number">ГОРОД / ДАННЫЕ</span><span class="aside-stat" id="aside-days">—<small>ДНЕЙ ДЕМО-ИСТОРИИ</small></span><span class="aside-symbol" aria-hidden="true">✳</span></div>
+  </section>
+  <aside class="demo-banner"><span class="demo-icon" aria-hidden="true">✳</span><div><strong>Демо-сценарий для презентации.</strong> Показатели сгенерированы и не показывают реальные свободные столики.</div><button id="banner-info" type="button">Подробнее <span aria-hidden="true">↗</span></button></aside>
+  <div class="coverage-strip" id="history-overview" hidden><div class="coverage-icon" aria-hidden="true">▥</div><div><strong>Месяц в деталях</strong><span id="history-period">История в карточках заведений</span></div><span class="coverage-label">ИСКУССТВЕННЫЕ ДАННЫЕ</span><button type="button" id="pitch-preset" class="coverage-preset">Демо: пт 19:00 <span aria-hidden="true">↗</span></button><button type="button" id="history-about">Как это работает <span aria-hidden="true">↗</span></button></div>
+  <section class="workspace" aria-label="Поиск заведений">
+    <div class="workspace-top"><div class="workspace-title"><span class="section-index">01</span><div><h2>Найти место</h2><p>Выберите, что вам подходит</p></div></div><div class="view-switch" aria-label="Вид результатов"><button type="button" data-view="list" class="active" aria-pressed="true"><span aria-hidden="true">☰</span> Список</button><button type="button" data-view="map" aria-pressed="false"><span aria-hidden="true">◇</span> Карта</button></div></div>
+    <div class="filters">
+      <div class="search-wrap"><label class="sr-only" for="search">Название, адрес или категория</label><span aria-hidden="true" class="search-icon">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Название или адрес"><kbd>⌘ K</kbd></div>
+      <div class="filter-controls"><label class="select-wrap"><span>ДЕНЬ</span><select id="day" aria-label="День недели"><option value="0">Понедельник</option><option value="1">Вторник</option><option value="2">Среда</option><option value="3">Четверг</option><option value="4">Пятница</option><option value="5">Суббота</option><option value="6">Воскресенье</option></select></label><label class="select-wrap"><span>ВРЕМЯ</span><select id="hour" aria-label="Время"></select></label><button class="filter-button" id="open-only" type="button" aria-pressed="false"><span class="toggle-dot"></span> Открыто в это время</button></div>
+    </div>
+    <div class="category-scroll" aria-label="Категория заведений"><div class="categories" id="categories"><button class="chip active" data-category="food" type="button" aria-pressed="true">Все заведения</button><button class="chip" data-category="cafe" type="button" aria-pressed="false">Кафе</button><button class="chip" data-category="restaurant" type="button" aria-pressed="false">Рестораны</button><button class="chip" data-category="coffee" type="button" aria-pressed="false">Кофейни</button><button class="chip" data-category="bar" type="button" aria-pressed="false">Бары</button><button class="chip" data-category="fast" type="button" aria-pressed="false">Быстрое питание</button><button class="chip" data-category="bakery" type="button" aria-pressed="false">Пекарни</button><button class="chip" data-category="all" type="button" aria-pressed="false">Все точки</button></div></div>
+    <div class="results-layout" id="results-layout">
+      <section class="results-panel" aria-label="Результаты поиска"><div class="result-toolbar"><div><span class="result-overline">КОЛЛЕКЦИЯ МЕСТ</span><h3>Нашли <span id="result-count">—</span> <span class="count-caption">мест</span></h3></div><label class="sort-label source-select">Данные <select id="source" aria-label="Источник профиля"><option value="all">Все источники</option><option value="2gis">Профиль 2ГИС</option><option value="synthetic">Только демо</option></select></label><label class="sort-label">Сортировка <select id="sort" aria-label="Сортировка"><option value="popular">Популярные</option><option value="rating">По рейтингу</option><option value="name">По названию</option><option value="demo_asc">Демо-индекс ↑</option><option value="demo_desc">Демо-индекс ↓</option></select></label></div>
+        <div class="results-note"><span class="small-star">✳</span> Месячная история — демо. Свободные столики не показаны.</div>
+        <div id="results" class="results-list" aria-live="polite" tabindex="0" aria-label="Список найденных мест"><div class="loading">Ищем места во Владивостоке…</div></div>
+        <div class="pagination"><button id="load-more" class="load-more" type="button" hidden>Показать ещё <span>↓</span></button><span id="shown-count"></span></div>
+      </section>
+      <section class="map-panel" aria-label="Карта Владивостока"><div class="map-inner"><div id="map" aria-label="Карта заведений"></div><div class="map-caption"><span class="map-caption-dot"></span><span><strong>Владивосток</strong><small>Приморский край</small></span><span class="map-caption-count" id="map-count">— МЕСТ</span></div><div id="map-fallback" class="map-fallback" hidden>Карта не загрузилась. Список заведений доступен слева.</div></div><div class="map-foot"><span><span class="map-legend-dot"></span> Места из списка</span><span>Данные 2ГИС · карта OpenStreetMap</span></div></section>
+    </div>
+  </section>
+  <footer class="footer"><strong>не тесно<span>.</span></strong><span>ГОРОД БЛИЖЕ, ЧЕМ КАЖЕТСЯ</span><span>СДЕЛАНО ВО ВЛАДИВОСТОКЕ ↗</span></footer>
+</main>
+<dialog id="detail-dialog" class="detail-dialog" aria-labelledby="detail-title"><div class="dialog-top"><span class="dialog-kicker">МЕСТО В ГОРОДЕ <span> / ВЛАДИВОСТОК</span></span><button id="detail-close" class="close-button" type="button" aria-label="Закрыть карточку">×</button></div><div id="detail-content"><div class="loading">Загружаем карточку…</div></div></dialog>
+<dialog id="about-dialog" class="about-dialog" aria-labelledby="about-title"><div class="dialog-top"><span class="dialog-kicker">ПРОЗРАЧНО О ДАННЫХ</span><button id="about-close" class="close-button" type="button" aria-label="Закрыть">×</button></div><h2 id="about-title">Как это работает</h2><p>Мы собрали неполную выборку мест Владивостока из 2ГИС. Часы работы и сведения о заведениях могут измениться.</p><div class="about-block"><strong>Демо-профиль</strong><p>Для большинства точек загруженность сгенерирована для показа интерфейса. Она не измеряет посетителей и не предсказывает наличие мест.</p></div><div class="about-block"><strong>История за месяц</strong><p>Для каждой точки созданы разные почасовые демо-данные за календарный месяц. Это искусственная история, а не архив посещаемости.</p></div><div class="about-block"><strong>Профиль 2ГИС</strong><p>Для части точек есть исходные отметки 2ГИС. Их шкала и актуальность пока не подтверждены, поэтому мы не делаем по ним вывод о загруженности.</p></div><p class="about-foot">Типовая неделя · время Владивостока · праздники не учтены</p></dialog>
+</body>
+</html>

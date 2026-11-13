@@ -1,0 +1,70 @@
+{
+  "_": "СГЕНЕРИРОВАНО py -m prognoz.facts (блок scope) — руками не править",
+  "scope": {
+    "group_like": "Меню / ДЕМО%",
+    "group_not_like": "%Товары перепродажа%",
+    "group_not_like_bar": "",
+    "market_roles": [
+      "market",
+      "market_hub",
+      "merged"
+    ],
+    "headline_points": [
+      "ДЕМО — Вокзальная",
+      "ДЕМО — Университет",
+      "ДЕМО — Набережная"
+    ],
+    "out_of_headline": [],
+    "comparable_full_period": [
+      "ДЕМО — Вокзальная",
+      "ДЕМО — Университет",
+      "ДЕМО — Набережная"
+    ]
+  },
+  "engine": {
+    "version": "forecast-demo-v1",
+    "default_horizon_days": 2,
+    "horizon_days": [
+      2,
+      3,
+      4
+    ],
+    "week_lags": [
+      7,
+      14,
+      21,
+      28
+    ],
+    "active_days": 28,
+    "shrink_k": 1.5,
+    "u40_lock_share": 0.35,
+    "clip_to_human": [
+      0.85,
+      1.15
+    ],
+    "step_rel": 0.3,
+    "step_abs": 1.0,
+    "day_clip": [
+      0.85,
+      1.12
+    ],
+    "wd_clip": [
+      0.7,
+      1.4
+    ],
+    "stale_days": 2
+  },
+  "protocol": {
+    "ladder_window": [
+      "2026-06-25",
+      "2026-07-22"
+    ],
+    "writeoff_share_formula": "списано / продано (не /(продано+списано))",
+    "cost_ratio": 0.33,
+    "cost_ratio_source": "демонстрационное допущение",
+    "pilot": {
+      "shadow": "2026-08-03 .. 2026-08-16",
+      "live": "2026-08-17 .. 2026-09-13"
+    }
+  }
+}

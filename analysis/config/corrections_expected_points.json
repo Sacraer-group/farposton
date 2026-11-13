@@ -1,0 +1,8 @@
+{
+  "policy_version": "demo-three-points-v1",
+  "point_keys": [
+    "DEMO-POINT-01",
+    "DEMO-POINT-02",
+    "DEMO-POINT-03"
+  ]
+}

@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Аналитика — Прогноз заказов</title>
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/app.css?v=20260929-ui4">
+<script src="/assets/app.js?v=20260929-ui4"></script>
+<style>
+/* Стили только этой страницы: аналитике отдана почти вся ширина экрана. */
+.wrap{max-width:1920px;width:100%}
+.subtabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+.subtab{padding:7px 15px;border:1px solid var(--line2);border-radius:20px;background:var(--paper);
+  color:var(--mut);font-size:13px;cursor:pointer;transition:all .12s;font-family:inherit}
+.subtab:hover{color:var(--ink);border-color:var(--mut)}
+.subtab.active{background:var(--seg-on-bg);border-color:var(--seg-on-bg);
+  color:var(--seg-on-ink);font-weight:600}
+.controls{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px}
+.controls .fld label{font-size:11.5px;color:var(--mut);display:block;margin-bottom:3px}
+.controls select,.controls input{padding:8px 10px;border:1px solid var(--line2);border-radius:8px;
+  font-size:13.5px;background:var(--paper);color:var(--ink);font-family:inherit}
+.controls .spacer{flex:1}
+.svgbox{overflow:visible;margin-top:6px}
+/* Таблица не ужимает текстовые колонки в столбик букв (08.09: «Позиция» в «Раннем
+   прекращении продаж»): ширина по содержимому, лишнее уходит в горизонтальную
+   прокрутку обёртки; верхняя синхронная полоса — attachTopScroll() в app.js. */
+.tblwrap{max-height:min(72vh,760px);overflow-y:auto;overflow-x:auto;margin-top:14px;
+  border:1px solid var(--line);border-radius:9px}
+.tblwrap table{font-size:12.5px;min-width:max-content;table-layout:auto}
+.tblwrap th{position:sticky;top:0}
+.tblwrap th:not(.namecell){white-space:nowrap}
+.tblwrap td:not(.num){min-width:180px;overflow-wrap:normal;word-break:normal;white-space:normal}
+.tblwrap th.namecell,.tblwrap td.namecell{min-width:140px;max-width:360px}
+.drillbtn{padding:5px 10px;border:1px solid var(--line2);border-radius:7px;background:var(--paper);
+  color:var(--ink2);font:inherit;font-size:12px;white-space:nowrap;cursor:pointer}
+.drillbtn:hover{border-color:var(--accent);color:var(--accent)}
+.drillbtn:focus-visible{outline:2px solid var(--info);outline-offset:2px}
+.drillhint{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:14px 0 4px;padding:10px 12px;
+  border:1px solid var(--line2);border-radius:9px;background:var(--wash);font-size:12.5px;color:var(--ink2)}
+.drill-dialog{width:min(96vw,1760px);max-width:none;max-height:92vh;padding:0;border:1px solid var(--line2);
+  border-radius:14px;background:var(--paper);color:var(--ink);box-shadow:0 24px 80px rgba(0,0,0,.35);
+  overflow-x:hidden}
+.drill-dialog::backdrop{background:rgba(12,12,14,.62)}
+.drill-shell{padding:20px;min-width:0}
+.drill-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;
+  padding-bottom:12px;border-bottom:1px solid var(--line)}
+.drill-head>div{min-width:0}
+.drill-head h2{margin:0;font-size:20px;overflow-wrap:anywhere}
+.drill-head form{flex:0 0 auto}
+.drill-body{margin-top:14px;min-width:0}
+.drill-nav{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.drill-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:9px;margin:12px 0}
+.drill-fact{padding:10px 12px;border:1px solid var(--line);border-radius:9px;background:var(--wash)}
+.drill-fact .k{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em}
+.drill-fact .v{font-size:18px;font-weight:700;margin-top:2px}
+.drill-notes{margin:12px 0 0;padding-left:20px;color:var(--mut);font-size:12.5px}
+.muted{color:var(--mut);font-size:12.5px;margin-top:8px}
+.exc-item{display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--line)}
+.exc-item .d{font-weight:600;white-space:nowrap}
+.exc-item .r{flex:1;color:var(--ink2)}
+.exc-item .a{color:var(--mut);font-size:11.5px;white-space:nowrap}
+.exc-del{background:transparent;border:1px solid var(--line2);color:var(--mut);border-radius:8px;
+  padding:4px 10px;cursor:pointer;font-size:12px}
+.exc-del:hover{color:var(--accent-dark);border-color:var(--accent)}
+.okmsg{display:none;margin-top:12px;padding:10px 13px;border-radius:9px;font-size:13px;
+  background:var(--green-soft);border:1px solid var(--green);color:var(--green)}
+.loading{color:var(--mut);font-size:13.5px;padding:14px 0}
+h4{font-size:13.5px;margin:20px 0 8px;font-weight:700}
+.stat .delta{font-size:12px;margin-top:4px;font-weight:600}
+.delta.good{color:var(--green)}
+.delta.bad{color:var(--accent)}
+.delta.flat{color:var(--mut)}
+.bigline{font-size:16px;margin:4px 0 10px}
+.bigline b{font-size:22px}
+.quality{margin:0 0 14px;padding:12px 14px;border-radius:10px;border:1px solid var(--line2);
+  background:var(--paper);font-size:12.5px;line-height:1.45}
+.quality.warning{border-color:#d69b34;background:color-mix(in srgb,#d69b34 10%,var(--paper))}
+.quality.info{border-color:var(--line2);background:var(--wash)}
+.quality.ok{border-color:var(--green);background:var(--green-soft)}
+.quality .qt{font-weight:700;font-size:13.5px;margin-bottom:5px}
+.quality ul{margin:6px 0 0;padding-left:19px}
+.quality li{margin:4px 0}
+.quality .period{font-weight:600}
+.chartgrid{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;margin:12px 0}
+.chartpanel{min-width:0;border:1px solid var(--line);border-radius:9px;padding:8px;overflow:visible}
+.chartperiod{margin:2px 4px 8px;padding:7px 9px;border-left:3px solid var(--info);
+  background:var(--wash);color:var(--mut);font-size:12px;line-height:1.35}
+@media(max-width:760px){
+  .chartgrid{grid-template-columns:1fr}
+  .tblwrap{max-height:none;overflow:visible;border:0}
+  .tblwrap table{display:block;width:100%;min-width:0}
+  .tblwrap thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  .tblwrap tbody,.tblwrap tr,.tblwrap td{display:block;width:100%}
+  .tblwrap tr{margin:0 0 10px;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+  .tblwrap td{display:grid;grid-template-columns:minmax(118px,42%) minmax(0,1fr);gap:10px;
+    padding:8px 10px;text-align:left!important;white-space:normal!important}
+  .tblwrap td::before{content:attr(data-label);font-size:10.5px;color:var(--mut);font-weight:600;
+    text-transform:uppercase;letter-spacing:.04em}
+  .tblwrap td.namecell{position:static;min-width:0;max-width:none;overflow:visible;text-overflow:clip}
+  .drill-dialog{width:calc(100vw - 16px);max-height:96vh}
+  .drill-shell,.drill-body{width:100%;max-width:100%;min-width:0;overflow-x:hidden}
+  .drill-shell{padding:14px}
+  .drill-dialog .quality{max-width:100%;overflow-wrap:anywhere}
+  .drill-dialog .tblwrap table{min-width:0!important;table-layout:fixed}
+  .drill-dialog .tblwrap td{grid-template-columns:minmax(92px,36%) minmax(0,1fr)}
+  .drill-dialog .drillbtn{width:100%;white-space:normal}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand"><a href="/" aria-label="На главную"><img class="serial-plate" src="/assets/serial-plate.png" alt="SERIAL NO."></a>
+      
+      <div class="service">Прогноз заказов<div class="sub">готовая еда · кухня → точки</div></div>
+    </div>
+    <div class="hdr-actions">
+      <button class="ghost icon" onclick="toggleTheme()" aria-label="Переключить тему">
+        <svg viewBox="0 0 20 20" width="16" height="16" fill="currentColor" aria-hidden="true">
+          <g class="ic-sun"><circle cx="10" cy="10" r="4.4"/><path d="M10 0v3M10 17v3M0 10h3M17 10h3M2.9 2.9l2.1 2.1M15 15l2.1 2.1M17.1 2.9L15 5M5 15l-2.1 2.1" stroke="currentColor" stroke-width="1.6" fill="none"/></g>
+          <path class="ic-moon" d="M17 12.5A7.5 7.5 0 0 1 7.5 3a7.5 7.5 0 1 0 9.5 9.5z"/>
+        </svg>
+      </button>
+      <button class="ghost" id="logoutBtn" onclick="logout()">Выйти</button>
+    </div>
+  </header>
+  <nav class="tabs">
+    <a class="tab" href="/">Заявка </a>
+      <a class="tab" href="/accuracy" data-admin-only>Точность </a>
+      <a class="tab" href="/comparison" data-admin-only>Сравнение </a>
+      <a class="tab active" href="/analytics" data-admin-only>Аналитика </a>
+    <a class="tab" href="/reports">Сводки </a>
+    <a class="tab" href="/chat">Помощник </a>
+  </nav>
+
+  <div class="subtabs" id="subtabs">
+    <button class="subtab active" data-sec="sales">Динамика</button>
+    <button class="subtab" data-sec="yoy">Год к году</button>
+    <button class="subtab" data-sec="top">Топ позиций</button>
+    <button class="subtab" data-sec="sellout">Раннее прекращение продаж</button>
+    <button class="subtab" data-sec="hours">По часам</button>
+    <button class="subtab" data-sec="weekdays">Дни недели</button>
+    <button class="subtab" data-sec="writeoffs">Списания и уценка</button>
+    <button class="subtab" data-sec="shelf">Дефицит-топ</button>
+    <button class="subtab" data-sec="excluded">Нетипичные дни</button>
+  </div>
+
+  <div class="banner err" id="err"></div>
+  <div id="quality-global" class="loading">Проверяем свежесть источников…</div>
+
+  <!-- Динамика -->
+  <div class="card sec" id="sec-sales" data-sec="sales">
+    <div class="controls">
+      <div class="fld"><label>Шаг</label>
+        <select id="s-gran">
+          <option value="day" selected>по дням</option>
+          <option value="week">по неделям</option>
+        </select></div>
+      <div class="fld"><label>Точка</label><select id="s-point" class="point-sel"></select></div>
+      <div class="fld"><label>Период</label>
+        <select id="s-preset">
+          <option value="week">неделя</option>
+          <option value="month">месяц</option>
+          <option value="quarter" selected>квартал</option>
+          <option value="year">год</option>
+          <option value="custom">свой период</option>
+        </select></div>
+      <span id="s-custom" style="display:none;gap:12px;align-items:flex-end">
+        <span class="fld"><label>С даты</label><input type="date" id="s-from"></span>
+        <span class="fld"><label>По дату</label><input type="date" id="s-to"></span>
+      </span>
+      <div class="spacer"></div>
+      <button class="btn sec" onclick="dl('sales')">Скачать отчёт</button>
+    </div>
+    <div id="s-body" class="loading">Загрузка…</div>
+  </div>
+
+  <!-- Год к году -->
+  <div class="card sec" id="sec-yoy" data-sec="yoy" style="display:none">
+    <div class="controls">
+      <div class="fld"><label>Точка</label><select id="y-point" class="point-sel"></select></div>
+      <div class="fld"><label>Период сравнения</label>
+        <select id="y-preset">
+          <option value="week">неделя</option>
+          <option value="month" selected>месяц</option>
+          <option value="quarter">квартал</option>
+          <option value="year">год</option>
+        </select></div>
+      <div class="spacer"></div>
+      <button class="btn sec" onclick="dl('yoy')">Скачать отчёт</button>
+    </div>
+    <div id="y-body" class="loading">Загрузка…</div>
+  </div>
+
+  <!-- Топ позиций -->
+  <div class="card sec" id="sec-top" data-sec="top" style="display:none">
+    <div class="controls">
+      <div class="fld"><label>Точка</label><select id="k-point" class="point-sel"></select></div>
+      <div class="fld"><label>Период</label>
+        <select id="k-preset">
+          <option value="week">неделя</option>
+          <option value="month" selected>месяц</option>
+          <option value="quarter">квартал</option>
+          <option value="year">год</option>
+        </select></div>
+      <div class="fld"><label>Считать по</label>
+        <select id="k-by">
+          <option value="qty" selected>штукам</option>
+          <option value="rub">рублям</option>
+        </select></div>
+      <div class="spacer"></div>
+      <button class="btn sec" onclick="dl('top')">Скачать отчёт</button>
+    </div>
+    <div id="k-body" class="loading">Загрузка…</div>
+  </div>
+
+  <!-- Раннее прекращение продаж: оценка по чекам, не факт остатка -->
+  <div class="card sec" id="sec-sellout" data-sec="sellout" style="display:none">
+    <div class="controls">
+      <div class="fld"><label>Точка</label><select id="v-point" class="point-sel"></select></div>
+      <div class="fld"><label>Окно</label>
+        <select id="v-days">
+          <option value="7">неделя</option>
+          <option value="28" selected>4 недели</option>
+          <option value="91">квартал</option>
+        </select></div>
+      <div class="spacer"></div>
+      <button class="btn sec" onclick="dl('sellout')">Скачать отчёт</button>
+    </div>
+    <div id="v-body" class="loading">Загрузка…</div>
+  </div>
+
+  <!-- По часам -->
+  <div class="card sec" id="sec-hours" data-sec="hours" style="display:none">
+    <div class="controls">
+      <div class="fld"><label>Точка</label><select id="h-point" class="point-sel"></select></div>
+      <div class="fld"><label>Окно</label>
+        <select id="h-days">
+          <option value="7">неделя</option>
+          <option value="28" selected>4 недели</option>
+          <option value="91">квартал</option>
+        </select></div>
+      <div class="spacer"></div>
+      <button class="btn sec" onclick="dl('hours')">Скачать отчёт</button>
+    </div>
+    <div id="h-body" class="loading">Загрузка…</div>
+  </div>
+
+  <!-- Дни недели -->
+  <div class="card sec" id="sec-weekdays" data-sec="weekdays" style="display:none">
+    <div class="controls">
+      <div class="fld"><label>Точка</label><select id="w-point" class="point-sel"></select></div>
+      <div class="fld"><label>Окно</label>
+        <select id="w-days">
+          <option value="28">4 недели</option>
+          <option value="56" selected>8 недель</option>
+          <option value="91">квартал</option>
+          <option value="365">год</option>
+        </select></div>
+      <div class="spacer"></div>
+      <button class="btn sec" onclick="dl('weekdays')">Скачать отчёт</button>
+    </div>
+    <div id="w-body" class="loading">Загрузка…</div>
+  </div>
+
+  <!-- Списания и уценка -->
+  <div class="card sec" id="sec-writeoffs" data-sec="writeoffs" style="display:none">
+    <div class="controls">
+      <div class="fld"><label>Точка</label><select id="o-point" class="point-sel"></select></div>
+      <div class="fld"><label>Окно</label>
+        <select id="o-days">
+          <option value="28">4 недели</option>
+          <option value="56" selected>8 недель</option>
+          <option value="91">квартал</option>
+          <option value="365">год</option>
+        </select></div>
+      <div class="spacer"></div>
+      <button class="btn sec" onclick="dl('writeoffs')">Скачать отчёт</button>
+    </div>
+    <div id="o-body" class="loading">Загрузка…</div>
+  </div>
+
+  <!-- Дефицит-топ -->
+  <div class="card sec" id="sec-shelf" data-sec="shelf" style="display:none">
+    <div class="controls">
+      <div class="fld"><label>Точка</label><select id="t-point" class="point-sel"></select></div>
+      <div class="fld"><label>Зрелое окно</label>
+        <select id="t-days">
+          <option value="14">2 недели</option>
+          <option value="28" selected>4 недели</option>
+          <option value="56">8 недель</option>
+          <option value="91">квартал</option>
+        </select></div>
+      <div class="spacer"></div>
+      <button class="btn sec" onclick="dl('shelf')">Скачать отчёт</button>
+    </div>
+    <div id="t-body" class="loading">Загрузка…</div>
+  </div>
+
+  <!-- Нетипичные дни -->
+  <div class="card sec" id="sec-excluded" data-sec="excluded" style="display:none">
+    <h3 style="margin-top:0">Нетипичные дни</h3>
+    <div class="controls" id="e-controls" data-noreload="1">
+      <div class="fld"><label>Дата</label><input type="date" id="e-date"></div>
+      <div class="fld" style="flex:1;min-width:220px"><label>Причина</label>
+        <input type="text" id="e-reason" style="width:100%"
+               placeholder="закрытие точки, авария, разовая акция…"></div>
+      <button class="btn" onclick="excAdd()">Добавить</button>
+    </div>
+    <div class="okmsg" id="e-ok"></div>
+    <div class="muted" id="e-access"></div>
+    <div id="e-list" class="loading">Загрузка…</div>
+    <div class="muted">Исключённые дни не участвуют в обучении модели и в расчётах;
+      подействует со следующего ночного расчёта.</div>
+  </div>
+
+  <div class="footnote">
+    Демонстрационный сервис прогноза. Прогнозы считаются на этом сервере по данным продаж 1С.
+    При включённом помощнике вопросы и разрешённые демонстрационные данные передаются OpenCode.
+  </div>
+</div>
+<dialog id="shelf-drill" class="drill-dialog" aria-labelledby="shelf-drill-title">
+  <div class="drill-shell">
+    <div class="drill-head">
+      <div>
+        <div class="muted" style="margin:0">Сеть → позиция → точка → день</div>
+        <h2 id="shelf-drill-title">Детализация позиции</h2>
+      </div>
+      <form method="dialog"><button class="ghost" aria-label="Закрыть детализацию">Закрыть</button></form>
+    </div>
+    <div id="shelf-drill-body" class="drill-body"></div>
+  </div>
+</dialog>
+
+
+<script>
+/* --- общее ------------------------------------------------------------------ */
+const fmt1 = n => (n ?? 0).toLocaleString('ru-RU', { maximumFractionDigits: 1 });
+const errBox = document.getElementById('err');
+function showErr(msg) { errBox.textContent = msg; errBox.style.display = 'block'; }
+function hideErr() { errBox.style.display = 'none'; }
+const $ = id => document.getElementById(id);
+
+let pointsFilled = false;
+let isAdmin = false;
+function fillPoints(points) {   // одна загрузка — все выпадашки страницы
+  if (pointsFilled || !points || !points.length) return;
+  pointsFilled = true;
+  document.querySelectorAll('.point-sel').forEach(sel => {
+    if (isAdmin) sel.append(el('option', { value: '', text: 'Все точки' }));
+    points.forEach(p => sel.append(el('option', { value: p, text: p })));
+  });
+}
+
+function qualityNode(q) {
+  if (!q) return null;
+  const reasons = q.reasons || [];
+  const box = el('div', { class: 'quality ' + (q.status || 'info') });
+  box.append(el('div', { class: 'qt', text: q.title || 'Статус данных' }));
+  if (reasons.length) {
+    box.append(el('ul', null, reasons.map(r => {
+      const period = r.from && r.to ? `${r.from} — ${r.to}: ` : '';
+      return el('li', null, [
+        period ? el('span', { class: 'period', text: period }) : '',
+        document.createTextNode(r.text || ''),
+      ]);
+    })));
+  } else {
+    box.append(el('div', { text: 'Для выбранного окна ограничений не обнаружено.' }));
+  }
+  return box;
+}
+
+function appendQuality(box, q) {
+  const node = qualityNode(q);
+  if (node) box.append(node);
+}
+
+async function loadStatus() {
+  const box = $('quality-global');
+  try {
+    const d = await fetchJSON('/api/analytics/status');
+    isAdmin = !!d.can_manage_excluded;
+    box.className = '';
+    box.innerHTML = '';
+    appendQuality(box, d);
+    const src = d.sources || {};
+    box.append(el('div', { class: 'quality info' }, [
+      el('div', { class: 'qt', text: 'Свежесть источников' }),
+      el('div', { text:
+        `Сводные продажи: по ${src.sales_as_of || 'нет данных'}; ` +
+        `кассовые чеки: по ${src.checks_as_of || 'нет данных'}; ` +
+        `акты списания: по ${src.writeoffs_as_of || 'нет данных'}. ` +
+        'Дата в каждом графике ограничивается самым свежим пригодным источником.' }),
+    ]));
+  } catch (e) {
+    box.className = 'quality warning';
+    box.textContent = 'Не удалось проверить статус источников: ' + e.message;
+  }
+}
+
+// Одна формулировка на все места, где продажи могут превышать привоз (C9, 08.09)
+const OVERSOLD_HINT = 'Продано больше привезённого — остаток с прошлого дня, привоз без документа или собственное производство точки; это не ошибка прогноза';
+
+function table(headers, rows, cells, options) {
+  options = options || {};
+  const thead = el('thead', null, [el('tr', null,
+    headers.map((h, i) => {
+      const th = el('th', {
+        class: [h.num ? 'num' : '', i === 0 ? 'namecell' : '', h.series ? 'series-' + h.series : '']
+          .filter(Boolean).join(' '),
+        scope: 'col', text: h.t,
+      });
+      if (h.title) th.title = h.title;   // всплывающая подсказка к заголовку
+      return th;
+    }))]);
+  const tbody = el('tbody', null, rows.map(r => el('tr', null,
+    cells(r).map((c, i) => {
+      const td = el('td', {
+        class: [headers[i].num ? 'num' : '', i === 0 ? 'namecell' : '']
+          .filter(Boolean).join(' '),
+        'data-label': headers[i].t,
+      });
+      if (c instanceof Node) td.append(c); else td.textContent = c;
+      return td;
+    }))));
+  return el('div', { class: 'tblwrap ' + (options.className || '') },
+    [el('table', null, [thead, tbody])]);
+}
+
+function drillButton(label, handler) {
+  const button = el('button', { class: 'drillbtn', type: 'button', text: label });
+  button.addEventListener('click', handler);
+  return button;
+}
+
+function appendTable(parent, tbl) {
+  parent.append(tbl);
+  attachTopScroll(tbl);
+  return tbl;
+}
+
+function graphPeriod(meta) {
+  if (!meta || !meta.from || !meta.to) return null;
+  const source = meta.source ? ` Источник: ${meta.source}.` : '';
+  return el('div', { class: 'chartperiod',
+    text: `Фактический период этого графика: ${meta.from} — ${meta.to}.${source}` });
+}
+
+function chartPanel(svg, meta) {
+  const panel = el('div', { class: 'chartpanel' });
+  const period = graphPeriod(meta);
+  if (period) panel.append(period);
+  const art = el('div'); art.innerHTML = svg; panel.append(art);
+  return panel;
+}
+
+function renderInto(id, svg, tbl, note, quality, graphMeta) {
+  const box = $(id);
+  box.classList.remove('loading');
+  box.innerHTML = '';
+  appendQuality(box, quality);
+  if (!tbl) {
+    box.append(el('div', { class: 'muted', text: 'Нет данных.' }));
+    if (note) box.append(el('div', { class: 'muted', text: note }));
+    return;
+  }
+  if (svg) {
+    const period = graphPeriod(graphMeta);
+    if (period) box.append(period);
+    const s = el('div', { class: 'svgbox' }); s.innerHTML = svg; box.append(s);
+    enhanceChart(s);
+    box.append(el('div', { class: 'muted', text:
+      'Наведите на маркер или столбец для точного значения; масштаб меняется кнопками над графиком.' }));
+  }
+  box.append(tbl);
+  attachTopScroll(tbl);
+  if (note) box.append(el('div', { class: 'muted', text: note }));
+}
+
+/* --- параметры разделов (одни и те же для загрузки и выгрузки Excel) --------- */
+function qsFor(sec) {
+  const q = new URLSearchParams();
+  const pt = id => { const v = $(id).value; if (v) q.set('point', v); };
+  if (sec === 'sales') {
+    q.set('granularity', $('s-gran').value); pt('s-point');
+    if ($('s-preset').value === 'custom') {
+      if ($('s-from').value) q.set('from', $('s-from').value);
+      if ($('s-to').value) q.set('to', $('s-to').value);
+    } else q.set('preset', $('s-preset').value);
+  } else if (sec === 'yoy') { pt('y-point'); q.set('preset', $('y-preset').value); }
+  else if (sec === 'top') { pt('k-point'); q.set('preset', $('k-preset').value);
+                            q.set('by', $('k-by').value); }
+  else if (sec === 'sellout') { pt('v-point'); q.set('days', $('v-days').value); }
+  else if (sec === 'hours') { pt('h-point'); q.set('days', $('h-days').value); }
+  else if (sec === 'weekdays') { pt('w-point'); q.set('days', $('w-days').value); }
+  else if (sec === 'writeoffs') { pt('o-point'); q.set('days', $('o-days').value); }
+  else if (sec === 'shelf') { pt('t-point'); q.set('days', $('t-days').value); }
+  return q;
+}
+
+const EXPORT_SECTION = { sales: 'sales', yoy: 'yoy', top: 'top_sku',
+                         sellout: 'sellout_speed', hours: 'hours', weekdays: 'weekdays',
+                         writeoffs: 'writeoffs', shelf: 'shelf' };
+async function downloadXlsx(url, fallbackName) {
+    const r = await fetch(url);
+    if (r.status === 401) { window.location = '/login'; return; }
+    if (!r.ok) {
+      const d = await r.json().catch(() => ({}));
+      throw new Error(d.detail || d.message || 'не получилось собрать файл.');
+    }
+    const cd = r.headers.get('Content-Disposition') || '';
+    let name = fallbackName || 'forecast_отчёт.xlsx';
+    const m = /filename\*=UTF-8''([^;]+)/i.exec(cd);
+    if (m) name = decodeURIComponent(m[1]);
+    else { const m2 = /filename="?([^";]+)/i.exec(cd); if (m2) name = m2[1]; }
+    const blobUrl = URL.createObjectURL(await r.blob());
+    const a = el('a', { href: blobUrl, download: name });
+    document.body.append(a); a.click(); a.remove();
+    URL.revokeObjectURL(blobUrl);
+}
+
+async function dl(sec) {   // «Скачать отчёт»: ошибки — словами в баннер, не JSON-страницей
+  hideErr();
+  const q = qsFor(sec);
+  q.set('section', EXPORT_SECTION[sec]);
+  try {
+    await downloadXlsx('/api/analytics/export?' + q, 'forecast_отчёт.xlsx');
+  } catch (e) { showErr('Выгрузка: ' + e.message); }
+}
+
+/* --- разделы ---------------------------------------------------------------- */
+const loaded = {};
+
+async function loadSales(force) {
+  if (loaded.sales && !force) return; loaded.sales = true; hideErr();
+  try {
+    const d = await fetchJSON('/api/analytics/sales?' + qsFor('sales'));
+    fillPoints(d.points);
+    const rows = (d.table || []).slice().reverse();   // свежие сверху
+    const tbl = rows.length ? table(
+      [{t:'Дата'},{t:'Продано, шт',num:1,series:1},{t:'Уценка, шт',num:1,series:2},
+       {t:'Доля уценки, %',num:1,series:2}],
+      rows, r => [r.date, fmt1(r.sold), fmt1(r.u40),
+                  r.u40_share == null ? '—' : fmt1(r.u40_share)]) : null;
+    renderInto('s-body', d.svg, tbl, rows.length ? `Период: ${d.from} — ${d.to}. Скоуп прогноза
+      (демонстрационное меню), возвраты вычтены.` : null, d.quality,
+      { from: d.from, to: d.to, source: 'сводный документ продаж 1С' });
+  } catch (e) { showErr('Динамика: ' + e.message); }
+}
+
+async function loadYoy(force) {
+  if (loaded.yoy && !force) return; loaded.yoy = true; hideErr();
+  try {
+    const d = await fetchJSON('/api/analytics/yoy?' + qsFor('yoy'));
+    fillPoints(d.points);
+    const box = $('y-body');
+    box.classList.remove('loading'); box.innerHTML = '';
+    appendQuality(box, d.quality);
+    if (!d.available) {
+      box.append(el('div', { class: 'muted', style: 'font-size:14px',
+        text: 'Сравнить год к году не получится: ' + (d.reason || 'нет данных за прошлый год.') }));
+      return;
+    }
+    const c = d.cur, p = d.prev, dd = d.delta;
+    const deltaEl = (v, goodUp, unit) => {
+      if (v == null) return el('div', { class: 'delta flat', text: 'год назад — ноль, сравнивать не с чем' });
+      const good = goodUp ? v >= 0 : v <= 0;
+      const s = (v > 0 ? '+' : '') + fmt1(v) + (unit || ' %');
+      return el('div', { class: 'delta ' + (v === 0 ? 'flat' : good ? 'good' : 'bad'),
+                         text: s + ' к прошлому году' });
+    };
+    box.append(el('div', { class: 'stats' }, [
+      el('div', { class: 'stat' }, [el('div', { class: 'l', text: 'Продажи, ₽' }),
+        el('div', { class: 'v', text: fmt(c.sales_rub) }), deltaEl(dd.sales_rub, true)]),
+      el('div', { class: 'stat' }, [el('div', { class: 'l', text: 'Продажи, шт' }),
+        el('div', { class: 'v', text: fmt(Math.round(c.sales_units)) }), deltaEl(dd.sales_units, true)]),
+      el('div', { class: 'stat' }, [el('div', { class: 'l', text: 'Списания, шт' }),
+        el('div', { class: 'v', text: fmt(Math.round(c.wo_units)) }), deltaEl(dd.wo_units, false)]),
+      el('div', { class: 'stat' }, [el('div', { class: 'l', text: 'Доля уценки, %' }),
+        el('div', { class: 'v', text: c.u40_share == null ? '—' : fmt1(c.u40_share) }),
+        deltaEl(dd.u40_share_pp, false, ' п.п.')]),
+    ]));
+    const woMoney = x => x.wo_rub_reliable ? fmt(x.wo_rub) : '—';
+    const rows = [
+      ['Продажи, шт', fmt1(c.sales_units), fmt1(p.sales_units), dd.sales_units, ' %'],
+      ['Продажи, ₽', fmt(c.sales_rub), fmt(p.sales_rub), dd.sales_rub, ' %'],
+      ['Списания, шт', fmt1(c.wo_units), fmt1(p.wo_units), dd.wo_units, ' %'],
+      ['Сумма заполненных актов списания, ₽', woMoney(c), woMoney(p), dd.wo_rub, ' %'],
+      ['Доля уценки, %', c.u40_share == null ? '—' : fmt1(c.u40_share),
+       p.u40_share == null ? '—' : fmt1(p.u40_share), dd.u40_share_pp, ' п.п.'],
+    ];
+    box.append(table(
+      [{t:'Показатель'},{t:'Сейчас',num:1},{t:'Год назад',num:1},{t:'Изменение',num:1}],
+      rows, r => [r[0], r[1], r[2],
+                  r[3] == null ? '—' : (r[3] > 0 ? '+' : '') + fmt1(r[3]) + r[4]]));
+    box.append(el('div', { class: 'muted', text:
+      `Период: ${c.from} — ${c.to} против ${p.from} — ${p.to} (те же даты минус 365 дней). ` +
+      `В сравнении участвуют точки, работавшие уже год назад: ${(d.points_used || []).join(', ')}. ` +
+      `Деньги: ${d.price_source}.` }));
+  } catch (e) { showErr('Год к году: ' + e.message); }
+}
+
+async function loadTop(force) {
+  if (loaded.top && !force) return; loaded.top = true; hideErr();
+  try {
+    const d = await fetchJSON('/api/analytics/top_sku?' + qsFor('top'));
+    fillPoints(d.points);
+    const metric = d.by === 'rub' ? 'выручке' : 'штукам';
+    const shareTitle = d.by === 'rub'
+      ? 'Сколько рублей из выручки точки, %' : 'Сколько штук из всех продаж точки, %';
+    const tbl = (d.rows || []).length ? table(
+      [{t:'№',num:1},{t:'Позиция'},{t:'Группа'},{t:'Продано, шт',num:1},
+       {t:'Выручка, ₽',num:1},{t:'Продано со скидкой, %',num:1},{t:shareTitle,num:1}],
+      d.rows.map((r, i) => ({ ...r, i: i + 1 })),
+      r => [r.i, r.sku, r.group, fmt1(r.qty), fmt(r.rub),
+            r.u40_share == null ? '—' : fmt1(r.u40_share),
+            r.share_pct == null ? '—' : fmt1(r.share_pct)]) : null;
+    renderInto('k-body', null, tbl, tbl ? `Топ-20 по ${metric} за ${d.from} — ${d.to},
+      скоуп прогноза. Выручка — из витрины продаж 1С.` : null, d.quality);
+  } catch (e) { showErr('Топ позиций: ' + e.message); }
+}
+
+async function loadSellout(force) {
+  if (loaded.sellout && !force) return; loaded.sellout = true; hideErr();
+  try {
+    const d = await fetchJSON('/api/analytics/sellout_speed?' + qsFor('sellout'));
+    fillPoints(d.points);
+    const box = $('v-body');
+    box.classList.remove('loading'); box.innerHTML = '';
+    appendQuality(box, d.quality);
+    if (!(d.top || []).length && !(d.slow || []).length) {
+      box.append(el('div', { class: 'muted',
+        text: 'За выбранное окно недостаточно наблюдений для оценки последней продажи и темпа.' }));
+      return;
+    }
+    box.append(el('div', { class: 'quality info' }, [
+      el('div', { class: 'qt', text: 'Что показывает этот раздел' }),
+      el('div', { text: 'Последняя продажа берётся из кассового чека. Это сигнал для проверки ' +
+        'позиции, а не подтверждённое время пустой полки: фактический остаток магазином не передан.' }),
+    ]));
+    const rate = d.summary && d.summary.receipt_rate;
+    const rateText = rate && rate.available && rate.rate_u_h != null
+      ? `Наблюдаемый темп по выбранному срезу: ${fmt1(rate.units)} чистых продаж / ` +
+        `${fmt1(rate.receipt_window_hours)} товаро-часов чекового окна = ` +
+        `${fmt1(rate.rate_u_h)} шт/ч. Дней товар×точка в расчёте: ` +
+        `${fmt(rate.observed_pair_days)}; исключено без полного окна: ` +
+        `${fmt(rate.excluded_pair_days)}.`
+      : 'Наблюдаемый темп по чекам недоступен: ' +
+        ((rate && rate.reason) || 'нет дней с полным временем первого и последнего чека.');
+    box.append(el('div', { class: 'quality info' }, [
+      el('div', { class: 'qt', text: 'Как рассчитан темп по чекам' }),
+      el('div', { text: rateText }),
+      el('div', { text: 'Для каждого дня знаменатель — часы от первой до последней ' +
+        'положительной продажи этой позиции в чеке (минимум один час). Это активность ' +
+        'покупателей в чековом окне, а не измеренный ' +
+        'остаток и не скорость опустения полки.' }),
+    ]));
+    box.append(el('h4', { text: 'Раннее прекращение продаж — позиции для проверки (оценка)' }));
+    if ((d.top || []).length) {
+      appendTable(box, table(
+        [{t:'Точка'},{t:'Позиция'},
+         {t:'Среднее время последней продажи в отмеченные дни',num:1,
+          title:'Отмеченные дни — дни, когда по чекам позиция закончилась заметно раньше закрытия точки'},
+         {t:'Наблюдаемый темп продаж по чекам, шт/ч',num:1},
+         {t:'Дней расчёта темпа / наблюдений',num:1},
+         {t:'Дней с признаком раннего окончания, %',num:1},
+         {t:'Дней с признаком окончания',num:1},{t:'Дней наблюдений',num:1},
+         {t:'Проверка'}],
+        d.top, r => [r.point, r.sku, r.t_hhmm,
+          r.receipt_sale_rate_u_h == null ? '—' : fmt1(r.receipt_sale_rate_u_h),
+          `${fmt(r.receipt_rate_observed_days || 0)} / ${fmt(r.days_seen)}`,
+          fmt1(r.early_share_pct),
+          fmt(r.n_sellout), fmt(r.days_seen),
+          drillButton('По дням', () => openShelfDrill(
+            r.sku, r.sku_key, r.point, '', d.to))]));
+    } else {
+      box.append(el('div', { class: 'muted', text: 'Нет позиций с тремя и более наблюдениями за окно.' }));
+    }
+    if ((d.slow || []).length) {
+      box.append(el('h4', { text: 'Медленно продающиеся позиции' }));
+      appendTable(box, table(
+        [{t:'Точка'},{t:'Позиция'},{t:'Продано в среднем, шт/день',num:1},
+         {t:'Наблюдаемый темп продаж по чекам, шт/ч',num:1},
+         {t:'Дней расчёта темпа / наблюдений',num:1},
+         {t:'Продано за окно, шт',num:1},{t:'Заказано за окно, шт',num:1},
+         {t:'Дней наблюдений',num:1},{t:'Проверка'}],
+        d.slow, r => [r.point, r.sku, fmt1(r.avg_sold_per_day),
+          r.receipt_sale_rate_u_h == null ? '—' : fmt1(r.receipt_sale_rate_u_h),
+          `${fmt(r.receipt_rate_observed_days || 0)} / ${fmt(r.days_seen)}`,
+          fmt1(r.sold_units),
+          fmt1(r.ordered_units), fmt(r.days_seen),
+          drillButton('По дням', () => openShelfDrill(
+            r.sku, r.sku_key, r.point, '', d.to))]));
+      box.append(el('div', { class: 'muted', text:
+        'Среднее рассчитано только по дням, когда позиция присутствовала в витрине полки. ' +
+        'Точки с разной полнотой наблюдений напрямую не сравнивайте.' }));
+    }
+    box.append(el('div', { class: 'muted', text:
+      `Окно: ${d.from} — ${d.to}. Время — наблюдаемая последняя продажа дня из чеков, а не
+      измеренный нулевой остаток. Признак окончания рассчитывает модель полки; его нужно
+      подтверждать остатками. Позиции собственного производства исключены политикой ассортимента.` }));
+  } catch (e) { showErr('Раннее прекращение продаж: ' + e.message); }
+}
+
+async function loadHours(force) {
+  if (loaded.hours && !force) return; loaded.hours = true; hideErr();
+  try {
+    const d = await fetchJSON('/api/analytics/hours?' + qsFor('hours'));
+    fillPoints(d.points);
+    const tbl = (d.table || []).length ? table(
+      [{t:'Час'},{t:'Шт в день',num:1,series:1},{t:'Всего за период, шт',num:1},
+       {t:'Доля, %',num:1}],
+      d.table, r => [r.label + ':00', fmt1(r.per_day), fmt1(r.qty), fmt1(r.share_pct)]) : null;
+    renderInto('h-body', d.svg, tbl, tbl ? `Часы — по времени чека, возвраты вычтены.
+      Окно: ${d.from} — ${d.to}; ${d.n_days} дней с чеками из ${d.calendar_days} календарных.` : null,
+      d.quality, { from: d.from, to: d.to, source: 'кассовые чеки' });
+  } catch (e) { showErr('По часам: ' + e.message); }
+}
+
+async function loadWeekdays(force) {
+  if (loaded.weekdays && !force) return; loaded.weekdays = true; hideErr();
+  try {
+    const d = await fetchJSON('/api/analytics/weekdays?' + qsFor('weekdays'));
+    fillPoints(d.points);
+    const tbl = (d.table || []).length ? table(
+      [{t:'День недели'},{t:'Продажи, шт/календарный день',num:1,series:1},
+       {t:'Уценка, шт/календарный день',num:1,series:2},{t:'Дней в окне',num:1},
+       {t:'Дней с данными',num:1}],
+      d.table, r => [r.name, fmt1(r.avg_units), fmt1(r.avg_u40), fmt(r.n_days), fmt(r.n_observed)]) : null;
+    renderInto('w-body', d.svg, tbl, tbl ? `Календарные средние за окно ${d.from} — ${d.to};
+      дни без строк продаж учтены как нули.` : null, d.quality,
+      { from: d.from, to: d.to, source: 'сводный документ продаж 1С' });
+  } catch (e) { showErr('Дни недели: ' + e.message); }
+}
+
+async function loadWriteoffs(force) {
+  if (loaded.writeoffs && !force) return; loaded.writeoffs = true; hideErr();
+  try {
+    const d = await fetchJSON('/api/analytics/writeoffs?' + qsFor('writeoffs'));
+    fillPoints(d.points);
+    const tbl = (d.table || []).length ? table(
+      [{t:'Точка'},{t:'Списано, шт',num:1,series:1},{t:'Сумма заполненных актов, ₽',num:1},
+       {t:'Заполнение суммы актов, %',num:1},{t:'Продано со скидкой, шт',num:1,series:2}],
+      d.table, r => [r.point, fmt1(r.wo_units), fmt(r.wo_rub),
+                     r.wo_sum_coverage_pct == null ? '—' : fmt1(r.wo_sum_coverage_pct),
+                     fmt1(r.u40_units)]) : null;
+    renderInto('o-body', d.svg, tbl, tbl ? `Окно: ${d.from} — ${d.to}. Списано — по актам 1С;
+      продано со скидкой (−40%) — это спасённая выручка, а не потеря: товар,
+      который иначе ушёл бы в списание, всё-таки продан. Рубли — только заполненная
+      часть актов, не полная стоимость потерь.` : null, d.quality,
+      { from: d.from, to: d.to, source: 'акты списания 1С и продажи со скидкой' });
+  } catch (e) { showErr('Списания: ' + e.message); }
+}
+
+function drillValue(value, formatter) {
+  return value == null ? '—' : (formatter || fmt1)(value);
+}
+
+function drillFact(label, value) {
+  return el('div', { class: 'drill-fact' }, [
+    el('div', { class: 'k', text: label }), el('div', { class: 'v', text: value }),
+  ]);
+}
+
+function drillNavButton(label, sku, skuKey, point, day, asOf) {
+  return drillButton(label, () => openShelfDrill(
+    sku, skuKey || '', point || '', day || '', asOf || ''));
+}
+
+function shelfDrillExportButton(data) {
+  const button = drillButton('Скачать детализацию Excel', async () => {
+    const q = new URLSearchParams({ sku: data.sku, days: $('t-days').value });
+    if (data.sku_key) q.set('sku_key', data.sku_key);
+    if (data.point) q.set('point', data.point);
+    if (data.selected && data.selected.date) q.set('date', data.selected.date);
+    if (data.as_of) q.set('as_of', data.as_of);
+    const oldText = button.textContent;
+    button.disabled = true; button.textContent = 'Готовим файл…';
+    try {
+      await downloadXlsx('/api/analytics/shelf_drilldown/export?' + q,
+                         'forecast_Детализация_полки.xlsx');
+    } catch (error) {
+      showErr('Выгрузка детализации: ' + error.message);
+    } finally {
+      button.disabled = false; button.textContent = oldText;
+    }
+  });
+  return button;
+}
+
+function renderShelfDrill(data) {
+  const box = $('shelf-drill-body');
+  box.classList.remove('loading'); box.innerHTML = '';
+  $('shelf-drill-title').textContent = data.sku || 'Детализация позиции';
+  appendQuality(box, data.quality);
+  box.append(el('div', { class: 'drill-nav' }, [shelfDrillExportButton(data)]));
+
+  if (!data.point) {
+    box.append(el('div', { class: 'drill-nav' }, [
+      el('strong', { text: 'По сети' }),
+      el('span', { class: 'muted', text: `Зрелое окно ${data.from || '—'} — ${data.to || '—'}` }),
+    ]));
+    if (!(data.points || []).length) {
+      box.append(el('div', { class: 'muted', text: 'В выбранном зрелом окне строк этой позиции нет.' }));
+    } else {
+      box.append(el('h3', { text: 'Шаг 1. Выберите точку' }));
+      appendTable(box, table(
+        [{t:'Точка'},{t:'Дней',num:1},{t:'Заказано, шт',num:1},{t:'Продано, шт',num:1},
+         {t:'Оценено упущено, шт',num:1,series:1},{t:'Упущенная маржа, ₽',num:1},{t:'Детализация'}],
+        data.points, row => [row.point, fmt(row.days), fmt1(row.ordered), fmt1(row.sold),
+          fmt1(row.lost_units), fmt(row.lost_rub_margin),
+          drillNavButton('Открыть дни', data.sku, data.sku_key, row.point, '', data.as_of)]));
+      box.append(el('div', { class: 'muted', text: OVERSOLD_HINT + '.' }));
+    }
+  } else if (!data.selected) {
+    box.append(el('div', { class: 'drill-nav' }, [
+      drillNavButton('← Все точки', data.sku, data.sku_key, '', '', data.as_of),
+      el('strong', { text: data.point }),
+      el('span', { class: 'muted', text: `Зрелое окно ${data.from || '—'} — ${data.to || '—'}` }),
+    ]));
+    if (!(data.days || []).length) {
+      box.append(el('div', { class: 'muted', text: 'Для этой точки в выбранном окне нет строк позиции.' }));
+    } else {
+      box.append(el('h3', { text: 'Шаг 2. Выберите конкретный день' }));
+      appendTable(box, table(
+        [{t:'Дата'},{t:'Заказано, шт',num:1},{t:'Собрано фабрикой, шт',num:1},
+         {t:'Поступило по документам, шт',num:1},{t:'Продано, шт',num:1},
+         {t:'Последняя продажа'},{t:'Оценено упущено, шт',num:1,series:1},{t:'Детализация'}],
+        data.days, row => [row.date, fmt1(row.ordered), drillValue(row.collected),
+          drillValue(row.supplied), fmt1(row.sold), row.last_sale || '—', fmt1(row.lost_units),
+          drillNavButton('Открыть день', data.sku, data.sku_key, data.point,
+            row.date, data.as_of)]));
+      box.append(el('div', { class: 'muted', text: OVERSOLD_HINT + '.' }));
+    }
+  } else {
+    const row = data.selected;
+    box.append(el('div', { class: 'drill-nav' }, [
+      drillNavButton('← Дни точки', data.sku, data.sku_key, data.point, '', data.as_of),
+      drillNavButton('Все точки', data.sku, data.sku_key, '', '', data.as_of),
+      el('strong', { text: `${data.point} · ${row.date}` }),
+    ]));
+    box.append(el('h3', { text: 'Шаг 3. Что происходило с позицией в этот день' }));
+    box.append(el('div', { class: 'drill-facts' }, [
+      drillFact('Заказано по полке', fmt1(row.ordered) + ' шт'),
+      drillFact('Заказано в документе', drillValue(row.ordered_document) + (row.ordered_document == null ? '' : ' шт')),
+      drillFact('Собрано фабрикой', drillValue(row.collected) + (row.collected == null ? '' : ' шт')),
+      drillFact('Поступило по документам', drillValue(row.supplied) + (row.supplied == null ? '' : ' шт')),
+      drillFact('Продано', fmt1(row.sold) + ' шт'),
+      drillFact('Первая / последняя продажа', `${row.first_sale || '—'} / ${row.last_sale || '—'}`),
+      drillFact('Расчётное закрытие точки', row.estimated_close || '—'),
+      drillFact('Средний профиль позиции', drillValue(row.day_rate) + (row.day_rate == null ? '' : ' шт/день')),
+      drillFact('Оценочный темп хвоста', drillValue(row.tail_rate) + (row.tail_rate == null ? '' : ' шт/ч')),
+      drillFact('Оценено упущено', fmt1(row.lost_units) + ' шт'),
+      drillFact('Оценка упущенной маржи', fmt(row.lost_rub_margin) + ' ₽'),
+      drillFact('Списано', fmt1(row.wo_units) + ' шт'),
+    ]));
+    if (Number(row.sold || 0) > Number(row.ordered || 0)) {
+      const zero = Number(row.ordered || 0) === 0;
+      box.append(el('div', { class: 'quality warning' }, [
+        el('div', { class: 'qt', text: zero ? 'Почему заказ 0, а продажа есть'
+          : 'Почему продано больше, чем заказано' }),
+        el('div', { text: (zero
+          ? 'Ноль означает, что в этот день не зафиксирована заявка по каналу перемещения. '
+          : '') + OVERSOLD_HINT + '. Фактический остаток эта таблица не показывает.' }),
+      ]));
+    }
+    if (data.svg_hourly) {
+      box.append(el('h3', { text: 'Фактические продажи по времени чеков' }));
+      const chart = chartPanel(data.svg_hourly, {
+        from: data.selected.date, to: data.selected.date, source: 'кассовые чеки'
+      });
+      box.append(chart); enhanceChart(chart);
+      box.append(el('div', { class: 'muted', text:
+        'Наведите на точку для точного часа и количества. Нулевое значение означает отсутствие ' +
+        'чистой продажи в чеках в этот час, отрицательное — возвраты превысили продажи; ' +
+        'само по себе это не подтверждает пустую полку.' }));
+    }
+    if ((data.hourly || []).length) {
+      appendTable(box, table(
+        [{t:'Час'},{t:'Продано по чекам, шт',num:1,series:1}],
+        data.hourly, hour => [hour.label, fmt1(hour.qty)]));
+    }
+  }
+  if ((data.notes || []).length) {
+    box.append(el('ul', { class: 'drill-notes' }, data.notes.map(note => el('li', { text: note }))));
+  }
+}
+
+let shelfDrillController = null;
+let shelfDrillRequestId = 0;
+
+async function openShelfDrill(sku, skuKey, point, day, asOf) {
+  if (shelfDrillController) shelfDrillController.abort();
+  shelfDrillController = new AbortController();
+  const requestId = ++shelfDrillRequestId;
+  const dialog = $('shelf-drill');
+  const box = $('shelf-drill-body');
+  $('shelf-drill-title').textContent = sku || 'Детализация позиции';
+  box.className = 'drill-body loading'; box.textContent = 'Загрузка детализации…';
+  if (!dialog.open) dialog.showModal();
+  const query = new URLSearchParams({ sku, days: $('t-days').value });
+  if (skuKey) query.set('sku_key', skuKey);
+  if (point) query.set('point', point);
+  if (day) query.set('date', day);
+  if (asOf) query.set('as_of', asOf);
+  try {
+    const response = await fetchJSON(
+      '/api/analytics/shelf_drilldown?' + query,
+      { signal: shelfDrillController.signal });
+    if (requestId === shelfDrillRequestId) renderShelfDrill(response);
+  } catch (e) {
+    if (e && e.name === 'AbortError') return;
+    if (requestId !== shelfDrillRequestId) return;
+    box.className = 'drill-body'; box.innerHTML = '';
+    box.append(el('div', { class: 'quality warning' }, [
+      el('div', { class: 'qt', text: 'Не удалось открыть детализацию' }),
+      el('div', { text: e.message }),
+    ]));
+  }
+}
+
+async function loadShelf(force) {
+  if (loaded.shelf && !force) return; loaded.shelf = true; hideErr();
+  try {
+    const d = await fetchJSON('/api/analytics/shelf?' + qsFor('shelf'));
+    fillPoints(d.points);
+    const box = $('t-body');
+    box.classList.remove('loading'); box.innerHTML = '';
+    appendQuality(box, d.quality);
+    if (!(d.table || []).length && !(d.writeoff || []).length) {
+      box.append(el('div', { class: 'muted', text: 'Нет данных полки.' })); return;
+    }
+    const totals = d.totals || {};
+    box.append(el('div', { class: 'stats' }, [
+      el('div', { class: 'stat' }, [el('div', { class: 'l', text: 'Оценено упущено, шт' }),
+        el('div', { class: 'v', text: fmt1(totals.lost_units || 0) })]),
+      el('div', { class: 'stat' }, [el('div', { class: 'l', text: 'Оценка упущенной маржи, ₽' }),
+        el('div', { class: 'v', text: fmt(totals.lost_rub_margin || 0) })]),
+      el('div', { class: 'stat' }, [el('div', { class: 'l', text: 'Списано, шт' }),
+        el('div', { class: 'v', text: fmt1(totals.wo_units || 0) })]),
+      el('div', { class: 'stat' }, [el('div', { class: 'l', text: 'Оценка себестоимости списаний, ₽' }),
+        el('div', { class: 'v', text: fmt(totals.wo_rub_cost || 0) })]),
+    ]));
+    const charts = el('div', { class: 'chartgrid' });
+    const shelfPeriod = { from: d.from, to: d.to };
+    const lostPeriod = { ...shelfPeriod,
+      source: 'кассовые чеки + профиль продаж и модельная оценка дефицита' };
+    const writeoffPeriod = { ...shelfPeriod,
+      source: 'акты списания 1С' };
+    if (d.svg_lost) charts.append(chartPanel(d.svg_lost, lostPeriod));
+    if (d.svg_writeoff) charts.append(chartPanel(d.svg_writeoff, writeoffPeriod));
+    if (charts.children.length) {
+      box.append(charts); enhanceCharts(charts);
+      box.append(el('div', { class: 'muted', text:
+        'Наведите на маркер для точной даты и значения; график можно масштабировать и развернуть.' }));
+    }
+    const moneyCharts = el('div', { class: 'chartgrid' });
+    if (d.svg_lost_margin) {
+      moneyCharts.append(chartPanel(d.svg_lost_margin, { ...lostPeriod,
+        source: 'кассовые чеки + профиль продаж + базовая цена позиции' }));
+    }
+    if (d.svg_writeoff_cost) {
+      moneyCharts.append(chartPanel(d.svg_writeoff_cost, { ...writeoffPeriod,
+        source: 'акты списания 1С + цена позиции' }));
+    }
+    if (moneyCharts.children.length) {
+      box.append(el('h4', { text: 'Стоимость потерь, ₽ (оценка)' }));
+      box.append(moneyCharts); enhanceCharts(moneyCharts);
+      box.append(el('div', { class: 'quality warning' }, [
+        el('div', { class: 'qt', text: 'Не бухгалтерская сверка' }),
+        el('div', { text: 'Упущенная маржа — консервативная модельная оценка по чекам, ' +
+          'профилю продаж и базовой цене. Себестоимость списаний рассчитана по цене позиции, ' +
+          'а не по рублёвой сумме актов 1С. Эти два показателя нельзя складывать как фактический убыток.' }),
+      ]));
+    }
+    box.append(el('div', { class: 'drillhint' }, [
+      el('strong', { text: 'Углубление:' }),
+      document.createTextNode('нажмите «По точкам» у позиции, затем выберите точку и конкретный день.'),
+    ]));
+    if (!d.point && (d.deficit_network || []).length) {
+      box.append(el('h4', { text: 'По сети: позиции с наибольшей оценкой упущенных продаж' }));
+      appendTable(box, table(
+        [{t:'Позиция'},{t:'Оценено упущено по сети, шт',num:1,series:1},
+         {t:'Оценка упущенной маржи, ₽',num:1},{t:'Детализация'}],
+        d.deficit_network, r => [r.sku, fmt1(r.units), fmt(r.rub),
+          drillButton('По точкам', () => openShelfDrill(
+            r.sku, r.sku_key, '', '', d.to))]));
+    }
+    box.append(el('h4', { text: `Недозаказ: чего не хватило на зрелой полке (${d.from} — ${d.to})` }));
+    appendTable(box, table(
+      [{t:'Позиция'},{t:'Точка'},{t:'Недопродано, шт',num:1,series:1},
+       {t:'Упущенная маржа, ₽',num:1},{t:'Детализация'}],
+      d.table, r => [r.sku, r.point, fmt1(r.units), fmt(r.rub),
+        drillButton('По дням', () => openShelfDrill(
+          r.sku, r.sku_key, r.point, '', d.to))]));
+    box.append(el('h4', { text: 'Топ списаний за то же зрелое окно' }));
+    appendTable(box, table(
+      [{t:'Позиция'},{t:'Точка'},{t:'Списано, шт',num:1,series:1},{t:'Потеряно, ₽',num:1}],
+      d.writeoff, r => [r.sku, r.point, fmt1(r.units), fmt(r.rub)]));
+    if ((d.deficit_details || []).length) {
+      box.append(el('h4', { text: 'Расшифровка крупнейших оценок: точка × позиция × день' }));
+      appendTable(box, table(
+        [{t:'Дата'},{t:'Точка'},{t:'Позиция'},{t:'Продано, шт',num:1},
+         {t:'Оценено упущено, шт',num:1,series:1},{t:'Упущенная маржа, ₽',num:1},
+         {t:'Все показатели'}],
+        d.deficit_details, r => [r.date, r.point, r.sku, fmt1(r.sold),
+          fmt1(r.lost_units), fmt(r.lost_rub_margin),
+          drillButton('Открыть день', () => openShelfDrill(
+            r.sku, r.sku_key, r.point, r.date, d.to))]));
+      box.append(el('div', { class: 'muted', text:
+        'Показано до 100 крупнейших оценок. Полный путь по всем дням доступен через кнопки ' +
+        'детализации. Темп хвоста — объяснение модели, а не факт остатка.' }));
+    }
+    const prov = d.provenance || {};
+    box.append(el('div', { class: 'muted', text: 'Недопродажи — консервативная оценка «полки», ' +
+      'а не измеренный спрос. Списания в ₽ — оценка себестоимости, а не сумма актов. ' +
+      'Одна позиция может оказаться в обоих топах в разные дни: это волатильность, а не ' +
+      'одновременное противоречие. Источник: ' + d.source +
+      (prov.method_version ? '; методика ' + prov.method_version : '') + '.' }));
+  } catch (e) { showErr('Дефицит-топ: ' + e.message); }
+}
+
+/* --- нетипичные дни --------------------------------------------------------- */
+function renderExcluded(days, editable) {
+  const box = $('e-list');
+  box.classList.remove('loading'); box.innerHTML = '';
+  if (!days.length) {
+    box.append(el('div', { class: 'muted', text: 'Список пуст — все дни участвуют в расчётах.' }));
+    return;
+  }
+    days.forEach(d => box.append(el('div', { class: 'exc-item' }, [
+      el('span', { class: 'd', text: d.date }),
+      el('span', { class: 'r', text: d.reason || '' }),
+      el('span', { class: 'a', text: 'добавлен ' + (d.added_at || '—') }),
+      editable ? (() => { const b = el('button', { class: 'exc-del', text: 'Убрать' });
+                           b.onclick = () => excRemove(d.date); return b; })() : '',
+    ])));
+}
+
+async function loadExcluded(force) {
+  if (loaded.excluded && !force) return; loaded.excluded = true; hideErr();
+  try {
+    const d = await fetchJSON('/api/excluded-days');
+    $('e-controls').style.display = d.editable ? 'flex' : 'none';
+    $('e-access').textContent = d.message || '';
+    renderExcluded(d.days || [], !!d.editable);
+  }
+  catch (e) { showErr('Нетипичные дни: ' + e.message); }
+}
+
+async function excPost(body, okText) {
+  hideErr();
+  const ok = $('e-ok'); ok.style.display = 'none';
+  try {
+    const d = await fetchJSON('/api/excluded-days', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    renderExcluded(d.days || [], true);
+    ok.textContent = okText; ok.style.display = 'block';
+    setTimeout(() => { ok.style.display = 'none'; }, 4000);
+    return true;
+  } catch (e) { showErr(e.message); return false; }
+}
+
+async function excAdd() {
+  const date = $('e-date').value;
+  const reason = $('e-reason').value;
+  if (!date) { showErr('Выберите дату.'); return; }
+  const ok = await excPost({ date, reason, action: 'add' },
+                           'День добавлен. Подействует со следующего ночного расчёта.');
+  if (ok) $('e-reason').value = '';
+}
+function excRemove(date) {
+  excPost({ date, action: 'remove' }, 'День убран из списка.');
+}
+
+/* --- переключение табов и автоприменение фильтров --------------------------- */
+const loaders = { sales: loadSales, yoy: loadYoy, top: loadTop, sellout: loadSellout,
+                  hours: loadHours, weekdays: loadWeekdays,
+                  writeoffs: loadWriteoffs, shelf: loadShelf, excluded: loadExcluded };
+document.getElementById('subtabs').addEventListener('click', ev => {
+  const btn = ev.target.closest('.subtab'); if (!btn) return;
+  document.querySelectorAll('.subtab').forEach(b => b.classList.toggle('active', b === btn));
+  document.querySelectorAll('.sec').forEach(s =>
+    s.style.display = (s.id === 'sec-' + btn.dataset.sec) ? '' : 'none');
+  hideErr();
+  loaders[btn.dataset.sec]();
+});
+
+// смена любого фильтра сразу перезагружает раздел (кнопки «Показать» нет)
+document.querySelectorAll('.card.sec').forEach(card => {
+  card.addEventListener('change', ev => {
+    if (ev.target.closest('[data-noreload]')) return;   // форма нетипичных дней
+    if (ev.target.id === 's-preset')
+      $('s-custom').style.display = ($('s-preset').value === 'custom') ? 'flex' : 'none';
+    const fn = loaders[card.dataset.sec];
+    if (fn) fn(true);
+  });
+});
+
+// дата в форме нетипичных дней — только прошлое, максимум = вчера ПО МЕСТНОМУ
+// времени (toISOString давал UTC: во локальном времени UTC+10 вчера открывалось лишь к 10 утра)
+(() => {
+  const d = new Date(); d.setDate(d.getDate() - 1);
+  const iso = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')
+            + '-' + String(d.getDate()).padStart(2, '0');
+  $('e-date').max = iso;
+})();
+
+(async () => {
+  await loadStatus();
+  await loadSales();
+})();
+</script>
+</body>
+</html>

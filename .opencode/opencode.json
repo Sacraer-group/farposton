@@ -1,0 +1,23 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permissions": [
+    {
+      "action": "read",
+      "resource": "*/.config/farposton/2gis_api_key",
+      "effect": "deny"
+    }
+  ],
+  "mcp": {
+    "servers": {
+      "2gis": {
+        "type": "remote",
+        "url": "https://mcp-2gis.api.2gis.com/mcp",
+        "oauth": false,
+        "codemode": false,
+        "headers": {
+          "X-2GIS-API-Key": "{file:~/.config/farposton/2gis_api_key}"
+        }
+      }
+    }
+  }
+}

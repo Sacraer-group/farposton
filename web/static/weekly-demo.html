@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Автозаказ на неделю — демо</title>
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/app.css?v=20260929-ui4">
+<script src="/assets/app.js?v=20260929-ui4"></script>
+<style>
+  .wrap{max-width:1320px}
+  .lead{color:var(--ink2);line-height:1.6}
+  .note{font-size:13px;color:var(--mut);line-height:1.6}
+  .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0}
+  select,input[type=number]{background:var(--paper);color:var(--ink);border:1px solid var(--line2);
+    border-radius:8px;padding:8px;font:inherit}
+  input[type=number]{width:82px;text-align:right}
+  .status{font-size:13px;color:var(--ink2)}
+  #error{display:none}
+  @media(max-width:800px){
+    .wrap{padding:16px 12px}.card{padding:16px}
+    .tablewrap{overflow:visible;max-height:none;border:0}
+    #orders,#orders tbody,#orders tr,#orders td{display:block;width:100%;min-width:0}
+    #orders thead{display:none}
+    #orders tr{border:1px solid var(--line);border-radius:10px;margin:0 0 12px;padding:8px}
+    #orders td{display:flex;justify-content:space-between;gap:12px;text-align:right;white-space:normal}
+    #orders td:first-child{font-weight:700}
+    #orders td::before{color:var(--mut);font-weight:400;text-align:left}
+    #orders td:nth-child(1)::before{content:'Позиция'}
+    #orders td:nth-child(2)::before{content:'Неделя'}
+    #orders td:nth-child(3)::before{content:'Первая поставка'}
+    #orders td:nth-child(4)::before{content:'Спрос до конца срока'}
+    #orders td:nth-child(5)::before{content:'Остаток к доставке'}
+    #orders td:nth-child(6)::before{content:'Страховой запас'}
+    #orders td:nth-child(7)::before{content:'Упаковка'}
+    #orders td:nth-child(8)::before{content:'Минимум'}
+    #orders td:nth-child(9)::before{content:'Черновик, шт'}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand"><a href="/" aria-label="На главную"><img class="serial-plate" src="/assets/serial-plate.png" alt="SERIAL NO."></a>
+      <div class="service">Прогноз заказов<div class="sub">готовая еда · кухня → точки</div></div>
+    </div>
+    <button class="ghost icon" onclick="toggleTheme()" aria-label="Переключить тему">◐</button>
+  </header>
+  <nav class="tabs">
+    <a class="tab" href="/">Заявка</a>
+    <a class="tab" href="/comparison">Сравнение</a>
+    <a class="tab active" href="/weekly-demo">Автозаказ на неделю</a>
+  </nav>
+  <div class="card">
+    <span class="pill info">Вымышленные данные · репетиция</span>
+    <h1 style="font-size:23px;margin:12px 0 8px">Автозаказ на неделю</h1>
+    <p class="lead">Показываем историю спроса → проверку двух методов на прошедших неделях →
+      прогноз → черновик первой поставки. Заявка остаётся в этом браузере и никуда не отправляется.</p>
+    <div id="summary" class="stats"></div>
+    <p id="method" class="note"></p>
+  </div>
+  <div class="card">
+    <div class="controls">
+      <label for="point">Точка</label><select id="point"></select>
+      <button class="btn sec" id="reset" type="button">Сбросить правки</button>
+      <button class="btn" id="approve" type="button">Утвердить демочерновик</button>
+    </div>
+    <p class="note">Прогноз относится ко всей неделе. Черновик покрывает только первую поставку:
+      дату доставки задаёт срок поставки, спрос для неё ограничен сроком хранения. Страховой
+      запас и округление до упаковки могут привести к списаниям; демо их не оптимизирует.
+      Для короткого срока хранения нужны повторные поставки в течение недели. Остаток к доставке учитывает
+      ожидаемую поставку, которая по условиям демо приходит до начала недели, и расход за время ожидания. Остатки и ожидаемые поставки — вводные
+      вымышленного сценария, не результаты инвентаризации.</p>
+    <div class="tablewrap"><table id="orders">
+      <thead><tr><th>Позиция</th><th class="num">Неделя</th><th>Первая поставка</th>
+        <th class="num">Спрос до конца срока</th><th class="num">Остаток к доставке</th>
+        <th class="num">Страховой запас</th><th class="num">Упаковка</th><th class="num">Мин. заказ</th>
+        <th class="num">Черновик, шт</th></tr></thead><tbody></tbody>
+    </table></div>
+    <p class="note">Расчёт строки: спрос первой поставки + страховой запас − остаток к доставке;
+      положительный результат округляется до упаковки и не ниже минимального заказа.
+      Недостачу до первой доставки этот черновик не устраняет.</p>
+    <p id="state" class="status" role="status" aria-live="polite"></p>
+  </div>
+  <div class="banner err" id="error" role="alert"></div>
+</div>
+<script>
+(() => {
+  'use strict';
+  let data, edits = {}, approved = false;
+  const $ = id => document.getElementById(id);
+  const fmt = n => Number(n).toLocaleString('ru-RU');
+  const pointNames = {
+    'DEMO-POINT-01': 'ДЕМО — Вокзальная',
+    'DEMO-POINT-02': 'ДЕМО — Университет',
+    'DEMO-POINT-03': 'ДЕМО — Набережная',
+  };
+  const cell = (row, value, className='') => {
+    const td = document.createElement('td');
+    td.textContent = value;
+    td.className = className;
+    row.append(td);
+    return td;
+  };
+  const key = () => 'weekly-demo:' + data.scenario_id;
+  const save = () => localStorage.setItem(key(), JSON.stringify({edits, approved}));
+  const quantity = (row, raw) => {
+    if ((typeof raw !== 'string' && typeof raw !== 'number') || String(raw).trim() === '') return false;
+    const value = Number(raw);
+    return Number.isSafeInteger(value) && value >= 0 &&
+      (value === 0 || (value >= row.min_order && value % row.pack_size === 0));
+  };
+  const rowKey = row => row.point_key + '/' + row.sku_key;
+  const invalidRow = () => data.rows.find(row =>
+    !quantity(row, Object.hasOwn(edits, rowKey(row)) ? edits[rowKey(row)] : row.draft_qty));
+  function show() {
+    const point = $('point').value;
+    const body = $('orders').tBodies[0];
+    body.replaceChildren();
+    for (const r of data.rows.filter(r => r.point_key === point)) {
+      const tr = body.insertRow();
+      const id = rowKey(r);
+      cell(tr, r.sku_name);
+      cell(tr, fmt(r.forecast_week), 'num');
+      cell(tr, r.delivery_date + ' · ' + r.covered_days + ' дн.');
+      cell(tr, fmt(r.first_delivery_demand), 'num');
+      cell(tr, fmt(r.available_delivery), 'num');
+      cell(tr, fmt(r.safety_stock), 'num');
+      cell(tr, fmt(r.pack_size), 'num');
+      cell(tr, fmt(r.min_order), 'num');
+      const td = tr.insertCell();
+      td.className = 'num';
+      const input = document.createElement('input');
+      input.type = 'number'; input.min = '0'; input.step = '1';
+      input.dataset.key = id;
+      input.setAttribute('aria-label', 'Количество для ' + r.sku_name);
+      input.title = r.lead_gap
+        ? 'До первой доставки возможна недостача ' + r.lead_gap + ' шт'
+        : 'Рекомендуется ' + r.draft_qty + ' шт; упаковка ' + r.pack_size + ' шт';
+      input.value = Object.hasOwn(edits, id) ? edits[id] : r.draft_qty;
+      input.addEventListener('change', () => {
+        edits[id] = input.value;
+        approved = false;
+        save();
+        status();
+      });
+      td.append(input);
+    }
+    status();
+  }
+  function status() {
+    $('state').textContent = approved
+      ? 'Демочерновик утверждён и сохранён только в этом браузере. Внешняя заявка не создана.'
+      : 'Черновик ожидает утверждения. Правки сохраняются только в этом браузере.';
+  }
+  fetch('/api/weekly-demo').then(async response => {
+    if (!response.ok) throw new Error((await response.json()).detail || 'Не удалось загрузить демо');
+    return response.json();
+  }).then(result => {
+    data = result;
+    try {
+      const saved = JSON.parse(localStorage.getItem(key()) || '{}');
+      edits = saved.edits && typeof saved.edits === 'object' ? saved.edits : {};
+      approved = saved.approved === true && !invalidRow();
+    } catch { edits = {}; approved = false; }
+    const summary = $('summary');
+    const cards = [
+      [result.week_start.slice(8, 10) + '.' + result.week_start.slice(5, 7) + '–' +
+        result.week_end.slice(8, 10) + '.' + result.week_end.slice(5, 7),
+        'Неделя прогноза, ' + result.week_end.slice(0, 4)],
+      [result.wape.baseline + '%', 'Ошибка простой формулы'],
+      [result.wape.ml + '%', 'Ошибка демомодели ML'],
+      [result.chosen_method === 'ml' ? 'ML' : 'Простая формула', 'Метод для черновика'],
+    ];
+    for (const [value, title] of cards) {
+      const card = document.createElement('div');
+      card.className = 'stat';
+      const v = document.createElement('div'); v.className = 'v'; v.textContent = value;
+      const l = document.createElement('div'); l.className = 'l'; l.textContent = title;
+      card.append(v, l); summary.append(card);
+    }
+    $('method').textContent = 'Проверка: ' + result.backtest_weeks +
+      ' завершённые недели; прогноз каждой построен только по более ранним дням. ' +
+      'Ошибка — сумма абсолютных отклонений / фактический спрос. ' + result.method_note;
+    for (const point of [...new Set(result.rows.map(r => r.point_key))]) {
+      const option = document.createElement('option');
+      option.value = point; option.textContent = pointNames[point] || point;
+      $('point').append(option);
+    }
+    $('point').addEventListener('change', show);
+    $('reset').addEventListener('click', () => { edits = {}; approved = false; save(); show(); });
+    $('approve').addEventListener('click', () => {
+      for (const input of $('orders').querySelectorAll('input')) edits[input.dataset.key] = input.value;
+      const invalid = invalidRow();
+      if (invalid) {
+        approved = false; save();
+        $('point').value = invalid.point_key;
+        show();
+        $('state').textContent = 'Проверьте количество: 0 или не ниже минимума, кратно упаковке.';
+        [...$('orders').querySelectorAll('input')].find(input => input.dataset.key === rowKey(invalid)).focus();
+        return;
+      }
+      approved = true; save(); status();
+    });
+    show();
+  }).catch(error => {
+    $('error').style.display = 'block';
+    $('error').textContent = error.message;
+  });
+})();
+</script>
+</body>
+</html>

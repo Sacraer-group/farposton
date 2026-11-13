@@ -1,0 +1,41 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PYTHONPATH: .:src
+      PYTHONUTF8: '1'
+      LOG_FILE: logs/ci.log
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22'
+      - name: Install isolated test dependencies
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install -r web/requirements.txt pytest
+      - name: Run project tests with an offline calendar
+        run: make test
+      - name: Verify synthetic analytics and causal comparison
+        run: |
+          demo_root=$(mktemp -d "$RUNNER_TEMP/forecast-demo.XXXXXX")
+          trap 'rm -rf "$demo_root"' EXIT
+          tar -xzf demo/forecast-demo-data.tar.gz -C "$demo_root"
+          .venv/bin/python demo/check_analytics.py "$demo_root/forecast"
