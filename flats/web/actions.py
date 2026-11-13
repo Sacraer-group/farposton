@@ -1,8 +1,9 @@
+import json
 from dataclasses import replace
 
 from flask import Blueprint, jsonify, redirect, request
 
-from flats import repo_user
+from flats import advisor, repo_user
 from flats.web import get_conn
 
 bp = Blueprint("actions", __name__, url_prefix="/api")
@@ -70,3 +71,24 @@ def sample_clear():
     conn = get_conn()
     repo_user.save_profile(conn, replace(repo_user.get_profile(conn), sample_photo_url=None))
     return _ok({"sample_photo_url": None})
+
+
+@bp.post("/advisor")
+def advise():
+    if not request.is_json:
+        return jsonify({"error": "Ожидается JSON"}), 400
+    limit = 16 * 1024
+    if request.content_length is not None and request.content_length > limit:
+        return jsonify({"error": "Запрос слишком большой"}), 413
+    raw = request.stream.read(limit + 1)
+    if len(raw) > limit:
+        return jsonify({"error": "Запрос слишком большой"}), 413
+    try:
+        data = json.loads(raw)
+    except (ValueError, UnicodeDecodeError, RecursionError):
+        return jsonify({"error": "Неверный JSON"}), 400
+    try:
+        result = advisor.answer(get_conn(), data)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify(result)

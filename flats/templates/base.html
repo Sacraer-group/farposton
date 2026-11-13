@@ -1,21 +1,31 @@
+{% from "_ui.html" import icon %}
 <!doctype html>
 <html lang="ru">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f4f5f1">
   <title>{% block title %}Квартиры{% endblock %}</title>
+  {% block head %}{% endblock %}
   <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
 </head>
 <body>
-  <header>
-    <nav aria-label="Основная навигация">
-      <a href="/">Поиск</a>
-      <a href="/favorites">Избранное</a>
-      <a href="/swipe">Свайпы</a>
-    </nav>
-    <p class="import-status">{% if last_import %}Данные от {{ last_import }}{% else %}Данные не загружены{% endif %}</p>
+  <a class="skip-link" href="#main">К содержимому</a>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="/" aria-label="Farposton — поиск квартир">{{ icon('building-2') }}<span>farposton<span class="brand-dot">.</span></span></a>
+      <span class="city-label">Владивосток</span>
+      <nav class="main-nav" aria-label="Основная навигация">
+        <a href="/advisor"{% if request.path == '/advisor' %} aria-current="page"{% endif %}>Мой выбор</a>
+        <a href="/"{% if request.path == '/' %} aria-current="page"{% endif %}>Карта и квартиры</a>
+        <a href="/favorites"{% if request.path in ['/favorites', '/compare'] %} aria-current="page"{% endif %}>Избранное</a>
+      </nav>
+      <a class="swipe-nav" href="/swipe"{% if request.path == '/swipe' %} aria-current="page"{% endif %}>{{ icon('layers-2') }}<span>Свайпы</span></a>
+    </div>
   </header>
-  <main>{% block content %}{% endblock %}</main>
+  <main id="main" class="page-shell">{% block content %}{% endblock %}</main>
+  <footer class="site-footer"><span>Farposton · выбор квартиры во Владивостоке</span><span class="import-status">{% if last_import %}Данные от {{ last_import }}{% else %}Данные не загружены{% endif %}</span></footer>
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

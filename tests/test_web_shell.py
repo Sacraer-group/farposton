@@ -49,7 +49,8 @@ def test_shell_and_styles(app):
     assert '<meta charset="utf-8">' in html
     assert 'name="viewport"' in html
     assert "<title>Квартиры</title>" in html
-    for url, label in [("/", "Поиск"), ("/favorites", "Избранное"), ("/swipe", "Свайпы")]:
+    for url, label in [("/advisor", "Мой выбор"), ("/", "Карта и квартиры"),
+                       ("/favorites", "Избранное"), ("/swipe", "Свайпы")]:
         assert f'href="{url}"' in html
         assert label in html
     assert 'href="/static/app.css"' in html

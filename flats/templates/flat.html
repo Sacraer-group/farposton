@@ -1,41 +1,74 @@
 {% extends "base.html" %}
+{% from "_ui.html" import icon, map_shell, map_point %}
 {% set b = card.best %}
-{% block title %}{{ room_label(b.rooms) }}, {{ b.address or '' }}{% endblock %}
-{% block content %}
-<p><a href="/">← К подборке</a></p>
-<h1>{{ room_label(b.rooms) }}, {{ b.area_total or '?' }} м² · {{ b.district or 'район не указан' }}</h1>
-<p>{{ b.address or 'Адрес не указан' }}{% if b.floor %}, этаж {{ b.floor }}/{{ b.floors_total or '?' }}{% endif %}
-  {% if b.lat and b.lon %} · <a href="https://yandex.ru/maps/?pt={{ b.lon }},{{ b.lat }}&z=17&l=map" target="_blank" rel="noopener noreferrer">На карте</a>{% endif %}</p>
-
-<div class="gallery">
-  {% for url in b.photos %}
-  <figure>
-    <img src="{{ url }}" alt="Фото {{ loop.index }} из {{ b.photos|length }}" loading="lazy" referrerpolicy="no-referrer">
-    <form method="post" action="/api/sample"><input type="hidden" name="photo_url" value="{{ url }}"><button>Найти похожие интерьеры</button></form>
-  </figure>
-  {% endfor %}
-</div>
-
-{% for o, c, questions in blocks %}
-<section class="card offer">
-  <h2>Предложение {{ o.source }}{% if loop.first %} (в подборке){% endif %}</h2>
-  <table>
-    <tr><th>Аренда в месяц</th><td>{{ c.rent|rub }}</td><td></td></tr>
-    <tr><th>Коммунальные</th><td>{{ 'включены' if 'utilities' not in c.monthly_unknown else 'уточнить' }}</td><td class="raw">{{ o.utilities_raw or 'не указано' }}</td></tr>
-    <tr><th>Предоплата</th><td>{{ c.prepayment.rub|rub }}</td><td class="raw">{{ o.prepayment_raw or 'не указано' }}</td></tr>
-    <tr><th>Залог</th><td>{{ c.deposit.rub|rub }}</td><td class="raw">{{ o.deposit_raw or 'не указано' }}</td></tr>
-    <tr><th>Комиссия</th><td>{{ c.commission.rub|rub }}</td><td class="raw">{{ o.commission_raw or 'не указано' }}</td></tr>
-    <tr><th>На въезд, известно</th><td><strong>{{ c.move_in_known|rub }}</strong></td><td>{% if c.move_in_unknown %}не указано: {{ c.move_in_unknown|map('part_label')|join(', ') }}{% endif %}</td></tr>
-    <tr><th>Животные</th><td colspan="2">{{ o.pets_raw if o.pets_raw is not none else 'не указано' }}</td></tr>
-  </table>
-  <h3>Что уточнить до просмотра</h3>
-  <ul>{% for q in questions %}<li>{{ q }}</li>{% endfor %}</ul>
-  <form method="post" action="/api/decide" class="actions">
-    <input type="hidden" name="source" value="{{ o.source }}"><input type="hidden" name="source_id" value="{{ o.source_id }}">
-    <button name="action" value="save">Сохранить это предложение</button>
-    {% if o.url %}<a href="{{ o.url }}" target="_blank" rel="noopener noreferrer">Открыть объявление</a>{% endif %}
-  </form>
-  {% if o.description %}<h3>Описание из объявления</h3><p class="description">{{ o.description }}</p>{% endif %}
-</section>
+{% set reported = namespace(year='Нет сведений', material='Нет сведений', management='Нет сведений') %}
+{% for fact in house_facts|default([]) %}
+  {% if fact.field == 'commissioned_year' %}{% set reported.year = fact.value %}{% endif %}
+  {% if fact.field == 'wall_material' %}{% set reported.material = fact.value %}{% endif %}
+  {% if fact.field == 'management' %}{% set reported.management = fact.value %}{% endif %}
 {% endfor %}
+{% block title %}{{ b.address or 'Квартира' }} · Farposton{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}">{% endblock %}
+{% block content %}
+<a class="back-link" href="/">{{ icon('arrow-left') }}К подборке</a>
+<div class="page-heading detail-heading">
+  <div><p class="eyebrow">{{ b.district or 'Район не указан' }} · Владивосток</p><h1>{{ b.address or 'Адрес не указан' }}</h1><p class="page-intro">{{ room_label(b.rooms) }} · {{ b.area_total or '?' }} м²{% if b.floor is not none %} · {{ b.floor }} этаж из {{ b.floors_total or '?' }}{% endif %}</p></div>
+  <form method="post" action="/api/decide"><input type="hidden" name="source" value="{{ b.source }}"><input type="hidden" name="source_id" value="{{ b.source_id }}"><button name="action" value="save" class="button button-primary">{{ icon('heart') }}Сохранить</button></form>
+</div>
+<nav class="section-nav" aria-label="Разделы квартиры"><a href="#photos">Фотографии</a><a href="#terms">Расходы и условия</a><a href="#house">Дом и службы</a><a href="#viewing">Перед просмотром</a></nav>
+<section class="decision-entry"><div><strong>Подойдёт ли эта квартира вашей жизни?</strong><p>Разберите условия, адресные источники и вопросы, которые могут изменить решение.</p></div><a class="button" href="/advisor?key={{ card.key|urlencode }}&amp;o={{ (b.source ~ ':' ~ b.source_id)|urlencode }}">Разобрать с помощником {{ icon('arrow-right') }}</a></section>
+<section id="photos" aria-label="Фотографии квартиры">
+  {% if b.photos %}
+  <div class="gallery-preview">{% for url in b.photos[:3] %}<figure><a href="{{ url }}" target="_blank" rel="noopener noreferrer" aria-label="Открыть фото {{ loop.index }}"><img src="{{ url }}" alt="Фото {{ loop.index }} из {{ b.photos|length }}" referrerpolicy="no-referrer"{% if not loop.first %} loading="lazy"{% endif %}></a><form method="post" action="/api/sample"><input type="hidden" name="photo_url" value="{{ url }}"><button class="photo-search-button">{{ icon('scan-eye') }}Найти похожие интерьеры</button></form></figure>{% endfor %}</div>
+  {% if b.photos|length > 3 %}<details class="more-photos"><summary>{{ icon('image') }}Все фотографии · {{ b.photos|length }} {{ icon('chevron-down') }}</summary><div class="gallery">{% for url in b.photos[3:] %}<figure><a href="{{ url }}" target="_blank" rel="noopener noreferrer"><img src="{{ url }}" alt="Фото {{ loop.index + 3 }} из {{ b.photos|length }}" loading="lazy" referrerpolicy="no-referrer"></a><form method="post" action="/api/sample"><input type="hidden" name="photo_url" value="{{ url }}"><button class="button button-small button-soft">{{ icon('scan-eye') }}Найти похожие интерьеры</button></form></figure>{% endfor %}</div></details>{% endif %}
+  {% else %}<div class="photo-placeholder detail-photo-placeholder">{{ icon('image') }}<span>Фотографии не добавлены в объявление</span></div>{% endif %}
+</section>
+<div class="detail-layout">
+  <div class="detail-main">
+    <section id="terms" class="content-section">
+      <div class="section-heading"><div><p class="eyebrow">Бюджет</p><h2>Расходы и условия</h2></div><span class="neutral-badge">{{ card.offers|length }} предлож.</span></div>
+      <p class="section-intro">Каждое предложение рассчитано отдельно. Неизвестные платежи остаются неизвестными.</p>
+      {% for o, c, questions in blocks %}
+      <section class="offer-panel">
+        <div class="offer-heading"><h3>Предложение {{ o.source }}</h3>{% if o == b %}<span class="neutral-badge">В подборке</span>{% endif %}{% if o.url %}<a class="text-link" href="{{ o.url }}" target="_blank" rel="noopener noreferrer">Объявление {{ icon('arrow-up-right') }}</a>{% endif %}</div>
+        <div class="cost-summary"><div><span>Ежемесячно, известно</span><strong>{{ c.monthly_known|rub }}</strong>{% if c.monthly_unknown %}<small>Уточнить: {{ c.monthly_unknown|map('part_label')|join(', ') }}</small>{% else %}<small>Обязательные платежи указаны</small>{% endif %}</div><div><span>На въезд, известно</span><strong>{{ c.move_in_known|rub }}</strong>{% if c.move_in_unknown %}<small>Не указано: {{ c.move_in_unknown|map('part_label')|join(', ') }}</small>{% else %}<small>Предоплата, залог и комиссия</small>{% endif %}</div></div>
+        <div class="table-wrap"><table class="terms-table"><caption class="visually-hidden">Расчёт и исходные условия {{ o.source }}</caption><tbody>
+          <tr><th>Аренда в месяц</th><td>{{ c.rent|rub }}</td><td class="raw">Из объявления</td></tr>
+          <tr><th>Коммунальные</th><td>{{ 'включены' if 'utilities' not in c.monthly_unknown else 'уточнить' }}</td><td class="raw">{{ o.utilities_raw or 'не указано' }}</td></tr>
+          <tr><th>Предоплата</th><td>{{ c.prepayment.rub|rub }}</td><td class="raw">{{ o.prepayment_raw or 'не указано' }}</td></tr>
+          <tr><th>Залог</th><td>{{ c.deposit.rub|rub }}</td><td class="raw">{{ o.deposit_raw or 'не указано' }}</td></tr>
+          <tr><th>Комиссия</th><td>{{ c.commission.rub|rub }}</td><td class="raw">{{ o.commission_raw or 'не указано' }}</td></tr>
+          <tr><th>Животные</th><td colspan="2">{{ 'Можно' if o.pets_raw is sameas true else ('Нельзя' if o.pets_raw is sameas false else (o.pets_raw or 'не указано')) }}</td></tr>
+          <tr><th>Срок аренды</th><td colspan="2">{{ 'Долгосрочная аренда' if o.rent_period_raw == 'long' else (o.rent_period_raw or 'не указан') }}</td></tr>
+        </tbody></table></div>
+        <details class="source-description"><summary>Описание из объявления {{ icon('chevron-down') }}</summary><p class="description">{{ o.description or 'Описание не добавлено' }}</p></details>
+        <div class="source-footnote">Источник: {{ o.source }}{% if o.last_seen %} · Получено <time>{{ o.last_seen }}</time>{% endif %}</div>
+        <div class="candidate-actions"><form method="post" action="/api/decide" class="offer-save-form"><input type="hidden" name="source" value="{{ o.source }}"><input type="hidden" name="source_id" value="{{ o.source_id }}"><button name="action" value="save" class="button button-soft button-small">{{ icon('heart') }}Сохранить это предложение</button></form><a class="text-link" href="/advisor?key={{ card.key|urlencode }}&amp;o={{ (o.source ~ ':' ~ o.source_id)|urlencode }}">Разобрать эти условия {{ icon('arrow-right') }}</a></div>
+      </section>
+      {% endfor %}
+    </section>
+    <section id="house" class="content-section">
+      <div class="section-heading"><div><p class="eyebrow">Контекст адреса</p><h2>Дом и коммунальные службы</h2></div><span class="status-badge status-unknown">{{ icon('clock-3') }}Дом требует проверки</span></div>
+      <p class="section-intro">Адрес и этажность взяты из объявления. Совпадение с домом в реестре пока не подтверждено.</p>
+      {% if house_facts|default([]) %}<div class="panel address-evidence"><div class="panel-title">{{ icon('layers-2') }}<h3>Что найдено по этому адресу</h3><span class="neutral-badge">{{ house_facts|length }} сведений</span></div><p class="house-source-note">Это сведения источников, а не оценка надёжности дома. Адрес сопоставлен по улице и номеру; идентификатор дома в государственном реестре ещё не проверен.</p>{% for fact in house_facts %}<article class="house-source-card"><p>{{ fact.text }}</p><small>{{ fact.source }} · Наблюдение: {{ fact.observed_at }}{% if fact.source_document_date|default('') %} · Документ от {{ fact.source_document_date }}{% endif %}</small>{% if fact.source_note|default('') %}<small>{{ fact.source_note }}</small>{% endif %}<a class="text-link" href="{{ fact.url }}" target="_blank" rel="noopener noreferrer">Открыть основание {{ icon('arrow-up-right') }}</a></article>{% endfor %}</div>{% endif %}
+      <div class="house-passport panel"><div class="panel-title">{{ icon('building-2') }}<h3>Паспорт дома</h3><a class="text-link" href="https://dom.gosuslugi.ru/#!/houses" target="_blank" rel="noopener noreferrer">ГИС ЖКХ {{ icon('arrow-up-right') }}</a></div><dl class="house-facts"><div><dt>Адрес объявления</dt><dd>{{ b.address or 'Нет сведений' }}</dd></div><div><dt>Этажность по объявлению</dt><dd>{{ b.floors_total if b.floors_total is not none else 'Нет сведений' }}</dd></div><div><dt>Год ввода по источнику</dt><dd class="data-missing">{{ reported.year }}</dd></div><div><dt>Материал стен по источнику</dt><dd class="data-missing">{{ reported.material }}</dd></div><div><dt>Управляющая организация по источнику</dt><dd class="data-missing">{{ reported.management }}</dd></div><div><dt>Привязка к реестру</dt><dd class="data-missing">Не проверена</dd></div></dl></div>
+      <div class="house-services">
+        <article class="panel service-panel"><span class="service-icon">{{ icon('droplets') }}</span><h3>Отключения и службы</h3><span class="neutral-badge">Сведения не получены</span><p>Нет загруженных данных об отключениях, поставщиках услуг и контактах по этому адресу.</p><p class="small-note">Это не означает, что отключений нет.</p><a class="text-link" href="https://www.vl.ru/off/" target="_blank" rel="noopener noreferrer">Проверить на VL.ru {{ icon('arrow-up-right') }}</a></article>
+        <article class="panel service-panel"><span class="service-icon">{{ icon('wrench') }}</span><h3>Капитальный ремонт</h3><span class="neutral-badge">Сведения не получены</span><p>Плановые и выполненные работы по дому ещё не загружены.</p><p class="small-note">Проверьте адрес и год в региональной программе.</p><a class="text-link" href="https://fkr25.ru/RepairProgram" target="_blank" rel="noopener noreferrer">Открыть план капремонта {{ icon('arrow-up-right') }}</a></article>
+      </div>
+    </section>
+    <section id="viewing" class="content-section">
+      <div class="section-heading"><div><p class="eyebrow">Перед звонком</p><h2>Что уточнить до просмотра</h2></div></div>
+      <p class="section-intro">Вопросы составлены из неизвестных или различающихся условий предложения.</p>
+      {% for o, c, questions in blocks %}<div class="questions-panel panel">{% if blocks|length > 1 %}<h3>{{ o.source }} · {{ o.source_id }}</h3>{% endif %}<ul class="question-list" data-questions>{% for q in questions %}<li><span class="question-number">{{ loop.index }}</span><span>{{ q }}</span></li>{% endfor %}</ul><button class="button button-outline button-small" type="button" data-copy-questions>{{ icon('copy') }}Скопировать вопросы</button><span class="copy-status" role="status"></span></div>{% endfor %}
+    </section>
+  </div>
+  <aside class="detail-aside">
+    {% for o, c, questions in blocks %}{% if o == b %}
+    <div class="selection-summary panel"><p class="eyebrow">Выбранное предложение</p><div class="price-line"><strong>{{ c.monthly_known|rub }}</strong><span>/ месяц</span></div><p class="cost-note">{% if c.monthly_unknown %}Уточнить: {{ c.monthly_unknown|map('part_label')|join(', ') }}{% else %}Обязательные платежи указаны{% endif %}</p><div class="move-in-line"><span>На въезд, известно</span><strong>{{ c.move_in_known|rub }}</strong></div><a class="button button-primary full-width" href="#house">{{ icon('building-2') }}Посмотреть сведения о доме</a><a class="text-link" href="#viewing">Вопросы перед просмотром {{ icon('arrow-right') }}</a></div>
+    {% call map_shell('Расположение дома', true) %}{{ map_point(o, c, card.key) }}{% endcall %}
+    {% endif %}{% endfor %}
+  </aside>
+</div>
 {% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='vendor/leaflet/leaflet.js') }}" defer></script><script src="{{ url_for('static', filename='map.js') }}" defer></script>{% endblock %}

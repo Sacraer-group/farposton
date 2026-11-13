@@ -38,6 +38,8 @@ def upsert_offer(conn: sqlite3.Connection, row: dict, run_id: int) -> None:
 
 def _to_offer(row: sqlite3.Row) -> Offer:
     data = {name: row[name] for name in OFFER_FIELDS if name not in ("photos_json", "raw_json", "import_run_id")}
+    if isinstance(data["address"], str):
+        data["address"] = data["address"].removesuffix(" Подробности о доме").strip()
     return Offer(**data, photos=tuple(json.loads(row["photos_json"])))
 
 
