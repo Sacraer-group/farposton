@@ -67,25 +67,38 @@
       $('retry')?.addEventListener('click', () => fetchPlaces());
     }
   }
-  function initMap() {
-    if (typeof window.L === 'undefined') { $('map-fallback').hidden=false; return; }
+  async function initMap() {
     try {
-      state.map = L.map('map', {zoomControl:false, scrollWheelZoom:false}).setView([43.117,131.892],12);
-      L.control.zoom({position:'bottomright'}).addTo(state.map);
-      const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19, attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'}).addTo(state.map);
-      let tileErrors = 0; tiles.on('tileerror', () => { if (++tileErrors >= 3) $('map-fallback').hidden=false; });
-      state.markers = L.layerGroup().addTo(state.map);
+      const config = await (await fetch('/api/map-config')).json();
+      if (!config.key) throw new Error('no map key');
+      await new Promise((resolve, reject) => {
+        if (window.mapgl) return resolve();
+        const script = document.createElement('script');
+        script.src = 'https://mapgl.2gis.com/api/js/v1'; script.onload = resolve; script.onerror = reject;
+        document.head.appendChild(script);
+      });
+      state.map = new mapgl.Map('map', {key:config.key, center:[131.892,43.117], zoom:12, zoomControl:'bottomRight', disableZoomOnScroll:true, enableTrackResize:true});
+      state.markers = [];
+      drawMarkers();
     } catch (_) { $('map-fallback').hidden=false; }
   }
   function drawMarkers() {
-    if (!state.markers) return;
-    state.markers.clearLayers();
+    if (!state.map) return;
+    state.markers.forEach(m => m.destroy());
+    state.markers = [];
+    state.tip?.destroy(); state.tip = null;
     for (const item of state.items) {
       if (item.lat == null || item.lon == null) continue;
-      const dot = L.circleMarker([item.lat,item.lon], {radius:6, color:'#ffffff', weight:2, fillColor:'#315f49', fillOpacity:.95});
+      const coordinates = [item.lon, item.lat];
+      const dot = new mapgl.CircleMarker(state.map, {coordinates, radius:6, diameter:12, color:'#315f49', strokeColor:'#ffffff', strokeWidth:2});
       dot.on('click', () => showDetail(item.id));
-      const tooltip = document.createElement('span'); tooltip.textContent = item.name;
-      dot.bindTooltip(tooltip, {direction:'top'}); dot.addTo(state.markers);
+      dot.on('mouseover', () => {
+        state.tip?.destroy();
+        const html = document.createElement('div'); html.className = 'map-tip'; html.textContent = item.name;
+        state.tip = new mapgl.HtmlMarker(state.map, {coordinates, html, anchor:[0.5,1.6], interactive:false});
+      });
+      dot.on('mouseout', () => { state.tip?.destroy(); state.tip = null; });
+      state.markers.push(dot);
     }
   }
   function scheduleMarkup(schedule) {

@@ -119,8 +119,9 @@ Mac и сервере — `.demo/venue-ensemble-20261113-v1/`. В сайт по�
 интерфейсе. Индекс демо не является измерением или прогнозом; шкала профилей
 2ГИС не расшифрована, текущие свободные места неизвестны. Расписание —
 обычное, праздничные исключения не учтены; часы без данных не считаются
-достоверно закрытыми. Для карты используется Leaflet и тайлы OpenStreetMap;
-без сети список продолжает работать. Текущие запросы к API 2ГИС не выполняются.
+достоверно закрытыми. Для карты используется MapGL JS API 2ГИС; ключ карты задаётся переменной
+окружения `MAPGL_KEY` (локально `MAPGL_KEY=... make demo`, в Docker — файл `.env` рядом с `compose.yaml`), без ключа или сети
+список продолжает работать. Карту и тайлы браузер загружает напрямую у 2ГИС; других запросов к API 2ГИС нет.
 
 Новая серверная логика: `web/places.py`, маршруты — `web/routes_places.py`,
 интерфейс — `web/static/places.html` и `web/static/assets/places.*`. В
@@ -592,3 +593,7 @@ GitHub Actions runs Python 3.12 regression checks and the dependency-free DOM ch
 - Browser smoke (Chromium headless, Playwright в `.demo/evening-browser/`, real): `SMOKE_OK` — создание/ссылка/ошибки/источники/320×1280, окно от начала события.
 
 Документация: [`docs/evening/SPEC.md`](docs/evening/SPEC.md), [`ARCHITECTURE.md`](docs/evening/ARCHITECTURE.md), [`ACCEPTANCE.md`](docs/evening/ACCEPTANCE.md), [`VERIFICATION.md`](docs/evening/VERIFICATION.md), [`REAL-DATA-VERIFICATION.md`](docs/evening/REAL-DATA-VERIFICATION.md), [`BROWSER.md`](docs/evening/BROWSER.md), [`REAL-EVENT-SOURCES.md`](docs/evening/REAL-EVENT-SOURCES.md), [`DOCKER-EVENING.md`](DOCKER-EVENING.md). Тесты: [`tests/test_evening_real.py`](tests/test_evening_real.py), [`tests/test_evening_mvp.py`](tests/test_evening_mvp.py), [`tests/test_evening_docker_config_F8.py`](tests/test_evening_docker_config_F8.py), [`tests/evening_browser_smoke.cjs`](tests/evening_browser_smoke.cjs). Независимая проверка источников и расписаний завершена; исправлены ночные часы, отсутствие расписания дня и обнаружение переноса события. Финальные проверки выполнены через командный API OpenCode после ошибки compaction в модельных запусках. Чистая сборка из Git `e71b1dbd550b` прошла HTTP create→read→restart→read с отдельным новым volume и readonly подключением каталога; runtime-файлы и сырая база не требуются внутри Git/образа.
+
+### Объединение карты и планировщика, 13.11.2026
+
+Сохранены обновления `renosaza`: MapGL 2ГИС и `?v=mapgl1` для сброса кэша. Обычный запуск `compose.yaml` / `Dockerfile` / `demo.container` восстановлен вместе с инструкцией `DOCKER.md`; отдельный `compose.evening.yaml` сохранён. Основной образ включает модуль `evening`, который импортирует `web.app`; общий Docker-контекст допускает только поставляемый синтетический архив Forecast, а исходная база 2ГИС остаётся исключённой и подключается извне readonly. Для карты используется отдельный `MAPGL_KEY`; серверные API-ключи не читаются и не подставляются.

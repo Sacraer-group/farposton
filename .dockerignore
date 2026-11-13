@@ -27,7 +27,6 @@ node_modules/
 **/*.sqlite3
 **/prognoz_web.duckdb
 **/prognoz.duckdb
-demo/forecast-demo-data.tar.gz
 docs/fable-product-research-2026-11-13/
 docs/fable-design-2026-11-13/
 tests/

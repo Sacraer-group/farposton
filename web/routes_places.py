@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sqlite3
 from pathlib import Path
 from typing import Literal
@@ -38,6 +39,12 @@ def places_page(request: Request):
     if not session_is_valid(request):
         return RedirectResponse("/login", status_code=303)
     return FileResponse(STATIC / "places.html")
+
+
+@router.get("/api/map-config", dependencies=[Depends(require_auth)])
+def map_config():
+    # MapGL runs in the browser, so the key is necessarily visible to the page user.
+    return {"key": os.environ.get("MAPGL_KEY", "").strip()}
 
 
 @router.get("/api/places", dependencies=[Depends(require_auth)])

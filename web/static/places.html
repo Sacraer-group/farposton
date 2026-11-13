@@ -6,10 +6,8 @@
   <meta name="theme-color" content="#f5f4ef">
   <title>Не тесно — куда пойти во Владивостоке</title>
   <link rel="icon" href="/assets/places-icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/assets/leaflet/leaflet.css">
-  <link rel="stylesheet" href="/assets/places.css?v=forecast2">
-  <script src="/assets/leaflet/leaflet.js" defer></script>
-  <script src="/assets/places.js?v=forecast2" defer></script>
+  <link rel="stylesheet" href="/assets/places.css?v=mapgl1">
+  <script src="/assets/places.js?v=mapgl1" defer></script>
 </head>
 <body>
 <header class="topbar">
@@ -39,7 +37,7 @@
         <div id="results" class="results-list" aria-live="polite" tabindex="0" aria-label="Список найденных мест"><div class="loading">Ищем места во Владивостоке…</div></div>
         <div class="pagination"><button id="load-more" class="load-more" type="button" hidden>Показать ещё <span>↓</span></button><span id="shown-count"></span></div>
       </section>
-      <section class="map-panel" aria-label="Карта Владивостока"><div class="map-inner"><div id="map" aria-label="Карта заведений"></div><div class="map-caption"><span class="map-caption-dot"></span><span><strong>Владивосток</strong><small>Приморский край</small></span><span class="map-caption-count" id="map-count">— МЕСТ</span></div><div id="map-fallback" class="map-fallback" hidden>Карта не загрузилась. Список заведений доступен слева.</div></div><div class="map-foot"><span><span class="map-legend-dot"></span> Места из списка</span><span>Данные 2ГИС · карта OpenStreetMap</span></div></section>
+      <section class="map-panel" aria-label="Карта Владивостока"><div class="map-inner"><div id="map" aria-label="Карта заведений"></div><div class="map-caption"><span class="map-caption-dot"></span><span><strong>Владивосток</strong><small>Приморский край</small></span><span class="map-caption-count" id="map-count">— МЕСТ</span></div><div id="map-fallback" class="map-fallback" hidden>Карта не загрузилась. Список заведений доступен слева.</div></div><div class="map-foot"><span><span class="map-legend-dot"></span> Места из списка</span><span>Данные 2ГИС · карта 2ГИС</span></div></section>
     </div>
   </section>
   <footer class="footer"><strong>не тесно<span>.</span></strong><span>ГОРОД БЛИЖЕ, ЧЕМ КАЖЕТСЯ</span><span>СДЕЛАНО ВО ВЛАДИВОСТОКЕ ↗</span></footer>
