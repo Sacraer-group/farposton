@@ -10,3 +10,14 @@ def status_label(s: str) -> str:
         "unknown": "Нужно уточнить",
         "reject": "Не подходит",
     }[s]
+
+
+def part_label(name: str) -> str:
+    return {"prepayment": "предоплата", "deposit": "залог", "commission": "комиссия",
+            "rent": "аренда", "utilities": "коммунальные"}.get(name, name)
+
+
+def room_label(rooms: int | None) -> str:
+    if rooms is None:
+        return "Комнаты не указаны"
+    return "Студия" if rooms == 0 else f"{rooms}-комн."

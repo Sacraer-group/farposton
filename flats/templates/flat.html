@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% set b = card.best %}
+{% block title %}{{ room_label(b.rooms) }}, {{ b.address or '' }}{% endblock %}
+{% block content %}
+<p><a href="/">← К подборке</a></p>
+<h1>{{ room_label(b.rooms) }}, {{ b.area_total or '?' }} м² · {{ b.district or 'район не указан' }}</h1>
+<p>{{ b.address or 'Адрес не указан' }}{% if b.floor %}, этаж {{ b.floor }}/{{ b.floors_total or '?' }}{% endif %}
+  {% if b.lat and b.lon %} · <a href="https://yandex.ru/maps/?pt={{ b.lon }},{{ b.lat }}&z=17&l=map" target="_blank" rel="noopener noreferrer">На карте</a>{% endif %}</p>
+
+<div class="gallery">
+  {% for url in b.photos %}
+  <figure>
+    <img src="{{ url }}" alt="Фото {{ loop.index }} из {{ b.photos|length }}" loading="lazy" referrerpolicy="no-referrer">
+    <form method="post" action="/api/sample"><input type="hidden" name="photo_url" value="{{ url }}"><button>Найти похожие интерьеры</button></form>
+  </figure>
+  {% endfor %}
+</div>
+
+{% for o, c, questions in blocks %}
+<section class="card offer">
+  <h2>Предложение {{ o.source }}{% if loop.first %} (в подборке){% endif %}</h2>
+  <table>
+    <tr><th>Аренда в месяц</th><td>{{ c.rent|rub }}</td><td></td></tr>
+    <tr><th>Коммунальные</th><td>{{ 'включены' if 'utilities' not in c.monthly_unknown else 'уточнить' }}</td><td class="raw">{{ o.utilities_raw or 'не указано' }}</td></tr>
+    <tr><th>Предоплата</th><td>{{ c.prepayment.rub|rub }}</td><td class="raw">{{ o.prepayment_raw or 'не указано' }}</td></tr>
+    <tr><th>Залог</th><td>{{ c.deposit.rub|rub }}</td><td class="raw">{{ o.deposit_raw or 'не указано' }}</td></tr>
+    <tr><th>Комиссия</th><td>{{ c.commission.rub|rub }}</td><td class="raw">{{ o.commission_raw or 'не указано' }}</td></tr>
+    <tr><th>На въезд, известно</th><td><strong>{{ c.move_in_known|rub }}</strong></td><td>{% if c.move_in_unknown %}не указано: {{ c.move_in_unknown|map('part_label')|join(', ') }}{% endif %}</td></tr>
+    <tr><th>Животные</th><td colspan="2">{{ o.pets_raw if o.pets_raw is not none else 'не указано' }}</td></tr>
+  </table>
+  <h3>Что уточнить до просмотра</h3>
+  <ul>{% for q in questions %}<li>{{ q }}</li>{% endfor %}</ul>
+  <form method="post" action="/api/decide" class="actions">
+    <input type="hidden" name="source" value="{{ o.source }}"><input type="hidden" name="source_id" value="{{ o.source_id }}">
+    <button name="action" value="save">Сохранить это предложение</button>
+    {% if o.url %}<a href="{{ o.url }}" target="_blank" rel="noopener noreferrer">Открыть объявление</a>{% endif %}
+  </form>
+  {% if o.description %}<h3>Описание из объявления</h3><p class="description">{{ o.description }}</p>{% endif %}
+</section>
+{% endfor %}
+{% endblock %}

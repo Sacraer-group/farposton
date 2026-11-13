@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Долгосрочная аренда во Владивостоке</h1>
+<form method="get" class="filters">
+  <input type="hidden" name="apply" value="1">
+  <label>Ежемесячно до, ₽ <input name="monthly_max" inputmode="numeric" value="{{ profile.monthly_max or '' }}"></label>
+  <label>На въезд до, ₽ <input name="move_in_max" inputmode="numeric" value="{{ profile.move_in_max or '' }}"></label>
+  <fieldset><legend>Комнат</legend>
+    {% for n in [0, 1, 2, 3, 4] %}<label><input type="checkbox" name="rooms" value="{{ n }}"{% if n in profile.rooms %} checked{% endif %}> {{ 'студия' if n == 0 else n }}</label> {% endfor %}
+  </fieldset>
+  <label>Районы
+    <select name="districts" multiple size="5">{% for d in districts %}<option{% if d in profile.districts %} selected{% endif %}>{{ d }}</option>{% endfor %}</select>
+  </label>
+  <label><input type="checkbox" name="pets_required" value="1"{% if profile.pets_required %} checked{% endif %}> Нужно с животными</label>
+  <button>Подобрать</button>
+</form>
+{% for e in errors %}<p class="status-reject" role="alert">{{ e }}</p>{% endfor %}
+<p>Подходят или требуют уточнения: {{ rows|length }} из {{ total }}.{% if rows|length < 3 %} Остальные нарушают известные условия — попробуйте смягчить фильтры.{% endif %}</p>
+<div class="cards">{% for row in rows %}{% include "_card.html" %}{% endfor %}</div>
+{% endblock %}
