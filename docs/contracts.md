@@ -184,10 +184,10 @@ These rules come from the Metrapi docs, not from observed data. When the listing
 ### Costs (`flats/costs.py`)
 
 - `rent = offer.price`.
-- `monthly_known = rent` if rent known; utilities not included or unknown -> `"utilities"` in `monthly_unknown`.
+- `monthly_known = rent` (`None` if rent unknown). `monthly_unknown`: `"rent"` if rent unknown; `"utilities"` if `utilities_included` is not `True`.
 - Prepayment unknown -> assume nothing, put `"prepayment"` in `move_in_unknown`. Prepayment "за 1 месяц" = first month rent paid once; never add rent again.
 - `move_in_known` = sum of known `rub` of prepayment, deposit, commission; `None` only if all three unknown.
-- Each unknown component name goes to `move_in_unknown`.
+- Each component with `rub is None` goes to `move_in_unknown`, order: `"prepayment"`, `"deposit"`, `"commission"`.
 
 Example (test fixture): rent 40000, deposit `40 000 ₽`, commission `50%`, prepayment `за 1 месяц`, utilities `оплачиваются отдельно` -> `monthly_known=40000`, `monthly_unknown=("utilities",)`, `move_in_known=100000`, `move_in_unknown=()`.
 
@@ -198,12 +198,12 @@ Check in order; any reject -> `reject`; else any unknown -> `unknown`; else `mat
 | Condition | reject when | unknown when |
 | --- | --- | --- |
 | `monthly_max` | `monthly_known > monthly_max` | rent unknown |
-| `move_in_max` | `move_in_known > move_in_max` | `move_in_unknown` not empty and known part ≤ max |
+| `move_in_max` | `move_in_known` not `None` and `> move_in_max` (even if other parts unknown) | otherwise, one reason per `move_in_unknown` item |
 | `rooms` (if non-empty) | rooms known and not in list | rooms unknown |
 | `districts` (if non-empty) | district known and not in list | district unknown |
 | `pets_required` | pets explicitly not allowed | pets unknown |
 
-Reasons are short Russian strings, e.g. `"Залог не указан"`, `"Аренда выше бюджета: 55 000 ₽ > 50 000 ₽"`.
+A reject verdict carries only reject reasons. Exact reason texts are listed in issue #15 (S1-T3). Utilities unknown is not an eligibility reason; it becomes a question.
 
 ### Grouping (`flats/grouping.py`)
 
@@ -223,9 +223,9 @@ Reasons are short Russian strings, e.g. `"Залог не указан"`, `"Ар
 | Trigger on chosen offer | Question (Russian) |
 | --- | --- |
 | utilities unknown / not included | `Какова обычная сумма коммунальных платежей?` |
-| deposit unknown | `Какой залог и на каких условиях он возвращается?` |
-| commission unknown | `Есть ли комиссия и какой она суммы?` |
-| prepayment unknown | `За сколько месяцев нужна предоплата?` |
+| deposit kind `unknown` | `Какой залог и на каких условиях он возвращается?` |
+| commission kind `unknown` | `Есть ли комиссия и какой она суммы?` |
+| prepayment kind `unknown` | `За сколько месяцев нужна предоплата?` |
 | pets unknown | `Можно ли жить с животными?` |
-| other offers of card have different price/deposit/commission | `Условия на площадках различаются — подтвердите условия этого предложения` |
+| another offer of the card differs in price/deposit/commission/prepayment (raw, stripped, lowercased) | `Условия на площадках различаются — подтвердите условия этого предложения` |
 | always | `Есть ли другие платежи при въезде?` |
