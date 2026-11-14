@@ -766,3 +766,12 @@ kbd { display: flex; align-items: center; justify-content: center; background: v
  .trip-places li { align-items: start; }
 }
 #place-picker-map { isolation: isolate; z-index: 0; width: 100%; height: 280px; border-radius: 12px; margin-top: 16px; background: var(--bg); }
+
+/* Keep map previews usable while the pointer moves from a price to its card. */
+.map-popup { width: 264px; max-width: calc(100vw - 48px); max-height: 360px; overflow-y: auto; overscroll-behavior: contain; }
+.map-popup[data-placement="below"] { transform: translate(-50%, 24px); }
+.map-popup-offer { display: grid; gap: 6px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--control-line); color: var(--ink); text-decoration: none; }
+.map-popup-offer img { display: block; width: 100%; height: 120px; object-fit: cover; border-radius: 8px; }
+.map-popup-offer img[hidden] { display: none; }
+.map-popup-offer > span { font-size: 13px; }
+.map-popup-offer:hover .map-popup-link { text-decoration: underline; }

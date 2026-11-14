@@ -57,7 +57,9 @@ def index():
             'lat':coords['lat'],'lon':coords['lon'],'offers':[]})
         if not any(o['key']==row.card.key for o in group['offers']):
             group['offers'].append({'key':row.card.key,'url':'/flat/'+quote(row.card.key,safe=''),
-                                  'price':row.costs.monthly_known,'address':row.offer.address})
+                                  'price':row.costs.monthly_known,'address':row.offer.address,
+                                  'photo':row.offer.photos[0] if row.offer.photos else None,
+                                  'rooms':row.offer.rooms,'area_total':row.offer.area_total})
     return render_template("search.html", rows=rows, total=total, profile=profile,
                            districts=districts, errors=errors, map_houses=list(groups.values()), map_unlocated=unlocated)
 
