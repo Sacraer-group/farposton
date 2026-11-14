@@ -439,12 +439,12 @@ def trip_context(conn, offer_keys, visitor_id=None):
     return {key:summary['results'].get(f'{key[0]}:{key[1]}',{'status':'not_calculated','weekly_seconds':None,'legs':[]}) for key in offer_keys}
 
 
-def candidate_rows(conn, rows):
+def candidate_rows(conn, rows, profile=None):
     """Calculate every eligible offer, retaining independent costs within a flat."""
     from flats import repo_user
     from flats.costs import compute_costs
     from flats.eligibility import check
-    profile=repo_user.get_profile(conn)
+    profile=profile if profile is not None else repo_user.get_profile(conn)
     expanded=[]
     for row in rows:
         for offer in row.card.offers:
@@ -455,7 +455,7 @@ def candidate_rows(conn, rows):
     return expanded
 
 
-def rank_rows(conn, rows, visitor_id=None):
+def rank_rows(conn, rows, visitor_id=None, *, profile=None):
     if BUILDING.get():return rows
     summary=current_summary(conn,visitor_id)
     if not summary['active']:return rows
@@ -466,7 +466,7 @@ def rank_rows(conn, rows, visitor_id=None):
                 row.costs.monthly_known is None,row.costs.monthly_known or 0,row.card.key)
     selected=[]
     # Use all source offers when known, but return one card and its selected offer's costs.
-    candidates=candidate_rows(conn,rows) if rows and hasattr(rows[0].card,'offers') else rows
+    candidates=candidate_rows(conn,rows,profile) if rows and hasattr(rows[0].card,'offers') else rows
     by_card={}
     for candidate in candidates:
         if context(candidate).get('status')!='violates':

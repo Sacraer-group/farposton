@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request
 
-from flats import place_context, repo_offers
+from flats import repo_houses, repo_offers
 from flats.costs import compute_costs
 from flats.grouping import group_offers
 from flats.questions import questions_for
@@ -24,7 +24,8 @@ def favorites():
 
 @bp.get("/compare")
 def compare():
-    by_id = {f"{o.source}:{o.source_id}": (o, card) for o, card in _offers(get_conn())}
+    conn = get_conn()
+    by_id = {f"{o.source}:{o.source_id}": (o, card) for o, card in _offers(conn)}
     wanted = request.args.getlist("o")
     notes = []
     if len(wanted) > MAX_COMPARE:
@@ -34,6 +35,9 @@ def compare():
     if missing:
         notes.append(f"Объявления не найдены: {len(missing)}.")
     columns = [(o, compute_costs(o), questions_for(card, o)) for o, card in (by_id[w] for w in wanted if w in by_id)]
-    house_by_offer = {f"{o.source}:{o.source_id}": place_context.house_facts(o.address)
-                      for o, _costs, _questions in columns}
+    links = repo_houses.house_links_for_offers(conn, [(o.source, o.source_id) for o, _, _ in columns])
+    passports = {house_id: repo_houses.get_house_passport(conn, house_id)
+                 for house_id in {link['house_id'] for link in links.values() if link['house_id'] is not None}}
+    house_by_offer = {f"{source}:{source_id}": passports.get(link['house_id'])
+                      for (source, source_id), link in links.items()}
     return render_template("compare.html", columns=columns, notes=notes, house_by_offer=house_by_offer)

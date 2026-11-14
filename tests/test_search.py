@@ -86,6 +86,19 @@ def test_card_with_all_rejected_is_dropped(conn):
     assert search(conn, Profile(None, None, (), ("Центр",), False, None)) == []
 
 
+def test_trip_ranking_uses_requested_profile_not_stored_profile(conn, monkeypatch):
+    from flats import trips
+    add(conn, "allowed", group_id="g", price=30000)
+    add(conn, "over-budget", group_id="g", price=60000)
+    repo_user.save_profile(conn, Profile(10000, None, (), (), False, None))
+    monkeypatch.setattr(trips, "current_summary", lambda *args: {"active": True, "results": {
+        "farpost:allowed": {"status": "acceptable", "weekly_seconds": 3600},
+        "farpost:over-budget": {"status": "acceptable", "weekly_seconds": 60},
+    }})
+    assert ids(search(conn, Profile(50000, None, (), (), False, None))) == ["allowed"]
+    assert repo_user.get_profile(conn).monthly_max == 10000
+
+
 def test_sample_without_visual_module(conn):
     add(conn, "a", price=40000)
     rows = search(conn, Profile(None, None, (), (), False, "https://x/1.jpg"))

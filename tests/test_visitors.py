@@ -85,3 +85,12 @@ def test_place_budget_is_shared_across_sessions_from_same_client(app, monkeypatc
     first, second = app.test_client(), app.test_client()
     assert first.get('/api/trips/places?q=школа').status_code == 200
     assert second.get('/api/trips/places?q=школа', headers={'X-Forwarded-For': '203.0.113.25'}).status_code == 429
+
+def test_public_filter_reset_is_persistent_and_keeps_other_visitors(app):
+    a, b = app.test_client(), app.test_client()
+    ah, bh = csrf(a), csrf(b)
+    a.post('/', data={'apply': '1', 'monthly_max': '40000'}, headers=ah)
+    b.post('/', data={'apply': '1', 'monthly_max': '50000'}, headers=bh)
+    assert a.post('/', data={'apply': '1'}, headers=ah).status_code == 200
+    assert 'value="40000"' not in a.get('/').get_data(as_text=True)
+    assert 'value="50000"' in b.get('/').get_data(as_text=True)

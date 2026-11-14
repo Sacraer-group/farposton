@@ -4,7 +4,8 @@ from dataclasses import replace
 import pytest
 import requests
 
-from flats import advisor, db, place_context, repo_user
+from flats import advisor, db, repo_houses, repo_user, trips
+from flats.house_identity import normalize_house_address
 from flats.importer import run_import
 from flats.web import create_app, pages
 
@@ -155,16 +156,122 @@ def test_house_guides_are_not_address_facts_and_routes_are_unknown(env):
     assert all("Длина и время маршрута не рассчитаны" in r["unknowns"] for r in result["recommendations"])
 
 
-def test_exact_house_evidence_is_scoped_and_ranked(env, monkeypatch):
+def attach_house(conn):
+    hid = repo_houses.ensure_house(conn, normalize_house_address("Владивосток", "улица Тестовая 1"),
+                                  address_display="улица Тестовая 1", created_at="2026-11-13T00:00:00Z")
+    repo_houses.link_offer_house(conn, "farpost", "a", hid, match_status="exact", offer_address_raw="Тестовая 1",
+                                match_basis="fixture", evidence_url="https://official.example/house/1", checked_at="2026-11-13T00:00:00Z")
+    source = {"source_key": "registry:facts", "provider": "Реестр домов", "section": "facts",
+              "source_url": "https://official.example/house/1", "source_type": "fixture",
+              "match_status": "exact", "matched_address": "улица Тестовая 1", "checked_at": "2026-11-13T00:00:00Z",
+              "fetched_at": "2026-11-13T00:00:00Z", "fetch_status": "ok"}
+    sid = repo_houses.store_house_observation(conn, hid, {"source": source, "facts": {"construction_year": 1980}, "contacts": [], "events": []})
+    conn.commit()
+    return hid, sid, source
+
+
+def test_exact_house_evidence_is_scoped_and_ranked(env):
     conn, _ = env
-    fact = {"id": "registry:year", "text": "Год постройки: 1980", "url": "https://official.example/house/1",
-            "source": "Реестр домов", "observed_at": "2026-11-13", "kind": "house_fact", "field": "build_year", "value": 1980}
-    monkeypatch.setattr(place_context, "house_facts", lambda address: [fact] if address == "Тестовая 1" else [])
+    hid, sid, _ = attach_house(conn)
     result = ask(conn, priority="house", question="Проверь год постройки дома")
     item = result["recommendations"][0]
     assert item["offer_id"] == "farpost:a" and result["coverage"]["house"] is True
-    assert item["reasons"][0] == {"id": "offer:farpost:a:house:registry:year", "text": "Год постройки: 1980"}
+    assert item["house_url"] == f"/house/{hid}" and item["house_status"] == "exact"
+    assert item["reasons"][0] == {"id": f"offer:farpost:a:house:{sid}:construction_year", "text": "Год постройки по источнику: 1980"}
     assert not any(f["kind"] == "house_fact" and not f["id"].startswith("offer:farpost:a:") for f in result["evidence"])
+
+
+def test_duplicate_source_text_is_one_reason_but_both_sources_remain(env):
+    conn, _ = env
+    hid, sid, source = attach_house(conn)
+    source.update(source_key="other-registry:facts", source_url="https://other.example/house/1", provider="Другой реестр")
+    second_id = repo_houses.store_house_observation(conn, hid, {
+        "source": source, "facts": {"construction_year": 1980}, "contacts": [], "events": []})
+    result = ask(conn, scope="offers", offer_ids=["farpost:a"], priority="house", question="Год постройки дома")
+    reasons = result["recommendations"][0]["reasons"]
+    assert sum(reason["text"] == "Год постройки по источнику: 1980" for reason in reasons) == 1
+    assert len({reason["text"] for reason in reasons}) == len(reasons)
+    evidence = [fact for fact in result["evidence"] if fact["kind"] == "house_fact"]
+    assert {fact["id"] for fact in evidence} == {
+        f"offer:farpost:a:house:{sid}:construction_year", f"offer:farpost:a:house:{second_id}:construction_year"}
+    assert {fact["url"] for fact in evidence} == {"https://official.example/house/1", "https://other.example/house/1"}
+
+
+def test_stale_house_link_never_reuses_prior_address_evidence(env):
+    conn, _ = env
+    attach_house(conn)
+    conn.execute("UPDATE offers SET address='улица Тестовая 1А' WHERE source_id='a'")
+    result = ask(conn, scope="offers", offer_ids=["farpost:a"], priority="house")
+    [item] = result["recommendations"]
+    assert item["house_url"] is None and item["house_status"] == "stale"
+    assert result["coverage"]["house"] is False
+    assert not any(f["kind"] == "house_fact" for f in result["evidence"])
+    assert any("устарела" in text for text in item["unknowns"])
+
+
+def test_failed_source_keeps_dated_evidence_and_reports_failure(env):
+    conn, _ = env
+    hid, _, source = attach_house(conn)
+    source.update(checked_at="2026-11-14T00:00:00Z", fetched_at=None, fetch_status="error", error="unavailable")
+    repo_houses.store_house_observation(conn, hid, {"source": source, "facts": None, "contacts": [], "events": []})
+    result = ask(conn, scope="offers", offer_ids=["farpost:a"], priority="house")
+    assert "Характеристики дома: Не удалось получить сведения из источника; актуальность не проверена." in result["recommendations"][0]["unknowns"]
+    [fact] = [f for f in result["evidence"] if f["kind"] == "house_fact"]
+    assert fact["url"] == source["source_url"] and fact["observed_at"].startswith("2026-11-13")
+
+
+def test_district_filter_is_request_scoped_and_can_clear_stored_selection(env):
+    conn, _ = env
+    run_import(conn, [offer("other-district", district="Эгершельд")])
+    before = replace(repo_user.get_profile(conn), districts=("Центр",))
+    repo_user.save_profile(conn, before)
+    result = ask(conn, filters={"districts": ["Эгершельд"]})
+    assert [item["offer_id"] for item in result["recommendations"]] == ["farpost:other-district"]
+    assert ask(conn, filters={"districts": []})["total_candidates"] == 6
+    assert repo_user.get_profile(conn) == before
+
+
+def test_advisor_reuses_completed_visitor_journeys_without_spending_api_calls(env, monkeypatch):
+    from flask import g
+    from flats import routing
+    from flats.search import search
+
+    conn, client = env
+    monkeypatch.setattr(trips, "_JOBS", {})
+    monkeypatch.setattr(trips, "_CURRENT", {})
+    monkeypatch.setattr(trips, "_USAGE", {})
+    conn.execute("UPDATE offers SET lat=43,lon=131 WHERE source_id='a'")
+    conn.execute("UPDATE offers SET lat=43.1,lon=131 WHERE source_id='b'")
+    conn.commit()
+    schedule = {"places": [{"id": "work", "name": "Работа", "lat": 43.2, "lon": 131.2, "confirmed": True}],
+                "legs": [{"id": "morning", "from": "home", "to": "work", "days": [0],
+                          "departure": "08:00", "max_minutes": 60}]}
+    trips.save_schedule(conn, schedule)
+    job = trips.start_job(conn, search(conn, repo_user.get_profile(conn)))
+
+    def provider(source, target, start_time):
+        return {"status": "ok", "alternatives": [{"duration_seconds": 1800 if source["lat"] == 43 else 7200,
+                "transfers": 0, "pedestrian": False, "walkway": ""}]}
+
+    job = trips.step_job(conn, job["id"], provider=provider)
+    assert job["status"] == "complete"
+    monkeypatch.setattr(routing, "route", lambda *args, **kwargs: pytest.fail("Advisor must not call Routing API"))
+    result = ask(conn, priority="commute", question="Проверь путь до работы")
+    first = result["recommendations"][0]
+    assert first["offer_id"] == "farpost:a" and result["coverage"]["route"] is True
+    assert first["route"]["weekly_seconds"] == 1800 and first["route"]["week_start"] == job["week_start"]
+    assert first["route"]["calculated_at"] and first["reasons"][0]["id"].endswith(":route:weekly")
+    assert "farpost:b" not in json.dumps(result)
+    assert "оценка" in result["notice"]
+    assert ask(conn, scope="offers", offer_ids=["farpost:b"], priority="commute")["recommendations"] == []
+    with client.application.test_request_context():
+        g.visitor_id = "another-browser"
+        other = ask(conn, priority="commute", question="Проверь путь до работы")
+        assert other["coverage"]["route"] is False
+        assert not any(f["kind"] == "route" for f in other["evidence"])
+    schedule["legs"][0]["departure"] = "09:00"
+    trips.save_schedule(conn, schedule)
+    assert ask(conn, priority="commute")["coverage"]["route"] is False
 
 
 def test_off_topic_and_empty_results_do_not_invent_recommendations(env):
@@ -282,13 +389,16 @@ def test_no_implicit_remote_provider(env, monkeypatch):
 
 @pytest.mark.parametrize("changes", [
     {"question": ""}, {"question": "x" * 1201}, {"question": 1}, {"priority": "anything"},
+    {"priority": []}, {"priority": {}}, {"scope": []}, {"scope": {}},
     {"scope": "anything"}, {"scope": "offers"}, {"offer_ids": "farpost:a"},
     {"offer_ids": ["farpost:a"] * 2}, {"offer_ids": ["farpost:missing"]},
     {"offer_ids": [None]}, {"scope": "saved", "offer_ids": ["farpost:a"]},
     {"filters": {"monthly_max": True}}, {"filters": {"monthly_max": 0}},
     {"filters": {"move_in_max": -1}}, {"filters": {"move_in_max": 2.5}},
     {"filters": {"rooms": [True]}}, {"filters": {"rooms": [11]}}, {"filters": {"rooms": "1"}},
-    {"filters": {"pets_required": 1}}, {"filters": {"districts": ["Центр"]}},
+    {"filters": {"monthly_max": float("nan")}}, {"filters": {"move_in_max": float("inf")}},
+    {"filters": {"pets_required": 1}}, {"filters": {"districts": ["Нет такого района"]}},
+    {"filters": {"districts": [True]}}, {"filters": {"districts": [[]]}}, {"filters": {"districts": "Центр"}},
     {"base_url": "https://attacker.example"}, {"filters": None},
     {"decisions": None}, {"decisions": {}}, {"decisions": [None]},
     {"decisions": [["farpost", "a"]]}, {"decisions": [["farpost", "a", "save", True]]},
