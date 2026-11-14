@@ -1,6 +1,7 @@
 from flask import Blueprint, abort, redirect, render_template, request, url_for
 
 from flats import repo_user
+from flats.nearby import nearby_places
 from flats.repo_houses import get_house_passport, house_links_for_offers
 from flats.search import search
 from flats.web import get_conn
@@ -28,7 +29,7 @@ def house(house_id):
     links = house_links_for_offers(conn, [(r.offer.source, r.offer.source_id) for r in rows])
     related = [r for r in rows if links[(r.offer.source, r.offer.source_id)]['house_id'] == house_id]
     return render_template('house.html', passport=passport, outage_events=events[(page-1)*25:page*25],
-                           outage_page=page, outage_pages=pages, related=related)
+                           outage_page=page, outage_pages=pages, related=related, nearby=nearby_places(passport['coordinates']))
 
 
 @bp.get('/house/for-offer/<source>/<source_id>')
