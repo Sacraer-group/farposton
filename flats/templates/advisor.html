@@ -17,8 +17,8 @@
     </div>
     <div class="request-actions"><button type="button" id="parse-request" class="button button-primary">Разобрать запрос {{ icon('arrow-right') }}</button><span>Вы решаете, какие условия применить</span></div>
     <p id="request-status" class="request-status" role="status" aria-live="polite"></p>
-    <div id="request-proposal" class="request-proposal" hidden>
-      <h3>Проверьте, что удалось понять</h3>
+    <div id="request-proposal" class="request-proposal" hidden tabindex="-1" role="region" aria-labelledby="proposal-heading">
+      <h3 id="proposal-heading">Проверьте, что удалось понять</h3>
       <dl id="parsed-values" class="parsed-values"></dl>
       <ul id="request-notes" class="request-notes"></ul>
       <p class="small-note">Перенесём в форму только распознанные поля. Остальные условия формы сохранятся.</p>

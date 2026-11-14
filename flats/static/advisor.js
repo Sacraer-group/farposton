@@ -195,6 +195,8 @@
       document.getElementById("apply-request").textContent = Object.keys(data.filters || {}).length ? "Перенести в форму" : "Проверить условия в форме";
       requestStatus.textContent = data.notice || "Проверьте распознанные условия перед применением.";
       proposalPanel.hidden = false;
+      proposalPanel.focus({preventScroll: true});
+      proposalPanel.scrollIntoView({block: "start"});
     } catch (error) {
       requestStatus.textContent = error.name === "AbortError" ? "Разбор задерживается. Повторите запрос; текст сохранён в форме." : error.message;
     } finally {
@@ -407,7 +409,7 @@
     if (busy || !form.reportValidity()) return;
     if (question.value.trim() && question.value.trim() !== reviewedText) {
       await parseRequest();
-      document.getElementById("request-panel").scrollIntoView({block: "start"});
+      if (proposalPanel.hidden) document.getElementById("request-panel").scrollIntoView({block: "start"});
       return;
     }
     busy = true; button.disabled = true; results.setAttribute("aria-busy", "true");

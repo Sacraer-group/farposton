@@ -83,6 +83,12 @@ def test_text_to_viewing_flow_and_browser_local_favorites(browser, site, width):
     page.locator("#search-task").fill(task)
     page.get_by_role("button", name="Разобрать задачу").click()
     pw.expect(page.locator("#request-proposal")).to_be_visible()
+    pw.expect(page.locator("#request-proposal")).to_be_focused()
+    assert page.evaluate("""() => {
+        const proposal = document.getElementById('request-proposal').getBoundingClientRect();
+        const header = document.querySelector('.site-header').getBoundingClientRect();
+        return proposal.top >= header.bottom - 1 && proposal.top < window.innerHeight - 40;
+    }""")
     pw.expect(page.locator('#advisor-form input[name="monthly_max"]')).to_have_value("")
     pw.expect(page.locator("#recommendations > article")).to_have_count(0)
     check_layout(page, f"request-{width}")
@@ -186,6 +192,12 @@ def test_manual_form_empty_recovery_draft_and_request_errors(browser, site):
     pw.expect(page.locator("#viewing-brief")).to_be_hidden()
     page.locator("#ask-advisor").click()
     pw.expect(page.locator("#request-proposal")).to_be_visible()
+    pw.expect(page.locator("#request-proposal")).to_be_focused()
+    assert page.evaluate("""() => {
+        const proposal = document.getElementById('request-proposal').getBoundingClientRect();
+        const header = document.querySelector('.site-header').getBoundingClientRect();
+        return proposal.top >= header.bottom - 1 && proposal.top < window.innerHeight - 40;
+    }""")
     pw.expect(page.locator('[name="monthly_max"]')).to_have_value("60000")
     pw.expect(page.locator("#recommendations > article")).to_have_count(0)
     assert not errors
