@@ -49,7 +49,7 @@ class Costs:
     prepayment: Amount
     deposit: Amount
     commission: Amount
-    move_in_known: int | None  # prepayment + deposit + commission, known parts only
+    move_in_known: int | None  # rent or prepayment (whichever is greater) + deposit + commission, known parts only
     move_in_unknown: tuple[str, ...]  # e.g. ("deposit", "commission")
 
 

@@ -64,10 +64,11 @@ def test_trip_editor_and_csrf_forms(tmp_path):
     html = response.get_data(as_text=True)
     assert 'Дом, из которого удобно добираться' in html
     for control in ('place-search', 'manual-place', 'trip-places', 'trip-legs', 'add-leg',
-                    'start-trips', 'cancel-trips', 'trip-progress', 'trip-scope'):
+                    'start-trips', 'partial-trips', 'quick-out', 'quick-back', 'cancel-trips', 'trip-progress'):
         assert f'id="{control}"' in html
-    assert 'value="saved" selected' in html
-    assert 'Оценить расчёт' in html
+    assert 'trip-scope' not in html
+    assert 'Подобрать квартиры' in html
+    assert 'Рассчитать доступную часть' in html
     assert 'name="csrf-token"' in html
     assert '/static/trips.js' in html
     assert 'name="csrf_token"' in client.get('/').get_data(as_text=True)

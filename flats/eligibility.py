@@ -3,6 +3,7 @@ from flats.types import Costs, Offer, Profile, Verdict
 
 
 _MOVE_IN_UNKNOWN_REASONS = {
+    "rent": "Аренда не указана",
     "prepayment": "Предоплата не указана",
     "deposit": "Залог не указан",
     "commission": "Комиссия не указана",
@@ -61,5 +62,5 @@ def check(offer: Offer, costs: Costs, profile: Profile) -> Verdict:
     if reject_reasons:
         return Verdict("reject", tuple(reject_reasons))
     if unknown_reasons:
-        return Verdict("unknown", tuple(unknown_reasons))
+        return Verdict("unknown", tuple(dict.fromkeys(unknown_reasons)))
     return Verdict("match", ())

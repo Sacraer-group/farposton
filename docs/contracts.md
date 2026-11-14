@@ -114,8 +114,8 @@ class Costs:
     prepayment: Amount
     deposit: Amount
     commission: Amount
-    move_in_known: int | None        # prepayment + deposit + commission, known parts only
-    move_in_unknown: tuple[str, ...] # e.g. ("deposit", "commission")
+    move_in_known: int | None        # rent or prepayment (whichever is greater) + deposit + commission, known parts only
+    move_in_unknown: tuple[str, ...] # e.g. ("rent", "deposit", "commission")
 
 @dataclass(frozen=True)
 class Profile:
@@ -185,9 +185,9 @@ These rules come from the Metrapi docs, not from observed data. When the listing
 
 - `rent = offer.price`.
 - `monthly_known = rent` (`None` if rent unknown). `monthly_unknown`: `"rent"` if rent unknown; `"utilities"` if `utilities_included` is not `True`.
-- Prepayment unknown -> assume nothing, put `"prepayment"` in `move_in_unknown`. Prepayment "за 1 месяц" = first month rent paid once; never add rent again.
-- `move_in_known` = sum of known `rub` of prepayment, deposit, commission; `None` only if all three unknown.
-- Each component with `rub is None` goes to `move_in_unknown`, order: `"prepayment"`, `"deposit"`, `"commission"`.
+- The known rent portion is the greater of monthly rent and stated prepayment when both are known; if only one is known, use that known amount. Prepayment includes the first month, so it is never added again; additional prepaid months remain included.
+- `move_in_known` adds the known rent portion, deposit and commission; it is `None` only if none are known. Unknown rent is recorded even if a fixed prepayment is known. Unknown prepayment remains uncertain because additional months may be required.
+- `move_in_unknown` lists missing `"rent"`, then missing `"prepayment"`, `"deposit"`, and `"commission"` in that order.
 
 Example (test fixture): rent 40000, deposit `40 000 ₽`, commission `50%`, prepayment `за 1 месяц`, utilities `оплачиваются отдельно` -> `monthly_known=40000`, `monthly_unknown=("utilities",)`, `move_in_known=100000`, `move_in_unknown=()`.
 
@@ -240,8 +240,10 @@ Advisor and `/api/trips/start` JSON requests carry compact local decisions, vali
 | another offer of the card differs in price/deposit/commission/prepayment (raw, stripped, lowercased) | `Условия на площадках различаются — подтвердите условия этого предложения` |
 | always | `Есть ли другие платежи при въезде?` |
 
-### Routing preflight and saved shortlist
+### Routing preflight and scopes
 
 `POST /api/trips/estimate` accepts `{scope: "saved"|"all", decisions: [[source, source_id, action], ...]}`. It validates a transient browser snapshot, applies the current monetary filters, and reads the versioned schedule. It returns candidate/offer counts, dated task count, unique provider request estimate, unresolved coordinate count, remaining visitor/server quotas and `sufficient_budget`. It never calls2GIS, charges quota or replaces a current job. POST keeps local choices out of query strings; existing GET estimate remains compatible with the default all/no-choices case.
 
-`POST /api/trips/start` accepts the same scope/decisions plus optional schedule version. For saved scope exactly saved eligible offers are used, with an explicit limit of five distinct apartments and a clear error for empty/oversized selection. The browser invalidates preflight when its local decisions or schedule change. Quota is checked again during execution; estimate does not reserve requests.
+`POST /api/trips/start` accepts the same scope/decisions plus optional schedule version. All scope uses the eligible catalog without a five-apartment limit; no matching candidates produce an error. For compatibility, saved scope uses exactly saved eligible offers, with a limit of five distinct apartments and an error for empty/oversized selection. The `/trips` browser flow uses all scope, saves the schedule and preflights before starting. If the estimate exceeds available quota, the visitor can explicitly start a partial calculation when quota remains. The browser invalidates preflight when its local decisions or schedule change. Quota is checked again during execution; estimate does not reserve requests, and unfinished results are marked incomplete.
+
+When the first confirmed place is added to an empty schedule, the browser offers editable home-to-place and return legs on weekdays at 08:00 and 18:00. Existing schedules are preserved; additional places, legs, days and limits remain editable.

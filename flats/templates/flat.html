@@ -32,11 +32,12 @@
       {% for o, c, questions in blocks %}
       <section class="offer-panel">
         <div class="offer-heading"><h3>Предложение {{ o.source }}</h3>{% if o == b %}<span class="neutral-badge">В подборке</span>{% endif %}{% if o.url %}<a class="text-link" href="{{ o.url }}" target="_blank" rel="noopener noreferrer">Объявление {{ icon('arrow-up-right') }}</a>{% endif %}</div>
-        <div class="cost-summary"><div><span>Ежемесячно, известно</span><strong>{{ c.monthly_known|rub }}</strong>{% if c.monthly_unknown %}<small>Уточнить: {{ c.monthly_unknown|map('part_label')|join(', ') }}</small>{% else %}<small>Обязательные платежи указаны</small>{% endif %}</div><div><span>На въезд, известно</span><strong>{{ c.move_in_known|rub }}</strong>{% if c.move_in_unknown %}<small>Не указано: {{ c.move_in_unknown|map('part_label')|join(', ') }}</small>{% else %}<small>Предоплата, залог и комиссия</small>{% endif %}</div></div>
+        <div class="cost-summary"><div><span>Ежемесячно, известно</span><strong>{{ c.monthly_known|rub }}</strong>{% if c.monthly_unknown %}<small>Уточнить: {{ c.monthly_unknown|map('part_label')|join(', ') }}</small>{% else %}<small>Обязательные платежи указаны</small>{% endif %}</div><div><span>На въезд, известно</span><strong>{{ c.move_in_known|rub }}</strong><small>{% if c.rent is not none %}Первый месяц аренды учтён.{% else %}Аренда первого месяца не указана.{% endif %}</small>{% if c.move_in_unknown %}<small>Не указано: {{ c.move_in_unknown|map('part_label')|join(', ') }}</small>{% else %}<small>Залог и комиссия учтены</small>{% endif %}</div></div>
         <div class="table-wrap"><table class="terms-table"><caption class="visually-hidden">Расчёт и исходные условия {{ o.source }}</caption><tbody>
           <tr><th>Аренда в месяц</th><td>{{ c.rent|rub }}</td><td class="raw">Из объявления</td></tr>
+          <tr><th>Первый месяц аренды</th><td>{{ c.rent|rub }}</td><td class="raw">{{ 'Учтён в расходах на въезд' if c.rent is not none else 'Не указан' }}</td></tr>
           <tr><th>Коммунальные</th><td>{{ 'включены' if 'utilities' not in c.monthly_unknown else 'уточнить' }}</td><td class="raw">{{ o.utilities_raw or 'не указано' }}</td></tr>
-          <tr><th>Предоплата</th><td>{{ c.prepayment.rub|rub }}</td><td class="raw">{{ o.prepayment_raw or 'не указано' }}</td></tr>
+          <tr><th>Предоплата по объявлению (не добавляется повторно)</th><td>{{ c.prepayment.rub|rub }}</td><td class="raw">{{ o.prepayment_raw or 'не указано' }}</td></tr>
           <tr><th>Залог</th><td>{{ c.deposit.rub|rub }}</td><td class="raw">{{ o.deposit_raw or 'не указано' }}</td></tr>
           <tr><th>Комиссия</th><td>{{ c.commission.rub|rub }}</td><td class="raw">{{ o.commission_raw or 'не указано' }}</td></tr>
           <tr><th>Животные</th><td colspan="2">{{ 'Можно' if o.pets_raw is sameas true else ('Нельзя' if o.pets_raw is sameas false else (o.pets_raw or 'не указано')) }}</td></tr>
@@ -75,7 +76,7 @@
   </div>
   <aside class="detail-aside">
     {% for o, c, questions in blocks %}{% if o == b %}
-    <div class="selection-summary panel"><p class="eyebrow">Выбранное предложение</p><div class="price-line"><strong>{{ c.monthly_known|rub }}</strong><span>/ месяц</span></div><p class="cost-note">{% if c.monthly_unknown %}Уточнить: {{ c.monthly_unknown|map('part_label')|join(', ') }}{% else %}Обязательные платежи указаны{% endif %}</p><div class="move-in-line"><span>На въезд, известно</span><strong>{{ c.move_in_known|rub }}</strong></div><a class="button button-primary full-width" href="#house">{{ icon('building-2') }}Посмотреть сведения о доме</a><a class="text-link" href="#viewing">Вопросы перед просмотром {{ icon('arrow-right') }}</a></div>
+    <div class="selection-summary panel"><p class="eyebrow">Выбранное предложение</p><div class="price-line"><strong>{{ c.monthly_known|rub }}</strong><span>/ месяц</span></div><p class="cost-note">{% if c.monthly_unknown %}Уточнить: {{ c.monthly_unknown|map('part_label')|join(', ') }}{% else %}Обязательные платежи указаны{% endif %}</p><div class="move-in-line"><span>На въезд, известно</span><strong>{{ c.move_in_known|rub }}</strong></div><p class="cost-note">{% if c.rent is not none %}Первый месяц аренды учтён.{% else %}Аренда первого месяца не указана.{% endif %}</p><a class="button button-primary full-width" href="#house">{{ icon('building-2') }}Посмотреть сведения о доме</a><a class="text-link" href="#viewing">Вопросы перед просмотром {{ icon('arrow-right') }}</a></div>
     {% call map_shell('Расположение дома', true) %}{{ map_point(o, c, card.key) }}{% endcall %}
     {% endif %}{% endfor %}
   </aside>
