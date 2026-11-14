@@ -148,7 +148,7 @@ def reserve_request(owner, conn=None):
 
 
 
-def start_job(conn, rows, visitor_id=None, now=None):
+def prepare_job(conn, rows, visitor_id=None, now=None):
     owner = owner_id(visitor_id)
     stored = get_schedule(conn, owner)
     if not stored['schedule']['legs']:
@@ -188,6 +188,39 @@ def start_job(conn, rows, visitor_id=None, now=None):
                     item.update(status='coordinates_unknown',reason='Нет подтверждённых координат квартиры')
                     continue
                 tasks.append((key,len(result['legs'])-1,source,target))
+    return {'tasks':tasks,'results':results,'monday':monday,
+            'version':stored['version'],'occurrences':occurrences}
+
+
+def task_identity(task, results):
+    key,index,source,target=task
+    return (source['lat'],source['lon'],target['lat'],target['lon'],results[key]['legs'][index]['start_time'])
+
+
+def remaining_budget(conn, visitor_id=None):
+    owner=owner_id(visitor_id)
+    today=datetime.now(TZ).date().isoformat()
+    counts={r['visitor_id']:r['requests'] for r in conn.execute(
+        'SELECT visitor_id,requests FROM trip_request_usage WHERE day=? AND visitor_id IN (?,?)',
+        (today,owner,'*global*'))}
+    return {'remaining_session':max(0,int(os.environ.get('FLATS_TRIP_SESSION_BUDGET','100'))-counts.get(owner,0)),
+            'remaining_global':max(0,int(os.environ.get('FLATS_TRIP_GLOBAL_BUDGET','1000'))-counts.get('*global*',0))}
+
+
+def estimate_job(conn, rows, visitor_id=None, now=None):
+    prepared=prepare_job(conn,rows,visitor_id,now)
+    queries=len({task_identity(t,prepared['results']) for t in prepared['tasks']})
+    remaining=remaining_budget(conn,visitor_id)
+    return {'version':prepared['version'],'candidates':len({r.card.key for r in rows}),
+            'offers':len(rows),'total_tasks':prepared['occurrences'],'unique_queries':queries,
+            'unresolved_tasks':prepared['occurrences']-len(prepared['tasks']),**remaining,
+            'sufficient_budget':queries<=min(remaining.values())}
+
+
+def start_job(conn, rows, visitor_id=None, now=None):
+    owner=owner_id(visitor_id)
+    prepared=prepare_job(conn,rows,owner,now)
+    tasks,results,monday,occurrences=(prepared[k] for k in ('tasks','results','monday','occurrences'))
     with _LOCK:
         _cleanup()
         if len(_JOBS)>=100 or sum(sum(len(r['legs']) for r in j['results'].values()) for j in _JOBS.values())+occurrences>30000:
@@ -196,7 +229,7 @@ def start_job(conn, rows, visitor_id=None, now=None):
         if previous in _JOBS:
             _JOBS[previous]['cancelled'] = True
         ident = secrets.token_urlsafe(18)
-        _JOBS[ident] = {'id':ident,'owner':owner,'version':stored['version'],'created':time.time(),
+        _JOBS[ident] = {'id':ident,'owner':owner,'version':prepared['version'],'created':time.time(),
                        'status':'running' if tasks else 'complete','cancelled':False,'done':0,'total':len(tasks),'tasks':tasks,'results':results,
                        'cache':{},'lock':threading.RLock(),'week_start':str(monday),'week_end':str(monday+timedelta(days=6))}
         _CURRENT[owner]=ident
@@ -259,7 +292,7 @@ def step_job(conn, ident, visitor_id=None, provider=None):
         while job['done']<job['total'] and job['status']=='running' and not job['cancelled']:
             key,index,source,target=job['tasks'][job['done']]
             item=job['results'][key]['legs'][index]
-            identity=(source['lat'],source['lon'],target['lat'],target['lon'],item['start_time'])
+            identity=task_identity(job['tasks'][job['done']],job['results'])
             if identity not in job['cache']:
                 if calls>=3:
                     break

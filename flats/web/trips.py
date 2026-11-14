@@ -32,18 +32,48 @@ def places():
         return jsonify(error=str(exc)),503
 
 
-@bp.post('/start')
-def start():
+def _candidates(conn, scope):
     from flats.search import search
+    if scope not in ('all','saved'):
+        raise ValueError('Выберите избранные или все подходящие квартиры')
     token=trips.BUILDING.set(True)
     try:
-        conn=get_conn()
         rows=trips.candidate_rows(conn,search(conn,repo_user.get_profile(conn)))
-        return jsonify(trips.start_job(conn,rows))
-    except ValueError as exc:
-        return jsonify(error=str(exc)),400
     finally:
         trips.BUILDING.reset(token)
+    if scope=='saved':
+        decisions=repo_user.current_decisions(conn)
+        rows=[r for r in rows if decisions.get((r.offer.source,r.offer.source_id))=='save']
+        count=len({r.card.key for r in rows})
+        if not count:
+            raise ValueError('Нет избранных квартир, подходящих под условия. Сохраните 3–5 вариантов или измените фильтры.')
+        if count>5:
+            raise ValueError('В избранном больше пяти подходящих квартир. Оставьте до пяти вариантов для расчёта или выберите весь каталог.')
+    return rows
+
+
+@bp.get('/estimate')
+def estimate():
+    try:
+        conn=get_conn()
+        scope=request.args.get('scope','all')
+        return jsonify(scope=scope,**trips.estimate_job(conn,_candidates(conn,scope)))
+    except ValueError as exc:
+        return jsonify(error=str(exc)),400
+
+
+@bp.post('/start')
+def start():
+    data=request.get_json(silent=True)
+    if data is None:data={}
+    if not isinstance(data,dict):return jsonify(error='Неверные параметры расчёта'),400
+    try:
+        conn=get_conn()
+        if 'version' in data and data['version']!=trips.get_schedule(conn)['version']:
+            raise ValueError('График изменился. Повторите оценку расчёта.')
+        return jsonify(trips.start_job(conn,_candidates(conn,data.get('scope','all'))))
+    except ValueError as exc:
+        return jsonify(error=str(exc)),400
 
 
 def _action(ident, action):
