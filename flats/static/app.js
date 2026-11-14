@@ -97,6 +97,7 @@
   });
 
   document.querySelectorAll("img").forEach(img => {
+    if (img.hasAttribute("data-gallery-image")) return;
     const unavailable = () => {
       const placeholder = document.createElement("div");
       placeholder.className = "photo-placeholder photo-unavailable";

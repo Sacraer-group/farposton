@@ -1,10 +1,12 @@
 from urllib.parse import urlencode
+from pathlib import Path
 
 import pytest
 
 from flats import db, place_context, repo_offers
 from flats.cli import DEMO_FILES
 from flats.importer import load_json, run_import
+from flats.house_import import import_house_passports, load_house_bundle
 from flats.web import create_app
 
 
@@ -18,6 +20,15 @@ def real_client(tmp_path):
     app = create_app(path)
     app.testing = True
     return app.test_client()
+
+
+@pytest.fixture
+def houses_client(real_client):
+    conn = db.connect(real_client.application.config["DB_PATH"])
+    archive = Path(__file__).resolve().parents[1] / "research/house-passports/2026-11-14/farposton-house-data-2026-11-14.zip"
+    import_house_passports(conn, load_house_bundle(archive))
+    conn.close()
+    return real_client
 
 
 def test_house_context_never_attaches_to_nearby_house():
@@ -38,7 +49,8 @@ def test_real_house_page_separates_reported_data_from_current_status(real_client
     assert "Дом требует проверки" in html
 
 
-def test_advisor_page_and_context_preserve_the_selected_offer(real_client):
+def test_advisor_page_and_context_preserve_the_selected_offer(houses_client):
+    real_client = houses_client
     selected = "farpost:139158750"
     html = real_client.get("/advisor?" + urlencode({"o": selected, "priority": "house"})).get_data(as_text=True)
     assert 'id="advisor-form"' in html and 'id="viewing-brief"' in html
@@ -53,6 +65,45 @@ def test_advisor_page_and_context_preserve_the_selected_offer(real_client):
     assert any(f["kind"] == "guide" for f in data["evidence"])
     assert data["recommendations"][0]["monthly_known"] == 30000
     assert "управляет" in data["recommendations"][0]["questions"][0]["text"]
+
+
+def test_advisor_retrieves_full_house_archive_and_keeps_conflicting_sources(houses_client):
+    selected = "farpost:133892276"
+    response = houses_client.post("/api/advisor", json={
+        "question": "Работаю из дома. Какая УК и что известно об отключениях и ремонте?",
+        "scope": "offers", "offer_ids": [selected], "priority": "house"})
+    assert response.status_code == 200
+    data = response.get_json()
+    [item] = data["recommendations"]
+    assert item["house_url"].startswith("/house/") and item["house_status"] == "exact"
+    assert any("разные управляющие организации" in text for text in item["unknowns"])
+    facts = [fact for fact in data["evidence"] if fact["kind"] == "house_fact"]
+    assert any("ТЕХНОЛОГИЯ КОМФОРТА" in fact["text"] for fact in facts)
+    assert any("Технология управления" in fact["text"] for fact in facts)
+    assert any("Публикаций об отключениях" in fact["text"] and "не число фактических" in fact["text"] for fact in facts)
+    assert any("плана капремонта" in fact["text"] and "Выполнение работ планом не подтверждено" in fact["text"] for fact in facts)
+    assert all(fact["id"].startswith(f"offer:{selected}:house:") and fact["url"].startswith("https://") and fact["observed_at"] for fact in facts)
+    assert houses_client.get(item["house_url"]).status_code == 200
+
+
+def test_advisor_without_imported_passports_does_not_claim_house_coverage(real_client):
+    data = real_client.post("/api/advisor", json={"question": "Что известно о доме?",
+        "scope": "offers", "offer_ids": ["farpost:139158750"], "priority": "house"}).get_json()
+    assert data["coverage"]["house"] is False
+    assert not any(fact["kind"] == "house_fact" for fact in data["evidence"])
+    assert data["recommendations"][0]["house_url"] is None
+
+
+def test_work_from_home_reasons_prioritize_management_outages_and_repairs(houses_client):
+    data = houses_client.post("/api/advisor", json={"question": "Работаю из дома",
+        "scope": "offers", "offer_ids": ["farpost:139158750"], "priority": "house"}).get_json()
+    reasons = data["recommendations"][0]["reasons"]
+    assert len(reasons) == 3
+    assert any(":management:" in reason["id"] for reason in reasons)
+    assert any(reason["id"].endswith(":outages") for reason in reasons)
+    assert any(reason["id"].endswith(":repair_plans") for reason in reasons)
+    assert any(fact["id"].endswith(":floors_text") for fact in data["evidence"])
+    assert any("не число фактических" in reason["text"] for reason in reasons)
 
 
 def test_address_trailing_interface_label_is_not_part_of_house_identity(tmp_path):
@@ -70,9 +121,35 @@ def test_address_trailing_interface_label_is_not_part_of_house_identity(tmp_path
     conn.close()
 
 
-def test_comparison_keeps_house_sources_and_undated_outages_separate(real_client):
-    selected = ["farpost:139158750", "farpost:138877224"]
-    html = real_client.get("/compare?" + urlencode([("o", key) for key in selected])).get_data(as_text=True)
-    assert "Атлант" in html and "Эгершельд ДВ" in html
-    assert "18.11.2025" in html and "выполнение работ этой записью не подтверждены" in html
+def test_comparison_keeps_house_sources_and_undated_outages_separate(houses_client, monkeypatch):
+    monkeypatch.setattr(place_context, "house_facts", lambda *args: pytest.fail("Comparison must not read legacy house facts"))
+    selected = ["farpost:139158750", "farpost:133892276"]
+    html = houses_client.get("/compare?" + urlencode([("o", key) for key in selected])).get_data(as_text=True)
+    assert html.count("Адрес сопоставлен</strong>") == 2
+    assert "Сопоставление дома" in html and "Привязка к реестру" not in html
+    assert "Атлант" in html and "ТЕХНОЛОГИЯ КОМФОРТА" in html and "Технология управления" in html
+    assert "Источники называют разные УК" in html
+    assert "Архив публикаций об отключениях" in html and "не фактических отключений" in html
+    assert "строк опубликованного плана капремонта" in html and "Выполнение работ планом не подтверждено" in html
     assert "Текущие отключения" in html and "Актуальные сведения не получены" in html
+    assert "Листайте таблицу вправо" in html
+    conn = db.connect(houses_client.application.config["DB_PATH"])
+    for record in conn.execute("SELECT s.source_url,s.checked_at FROM house_sources s JOIN offer_houses h ON h.house_id=s.house_id "
+                               "WHERE h.source_id='139158750' AND s.section='outages' AND s.fetch_status='ok'"):
+        assert record["source_url"] in html and record["checked_at"] in html
+    conn.close()
+
+
+@pytest.mark.parametrize("state", ["missing", "stale"])
+def test_comparison_does_not_reuse_house_data_when_link_is_missing_or_stale(houses_client, state):
+    conn = db.connect(houses_client.application.config["DB_PATH"])
+    if state == "missing":
+        conn.execute("DELETE FROM offer_houses WHERE source='farpost' AND source_id='139158750'")
+    else:
+        conn.execute("UPDATE offers SET address='улица Гамарника 21А' WHERE source='farpost' AND source_id='139158750'")
+    conn.commit()
+    conn.close()
+    html = houses_client.get("/compare?o=farpost:139158750").get_data(as_text=True)
+    assert "Атлант" not in html and "строк опубликованного плана капремонта" not in html
+    assert "Архив по этому адресу не подтверждён" in html
+    assert ("Дом пока не сопоставлен" if state == "missing" else "Адрес изменился — нужна повторная привязка") in html

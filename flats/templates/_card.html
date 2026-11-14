@@ -17,7 +17,7 @@
     <p class="listing-district">{{ o.district or 'Район не указан' }}</p>
     <span data-saved-label class="similar-label" hidden>В избранном</span>
     <div class="move-in-line"><span>На въезд, известно</span><strong>{{ c.move_in_known|rub }}</strong></div>
-    <p class="cost-note">{% if c.move_in_unknown %}Не указано: {{ c.move_in_unknown|map('part_label')|join(', ') }}.{% else %}Предоплата, залог и комиссия учтены.{% endif %}{% if 'utilities' in c.monthly_unknown %} Коммунальные — уточнить.{% endif %}</p>
+    <p class="cost-note">{% if c.rent is not none %}Первый месяц аренды учтён.{% else %}Аренда первого месяца не указана.{% endif %} {% if c.move_in_unknown %}Не указано: {{ c.move_in_unknown|map('part_label')|join(', ') }}.{% else %}Залог и комиссия учтены.{% endif %}{% if 'utilities' in c.monthly_unknown %} Коммунальные — уточнить.{% endif %}</p>
     {% if row.similar %}<p class="similar-label">{{ icon('scan-eye') }}Похожий интерьер</p>{% endif %}
     {% if row.verdict.reasons %}<details class="verdict-details"><summary>Почему нужно уточнить</summary><ul class="reasons">{% for r in row.verdict.reasons %}<li>{{ r }}</li>{% endfor %}</ul></details>{% endif %}
     {{ evidence(o) }}

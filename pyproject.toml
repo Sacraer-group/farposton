@@ -10,6 +10,7 @@ dependencies = ["flask", "requests", "numpy"]
 
 [project.optional-dependencies]
 dev = ["pytest", "pillow"]
+browser = ["playwright"]
 ml = ["torch", "transformers", "pillow"]
 
 [project.scripts]

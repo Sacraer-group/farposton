@@ -1,6 +1,8 @@
 {% from "_evidence.html" import evidence with context %}
+{% from "_gallery.html" import gallery with context %}
 {% extends "base.html" %}
 {% from "_ui.html" import icon %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='gallery.css') }}">{% endblock %}
 {% block title %}Избранное · Берег{% endblock %}
 {% block content %}
 <div class="page-heading"><div><h1>Избранное</h1><p class="page-intro">Соберите 3–5 квартир и сравните их перед просмотром</p></div><a href="/" class="button button-outline">{{ icon('arrow-left') }}Продолжить поиск</a></div>
@@ -13,11 +15,13 @@
 <div class="cards favorites-grid">
 {% for o, c, card in offers %}
   <article class="listing-card favorite-card" data-saved-offer='{{ [o.source, o.source_id]|tojson }}' hidden>
-    <div class="listing-photo"><a href="{{ url_for('pages.flat', key=card.key) }}" tabindex="-1" aria-hidden="true">{% if o.photos %}<img class="thumb" src="{{ o.photos[0] }}" alt="Фото квартиры: {{ o.address or '' }}" loading="lazy" referrerpolicy="no-referrer">{% else %}<div class="photo-placeholder">{{ icon('image') }}<span>Нет фотографий</span></div>{% endif %}</a><label class="compare-choice"><input type="checkbox" name="o" form="compare-form" value="{{ o.source }}:{{ o.source_id }}" disabled><span>Сравнить</span></label></div>
-    <div class="listing-body"><div class="price-line"><strong>{{ c.monthly_known|rub }}</strong><span>/ месяц</span></div><h2><a href="{{ url_for('pages.flat', key=card.key) }}">{{ room_label(o.rooms) }} · {{ o.area_total or '?' }} м²</a></h2><p class="listing-address">{{ o.address or 'Адрес не указан' }}</p><p class="listing-district">{{ o.district or 'Район не указан' }}</p><div class="move-in-line"><span>На въезд, известно</span><strong>{{ c.move_in_known|rub }}</strong></div><p class="cost-note">{% if c.move_in_unknown %}Не указано: {{ c.move_in_unknown|map('part_label')|join(', ') }}.{% endif %}{% if 'utilities' in c.monthly_unknown %} Коммунальные — уточнить.{% endif %}</p>{{ evidence(o) }}<div class="listing-bottom"><form method="post" action="/api/decide" data-decision-form><input type="hidden" name="csrf_token" value="{{ csrf_token|default('') }}"><input type="hidden" name="source" value="{{ o.source }}"><input type="hidden" name="source_id" value="{{ o.source_id }}"><button name="action" value="skip" class="text-button muted" title="Убрать из избранного и скрыть из подборки" disabled>Убрать из избранного</button></form><a class="details-link" href="{{ url_for('pages.flat', key=card.key) }}">Подробнее {{ icon('arrow-up-right') }}</a></div></div>
+    <div class="listing-photo">{{ gallery(o, link=url_for('pages.flat', key=card.key)) }}<label class="compare-choice"><input type="checkbox" name="o" form="compare-form" value="{{ o.source }}:{{ o.source_id }}" disabled><span>Сравнить</span></label></div>
+    <div class="listing-body"><div class="price-line"><strong>{{ c.monthly_known|rub }}</strong><span>/ месяц</span></div><h2><a href="{{ url_for('pages.flat', key=card.key) }}">{{ room_label(o.rooms) }} · {{ o.area_total or '?' }} м²</a></h2><p class="listing-address">{{ o.address or 'Адрес не указан' }}</p><p class="listing-district">{{ o.district or 'Район не указан' }}</p><div class="move-in-line"><span>На въезд, известно</span><strong>{{ c.move_in_known|rub }}</strong></div><p class="cost-note">{% if c.rent is not none %}Первый месяц аренды учтён.{% else %}Аренда первого месяца не указана.{% endif %} {% if c.move_in_unknown %}Не указано: {{ c.move_in_unknown|map('part_label')|join(', ') }}.{% endif %}{% if 'utilities' in c.monthly_unknown %} Коммунальные — уточнить.{% endif %}</p>{{ evidence(o) }}<div class="listing-bottom"><form method="post" action="/api/decide" data-decision-form><input type="hidden" name="csrf_token" value="{{ csrf_token|default('') }}"><input type="hidden" name="source" value="{{ o.source }}"><input type="hidden" name="source_id" value="{{ o.source_id }}"><button name="action" value="skip" class="text-button muted" title="Убрать из избранного и скрыть из подборки" disabled>Убрать из избранного</button></form><a class="details-link" href="{{ url_for('pages.flat', key=card.key) }}">Подробнее {{ icon('arrow-up-right') }}</a></div></div>
   </article>
 {% endfor %}
 </div>
 <div class="compare-dock"><div class="dock-icon">{{ icon('columns-3') }}</div><div><strong>Выбрано <span data-selected-count>0</span> из {{ max_compare }}</strong><p data-compare-hint>Отметьте квартиры, которые хотите сопоставить</p></div><button form="compare-form" class="button button-primary" data-compare-submit>Сравнить {{ icon('arrow-right') }}</button></div>
 </div>
 {% endblock %}
+
+{% block scripts %}<script src="{{ url_for('static', filename='gallery.js') }}" defer></script>{% endblock %}

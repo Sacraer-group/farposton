@@ -86,7 +86,7 @@ def create_app(db_path: Path | None = None) -> Flask:
                 'house_links_by_offer':house_links_for_offers(get_conn(),keys),
                 'trips_by_offer':trip_context(get_conn(),keys)}
 
-    for name in ("pages", "actions", "compare", "swipe", "houses", "trips"):
+    for name in ("pages", "actions", "compare", "swipe", "houses", "trips", "requirements"):
         try:
             module = import_module(f"flats.web.{name}")
         except ModuleNotFoundError as exc:

@@ -158,8 +158,12 @@ def test_api_contract_ownership_start_step_cancel(conn,tmp_path):
         client=app.test_client()
         assert client.post('/api/trips/schedule',json={'bad':1}).status_code==400
         assert client.post('/api/trips/schedule',json=schedule()).json['version']==1
+        from flats import repo_offers
+        conn.execute("INSERT INTO import_runs(id,started_at,status) VALUES (1,'test','ok')")
+        repo_offers.upsert_offer(conn,dict(source='s',source_id='a',price=30000,lat=43.2,lon=131.2),1)
+        conn.commit()
         job=client.post('/api/trips/start').json
-        assert job['total']==0 and job['status']=='complete'
+        assert job['total']==4 and job['status']=='running'
         assert client.get('/api/trips/'+job['id']).status_code==200
         assert client.post('/api/trips/'+job['id']+'/cancel').json['status']=='cancelled'
         assert client.get('/api/trips/missing').status_code==404
@@ -387,6 +391,55 @@ def test_saved_scope_does_not_charge_skipped_siblings(public_trips_app):
     result=c.post('/api/trips/start',json={'scope':'saved','decisions':decisions},headers=ch)
     assert result.status_code==200
     assert set(result.json['results'])=={'s:alternate'}
+
+
+def test_all_scope_uses_catalog_filters_and_reports_budget(conn,public_trips_app,monkeypatch):
+    from flats import repo_offers,repo_user
+    from flats.web import get_conn
+    monkeypatch.setenv('FLATS_TRIP_SESSION_BUDGET','1')
+    client,headers=_public_client(public_trips_app)
+    with public_trips_app.app_context():
+        dbconn=get_conn()
+        dbconn.execute('UPDATE offers SET rooms=2')
+        for i in range(8):
+            repo_offers.upsert_offer(dbconn,dict(source='s',source_id=f'flat{i}',price=30000,
+                rooms=1,lat=43.2+i/100,lon=131.2,prepayment_raw='за 1 месяц',
+                deposit_raw='Без залога',commission_raw='Без комиссии'),1)
+        repo_offers.upsert_offer(dbconn,dict(source='s',source_id='costly',price=30000,rooms=1,
+            lat=43.5,lon=131.2,prepayment_raw='за 1 месяц',deposit_raw='50 000 ₽',
+            commission_raw='Без комиссии'),1)
+        repo_user.decide(dbconn,'s','flat0','skip')
+        dbconn.commit()
+    client.post('/',data={'apply':'1','monthly_max':'35000','move_in_max':'50000','rooms':'1'},headers=headers)
+    client.post('/api/trips/schedule',json=schedule(),headers=headers)
+    decisions=[['s','flat7','skip']]
+    estimate=client.post('/api/trips/estimate',json={'decisions':decisions},headers=headers)
+    assert estimate.status_code==200
+    assert estimate.json['scope']=='all' and estimate.json['candidates']==7
+    assert not estimate.json['sufficient_budget']
+    with public_trips_app.app_context():
+        assert get_conn().execute('SELECT COUNT(*) FROM trip_request_usage').fetchone()[0]==0
+    response=client.post('/api/trips/start',json={'decisions':decisions,'version':estimate.json['version']},headers=headers)
+    assert response.status_code==200
+    assert set(response.json['results'])=={f's:flat{i}' for i in range(7)}
+    with client.session_transaction() as state:
+        owner=state['visitor_id']
+    with public_trips_app.app_context():
+        final=finish(get_conn(),response.json,owner=owner)
+    assert final['status']=='budget'
+    assert all(result['status']=='incomplete' and result['weekly_seconds'] is None
+               for result in final['results'].values())
+
+
+def test_empty_all_scope_estimate_and_start_do_not_create_job(conn,trip_browser):
+    client,headers,visitor=trip_browser
+    decisions=[['s','first','skip'],['s','second','skip'],['s','kept','skip']]
+    estimate=client.post('/api/trips/estimate',json={'decisions':decisions},headers=headers)
+    assert estimate.status_code==200 and estimate.json['candidates']==0
+    response=client.post('/api/trips/start',json={'decisions':decisions},headers=headers)
+    assert response.status_code==400 and 'условия аренды' in response.json['error']
+    assert visitor not in trips._CURRENT and not trips._JOBS
+    assert conn.execute('SELECT COUNT(*) FROM trip_request_usage').fetchone()[0]==0
 
 def test_restart_replaces_previous_job_without_accumulation(conn):
     trips.save_schedule(conn, schedule(), 'one')

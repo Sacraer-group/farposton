@@ -1,5 +1,7 @@
 # Sprint 1 — pure domain logic
 
+> Historical task specification: the current move-in cost rule in [contracts §5](contracts.md#costs-flatscostspy) supersedes earlier descriptions below.
+
 Goal: money, costs, eligibility, grouping and questions work as pure functions with tests; user state is stored; the web shell starts.
 
 Listings will arrive later as a separate database (owner decision, 2026-11-13). Nothing in this sprint depends on the source. The Metrapi client (old S1-T6) is on hold; the loader is planned when the database format is known.

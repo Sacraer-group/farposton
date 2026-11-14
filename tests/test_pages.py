@@ -36,6 +36,33 @@ def test_bad_number_shows_message(client):
     assert "Неверное число" in client.get("/?apply=1&monthly_max=abc").get_data(as_text=True)
 
 
+@pytest.mark.parametrize("value", ["abc", "0", "-1", "50000.5", "²", "9" * 5000])
+def test_invalid_budget_keeps_the_last_valid_profile(client, value):
+    from flats import repo_user
+
+    client.post("/", data={"apply": "1", "monthly_max": "45000", "rooms": "1"})
+    response = client.post("/", data={"apply": "1", "monthly_max": value})
+    assert response.status_code == 200
+    assert "Неверное число" in response.get_data(as_text=True)
+    conn = db.connect(client.application.config["DB_PATH"])
+    profile = repo_user.get_profile(conn)
+    conn.close()
+    assert profile.monthly_max == 45000 and profile.rooms == (1,)
+
+
+@pytest.mark.parametrize("field,value", [("rooms", "11"), ("rooms", "²"), ("districts", "Несуществующий район")])
+def test_invalid_choice_does_not_clear_other_filters(client, field, value):
+    client.post("/", data={"apply": "1", "monthly_max": "45000"})
+    html = client.post("/", data={"apply": "1", field: value}).get_data(as_text=True)
+    assert "из списка" in html
+    assert 'value="45000"' in client.get("/").get_data(as_text=True)
+
+
+def test_budget_accepts_pasted_grouping_spaces(client):
+    html = client.post("/", data={"apply": "1", "monthly_max": "50\u202f000"}).get_data(as_text=True)
+    assert 'value="50000"' in html
+
+
 def test_flat_page_shows_each_offer_and_raw_terms(client):
     html = client.get("/flat/demo-g1").get_data(as_text=True)
     assert html.count("Предложение ") == 3
@@ -110,3 +137,16 @@ def test_sample_banner_and_similar_photo(tmp_path):
     assert "Сбросить образец" not in client.get("/").get_data(as_text=True)
     assert repo_user.get_profile(conn).sample_photo_url is None
     conn.close()
+
+
+def test_move_in_includes_first_rent_and_filters_without_prepayment(client):
+    conn = db.connect(client.application.config["DB_PATH"])
+    run_import(conn, [{"source": "farpost", "source_id": "rent-first", "price": 40000,
+                       "deposit_raw": "40 000 ₽", "commission_raw": "20 000 ₽",
+                       "address": "Проверка первого месяца"}])
+    conn.close()
+    html = client.get("/flat/farpost:rent-first").get_data(as_text=True)
+    assert "100 000 ₽" in html
+    assert "Первый месяц аренды учтён" in html
+    html = client.get("/?apply=1&move_in_max=90000").get_data(as_text=True)
+    assert "Проверка первого месяца" not in html
