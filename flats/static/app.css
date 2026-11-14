@@ -777,3 +777,14 @@ kbd { display: flex; align-items: center; justify-content: center; background: v
 .map-popup-offer img[hidden] { display: none; }
 .map-popup-offer > span { font-size: 13px; }
 .map-popup-offer:hover .map-popup-link { text-decoration: underline; }
+
+.contact-dialog { width: min(560px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); margin: auto; padding: 24px; overflow-y: auto; border: 1px solid var(--control-line); border-radius: 16px; color: var(--ink); background: var(--surface); box-shadow: 0 12px 48px #00000040; }
+.contact-dialog::backdrop { background: #10291fcc; }
+.contact-dialog-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+.contact-dialog-heading h2 { margin: 0; font-size: 24px; }
+.contact-address { font-weight: 600; }
+.contact-dialog textarea { display: block; width: 100%; min-height: 180px; margin: 8px 0; padding: 12px; resize: vertical; border: 1px solid var(--control-line); border-radius: 8px; font: inherit; font-size: 16px; color: var(--ink); background: var(--surface); }
+.contact-dialog blockquote { margin: 20px 0 0; padding: 16px; border-left: 3px solid var(--accent); white-space: pre-wrap; overflow-wrap: anywhere; background: var(--surface); }
+.contact-next-step { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--control-line); }
+.contact-dialog [hidden] { display: none; }
+@media (max-width: 480px) { .contact-dialog { padding: 18px; } .contact-dialog-heading h2 { font-size: 20px; } }
