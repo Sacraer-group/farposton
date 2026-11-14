@@ -25,7 +25,7 @@
         <a href="/favorites"{% if request.path in ['/favorites', '/compare'] %} aria-current="page"{% endif %}>Избранное</a>
       </nav>
       <button type="button" id="theme-toggle" class="button button-outline theme-toggle" aria-pressed="false" hidden>Тёмная тема</button>
-      <a class="swipe-nav" href="/swipe"{% if request.path == '/swipe' %} aria-current="page"{% endif %}>{{ icon('layers-2') }}<span>Свайпы</span></a>
+      <a class="swipe-nav" aria-label="Свайпы" title="Свайпы" href="/swipe"{% if request.path == '/swipe' %} aria-current="page"{% endif %}>{{ icon('layers-2') }}<span>Свайпы</span></a>
     </div>
   </header>
   <main id="main" class="page-shell" tabindex="-1">

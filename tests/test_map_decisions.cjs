@@ -20,13 +20,14 @@ function element(dataset = {}) {
       if (!listeners.has(type)) listeners.set(type, []);
       listeners.get(type).push(callback);
     },
-    fire(type, detail) { for (const callback of listeners.get(type) || []) callback({ type, detail }); },
+    fire(type, detail, event = {}) { for (const callback of listeners.get(type) || []) callback({ type, detail, ...event }); },
   };
 }
 
 function descendants(node) { return [node, ...node.children.flatMap(descendants)]; }
 
-function mapPage({ hidden = [], sdk = true, mapKey = "test-map-key", fail = false, mutateLinks } = {}) {
+function mapPage({ hidden = [], sdk = true, mapKey = "test-map-key", fail = false, mutateLinks,
+  markerBounds, mapBounds, popupBounds, pendingFocus, viewport = { width: 320, height: 600 } } = {}) {
   const cards = ["a", "b", "c"].map(key => ({ dataset: { listingKey: key }, hidden: hidden.includes(key) }));
   const links = cards.map((card, index) => Object.assign(element({
     key: card.dataset.listingKey, lat: "43.1", lon: String(131.9 + index / 100),
@@ -34,17 +35,23 @@ function mapPage({ hidden = [], sdk = true, mapKey = "test-map-key", fail = fals
     price: `${index + 1}0 000 ₽`, address: index < 2 ? "Дом 7" : "Дом 9",
   }), { href: `https://app.test/flat/${card.dataset.listingKey}` }));
   mutateLinks?.(links);
-  const container = Object.assign(element(), { clientWidth: 500, clientHeight: 300 });
+  const container = Object.assign(element(), { clientWidth: 500, clientHeight: 300,
+    getBoundingClientRect: () => mapBounds });
   const fallback = element(), reset = element(), status = element(), shell = element();
   shell.querySelector = selector => ({
     "[data-map]": container, ".map-data": fallback,
     "[data-map-reset]": reset, "[data-map-status]": status,
   })[selector];
   shell.querySelectorAll = () => links;
+  const workspace = element(pendingFocus ? { pendingMapFocus: pendingFocus } : {});
   const document = Object.assign(element(), {
-    querySelector: () => ({ content: mapKey }),
+    querySelector: selector => selector === "[data-workspace]" ? workspace : { content: mapKey },
     querySelectorAll: selector => selector === ".map-shell" ? [shell] : cards,
-    createElement: () => element(),
+    createElement() {
+      const node = element();
+      node.getBoundingClientRect = () => node.className === "map-price-pill" ? markerBounds : popupBounds;
+      return node;
+    },
   });
   const maps = [], markers = [], timers = [], frames = [];
   const mapgl = {
@@ -66,14 +73,14 @@ function mapPage({ hidden = [], sdk = true, mapKey = "test-map-key", fail = fals
     },
   };
   vm.runInNewContext(sdkSource + "\n" + source, {
-    document, window: { mapgl: sdk ? mapgl : undefined, innerWidth: 320, innerHeight: 600 }, URL,
+    document, window: { mapgl: sdk ? mapgl : undefined, innerWidth: viewport.width, innerHeight: viewport.height }, URL,
     location: { href: "https://app.test/", origin: "https://app.test" },
     setTimeout(callback, delay) { const timer = { callback, delay }; timers.push(timer); return timer; },
     clearTimeout(timer) { if (timer) timer.cleared = true; },
     requestAnimationFrame(callback) { frames.push(callback); },
   });
   return {
-    cards, links, container, fallback, reset, status, shell, maps, markers, timers, document,
+    cards, links, container, fallback, reset, status, shell, maps, markers, timers, document, workspace,
     visibleMarkers() { return markers.filter(marker => !marker.destroyed && marker.options.html.className === "map-price-pill"); },
     popup() { return markers.findLast(marker => !marker.destroyed && marker.options.html.className === "map-popup"); },
     refresh() { document.fire("decisionschange"); },
@@ -152,6 +159,7 @@ test("a page starting with every listing skipped can reveal markers after undo",
 
 test("focus opens the right popup and closing it returns keyboard focus to the marker", () => {
   const view = mapPage();
+  view.maps[0].fire("idle");
   view.document.fire("farposton:map-focus", { key: "b" });
   assert.deepEqual(Array.from(view.maps[0].center), [131.9, 43.1]);
   assert.equal(view.maps[0].zoom, 16);
@@ -262,6 +270,7 @@ test("popup positions inside a narrow compact map", () => {
   pill.getBoundingClientRect = () => ({ left: 26, width: 60, top: 125, bottom: 155 });
   view.visibleMarkers()[0].options.html.fire("click");
   const content = view.popup().options.html;
+  view.frame();
   assert.equal(content.dataset.placement, "below");
   assert.equal(content.style.maxWidth, "264px");
   assert.equal(content.style.maxHeight, "264px");
@@ -276,9 +285,9 @@ test("compact popup uses visible map height and shifts inside it", () => {
   pill.getBoundingClientRect = () => ({ left: 110, width: 60, top: 225, bottom: 255 });
   pill.fire("click");
   const content = view.popup().options.html;
-  assert.equal(content.style.maxHeight, "264px");
-  content.getBoundingClientRect = () => ({ top: -40, bottom: 224 });
+  content.getBoundingClientRect = () => ({ top: -40, bottom: 224, height: 264 });
   view.frame();
+  assert.equal(content.style.maxHeight, "264px");
   assert.equal(content.style.marginTop, "148px");
 });
 
@@ -292,5 +301,82 @@ test("click after hover moves focus into existing preview", () => {
   assert.equal(close.focused, undefined);
   pill.fire("click");
   assert.equal(view.popup(), popup);
+  view.frame();
   assert.equal(close.focused, true);
+});
+
+
+test("popup placement uses settled marker bounds and keeps its close control inside the map", () => {
+  const markerBounds = { left: 1100, top: 450, width: 60, bottom: 482 };
+  const mapBounds = { left: 844, top: 522, right: 1399, bottom: 1002, width: 555 };
+  const popupBounds = { left: 990, top: 378, width: 300, height: 200 };
+  const view = mapPage({ markerBounds, mapBounds, popupBounds, viewport: { width: 1440, height: 1000 } });
+  view.maps[0].fire("idle");
+  view.document.fire("farposton:map-focus", { key: "a" });
+  const content = view.popup().options.html;
+  assert.equal(content.style.maxHeight, undefined);
+  markerBounds.top = 746;
+  markerBounds.bottom = 778;
+  view.frame();
+  assert.equal(content.dataset.placement, "above");
+  assert.equal(content.style.maxHeight, "360px");
+  assert.equal(content.style.maxWidth, "300px");
+  assert.equal(content.style.marginTop, "152px");
+  assert.equal(content.children[0].focused, true);
+  markerBounds.top = 580;
+  markerBounds.bottom = 612;
+  view.maps[0].fire("idle");
+  assert.equal(content.dataset.placement, "below");
+  assert.equal(content.style.maxHeight, "360px");
+});
+
+
+test("activating an already focused preview enters it and Escape returns to the marker", () => {
+  const view = mapPage();
+  const pill = view.visibleMarkers()[0].options.html;
+  pill.fire("focus");
+  view.frame();
+  const popup = view.popup(), close = popup.options.html.children[0];
+  assert.equal(close.focused, undefined);
+  pill.fire("click");
+  view.frame();
+  assert.equal(close.focused, true);
+  popup.options.html.fire("keydown", undefined, { key: "Escape" });
+  assert.equal(popup.destroyed, true);
+  assert.equal(pill.focused, true);
+  pill.fire("focus");
+  const next = view.popup();
+  let prevented = false;
+  pill.fire("keydown", undefined, { key: "Escape", preventDefault() { prevented = true; } });
+  assert.equal(prevented, true);
+  assert.equal(next.destroyed, true);
+});
+
+
+test("an intentional selection made before the SDK loads opens once after readiness", () => {
+  const view = mapPage({ pendingFocus: "b" });
+  assert.equal(view.popup(), undefined);
+  assert.equal(view.workspace.dataset.pendingMapFocus, "b");
+  view.maps[0].fire("idle");
+  const popup = view.popup();
+  assert.ok(popup);
+  assert.ok(descendants(popup.options.html).some(node => node.href === "https://app.test/flat/b"));
+  assert.equal(view.workspace.dataset.pendingMapFocus, undefined);
+  view.frame();
+  assert.equal(popup.options.html.children[0].focused, true);
+  view.maps[0].fire("idle");
+  assert.equal(view.popup(), popup);
+});
+
+test("while the map loads, the last explicit selection wins", () => {
+  const view = mapPage();
+  view.document.fire("farposton:map-focus", { key: "a" });
+  view.document.fire("farposton:map-focus", { key: "c" });
+  assert.equal(view.popup(), undefined);
+  assert.equal(view.workspace.dataset.pendingMapFocus, "c");
+  view.maps[0].fire("idle");
+  const nodes = descendants(view.popup().options.html);
+  assert.ok(nodes.some(node => node.href === "https://app.test/flat/c"));
+  assert.equal(nodes.some(node => node.href === "https://app.test/flat/a"), false);
+  assert.equal(view.workspace.dataset.pendingMapFocus, undefined);
 });

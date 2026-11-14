@@ -1,5 +1,7 @@
 (() => {
   const maps = [];
+  const workspace = document.querySelector("[data-workspace]");
+  let pendingFocus = workspace?.dataset?.pendingMapFocus;
   const cards = new Map([...document.querySelectorAll("[data-listing-key]")]
     .map(card => [card.dataset.listingKey, card]));
   function localUrl(value) {
@@ -93,7 +95,30 @@
         closePopup();
       }, 200);
     };
+    const positionPopup = () => {
+      if (!popupContent?.isConnected || !activePill) return;
+      const markerBounds = activePill.getBoundingClientRect?.();
+      const mapBounds = container.getBoundingClientRect?.();
+      if (!markerBounds || !mapBounds) return;
+      const top = Math.max(0, mapBounds.top) + 8;
+      const bottom = Math.min(window.innerHeight, mapBounds.bottom) - 8;
+      const above = markerBounds.top - top - 24;
+      const below = bottom - markerBounds.bottom - 24;
+      popupContent.dataset.placement = below > above ? "below" : "above";
+      popupContent.style.maxHeight = `${Math.max(0, Math.min(360, bottom - top))}px`;
+      const left = Math.max(0, mapBounds.left), right = Math.min(window.innerWidth, mapBounds.right);
+      const width = Math.max(0, Math.min(300, right - left - 16));
+      const anchor = markerBounds.left + markerBounds.width / 2;
+      const center = Math.max(left + width / 2 + 8, Math.min(right - width / 2 - 8, anchor));
+      popupContent.style.maxWidth = `${width}px`;
+      popupContent.style.marginLeft = `${center - anchor}px`;
+      popupContent.style.marginTop = "0px";
+      const bounds = popupContent.getBoundingClientRect?.();
+      if (bounds) popupContent.style.marginTop = `${Math.max(top, Math.min(bottom - bounds.height, bounds.top)) - bounds.top}px`;
+    };
     map.on("click", closePopup);
+    map.on("idle", positionPopup);
+    map.on("idle", focusPending);
     const fit = () => {
       if (!visiblePoints.length || !container.clientWidth || !container.clientHeight) return;
       map.invalidateSize();
@@ -133,27 +158,18 @@
         let dismissing = false;
         group.open = (focus = true) => {
           keepPopup();
-          if (activeGroup === group) { if (focus) activeClose.focus(); return; }
+          if (activeGroup === group) {
+            if (focus) requestAnimationFrame(() => {
+              if (activeGroup === group) activeClose?.focus();
+            });
+            return;
+          }
           closePopup();
           activeGroup = group;
           activePill = pill;
           const content = document.createElement("div");
           content.className = "map-popup";
           popupContent = content;
-          const markerBounds = pill.getBoundingClientRect?.();
-          const mapBounds = container.getBoundingClientRect?.();
-          if (markerBounds && mapBounds) {
-            const above = markerBounds.top - Math.max(0, mapBounds.top) - 24;
-            const below = Math.min(window.innerHeight, mapBounds.bottom) - markerBounds.bottom - 24;
-            if (below > above) content.dataset.placement = "below";
-            content.style.maxHeight = `${Math.max(0, Math.min(360, Math.min(window.innerHeight, mapBounds.bottom) - Math.max(0, mapBounds.top) - 16))}px`;
-            const left = Math.max(0, mapBounds.left), right = Math.min(window.innerWidth, mapBounds.right);
-            const width = Math.max(0, Math.min(300, right - left - 16));
-            content.style.maxWidth = `${width}px`;
-            const anchor = markerBounds.left + markerBounds.width / 2;
-            const center = Math.max(left + width / 2 + 8, Math.min(right - width / 2 - 8, anchor));
-            content.style.marginLeft = `${center - anchor}px`;
-          }
           content.addEventListener("pointerenter", keepPopup);
           content.addEventListener("pointerleave", scheduleClose);
           content.addEventListener("focusin", keepPopup);
@@ -214,14 +230,10 @@
             content.append(house);
           }
           popup = new window.mapgl.HtmlMarker(map, { coordinates, html: content, interactive: true, zIndex: 2 });
-          // MapGL attaches marker content on the next frame.
+          // MapGL attaches markers and applies setCenter on the next frame.
           requestAnimationFrame(() => {
-            if (!content.isConnected || popupContent !== content) return;
-            if (mapBounds) {
-              const bounds = content.getBoundingClientRect();
-              const top = Math.max(0, mapBounds.top) + 8, bottom = Math.min(window.innerHeight, mapBounds.bottom) - 8;
-              content.style.marginTop = `${bounds.top < top ? top - bounds.top : Math.min(0, bottom - bounds.bottom)}px`;
-            }
+            if (popupContent !== content || !content.isConnected) return;
+            positionPopup();
             if (focus) close.focus();
           });
         };
@@ -230,6 +242,12 @@
         pill.addEventListener("pointerleave", scheduleClose);
         pill.addEventListener("focus", () => { if (!dismissing) group.open(false); });
         pill.addEventListener("blur", scheduleClose);
+        pill.addEventListener("keydown", event => {
+          if (event.key === "Escape" && activeGroup === group) {
+            event.preventDefault();
+            closePopup();
+          }
+        });
         group.offers.forEach(offer => markers.set(offer.key, group));
       });
       reportState();
@@ -254,14 +272,24 @@
       entry.visible = visible;
     });
   });
-  document.addEventListener("farposton:map-focus", event => {
-    maps.forEach(({ map, markers }) => {
-      const group = markers.get(event.detail?.key);
-      if (!group) return;
+  function focusPending() {
+    if (!pendingFocus) return;
+    for (const { map, markers, container } of maps) {
+      const group = markers.get(pendingFocus);
+      if (!group || container.dataset.mapState !== "ready") continue;
+      pendingFocus = null;
+      if (workspace) delete workspace.dataset.pendingMapFocus;
       map.invalidateSize();
       map.setCenter(group.coordinates, { animate: false });
       map.setZoom(16, { animate: false });
       group.open();
-    });
+      break;
+    }
+  }
+  document.addEventListener("farposton:map-focus", event => {
+    pendingFocus = event.detail?.key;
+    if (workspace && pendingFocus) workspace.dataset.pendingMapFocus = pendingFocus;
+    focusPending();
   });
+  focusPending();
 })();

@@ -17,8 +17,8 @@
     </div>
     <div class="request-actions"><button type="button" id="parse-request" class="button button-primary">Разобрать запрос {{ icon('arrow-right') }}</button><span>Вы решаете, какие условия применить</span></div>
     <p id="request-status" class="request-status" role="status" aria-live="polite"></p>
-    <div id="request-proposal" class="request-proposal" hidden>
-      <h3>Проверьте, что удалось понять</h3>
+    <div id="request-proposal" class="request-proposal" hidden tabindex="-1" role="region" aria-labelledby="proposal-heading">
+      <h3 id="proposal-heading">Проверьте, что удалось понять</h3>
       <dl id="parsed-values" class="parsed-values"></dl>
       <ul id="request-notes" class="request-notes"></ul>
       <p class="small-note">Перенесём в форму только распознанные поля. Остальные условия формы сохранятся.</p>
@@ -46,7 +46,7 @@
       <a class="scenario-trip-link" href="/trips">{{ icon('map-pinned') }}<span><strong>Проверьте свою неделю</strong><small>Работа, учёба, пересадки и пешие участки</small></span>{{ icon('arrow-right') }}</a>
     </aside>
     <div class="advisor-main">
-      <section id="advisor-results" aria-labelledby="results-heading" aria-busy="false">
+      <section id="advisor-results" aria-labelledby="results-heading" aria-busy="false" tabindex="-1">
         <div class="section-heading"><div><p class="eyebrow">Ваш следующий шаг</p><h2 id="results-heading">С каких адресов начать</h2></div><a class="text-link" href="/">Открыть карту {{ icon('arrow-up-right') }}</a></div>
         <p id="advisor-status" class="advisor-status" role="status" aria-live="polite">Опишите задачу или заполните форму. После подбора здесь появятся основания выбора и важные неизвестные.</p>
         <div id="applied-conditions" class="applied-conditions" hidden aria-label="Условия этой подборки"></div>

@@ -20,9 +20,12 @@ def test_page_navigation_and_keyboard_entry(tmp_path, path, active):
     assert 'href="#main"' in html
     assert '<main id="main" class="page-shell" tabindex="-1">' in html
     assert 'name="csrf-token"' in html
+    assert 'class="swipe-nav" aria-label="Свайпы" title="Свайпы"' in html
     assert '/static/decisions.js' in html
     assert 'id="theme-toggle"' in html
     assert html.index('/static/theme.js') < html.index('/static/app.css')
+    if path == "/advisor":
+        assert 'id="advisor-results" aria-labelledby="results-heading" aria-busy="false" tabindex="-1"' in html
 
 
 def test_map_key_is_separate_from_server_routing_key(tmp_path, monkeypatch):

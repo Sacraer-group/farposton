@@ -9,3 +9,11 @@ Earlier upstream records report public release `8983ee9` through CI run `4353286
 The [judging materials](judging/README.ru.md) include the rubric, source checks, seven-minute defense, AI evidence and an unfilled user-validation protocol. Upstream reported that its own Slides deck was not authored because reauthentication was required. No user-study outcome is claimed.
 
 Current verification and pending checks are in [state](state.md). No live LLM provider has been configured or verified. Earlier production inspection recorded a separate Forecast service and an older preview; preserve and back up the existing flats volume before deployment. These historical observations do not verify the current deployment.
+
+## User-flow QA follow-up 2026-11-14
+
+Scope: select 3–5 real apartments through catalog/map, swipes/photo similarity, comparison and a viewing brief, on desktop and 360/390px. Work isolated in fix/userflow-20261114: initial fixes on b883238, then merged current main9bdd76f preserving guided requests, gallery/contact and quick trips.
+
+Confirmed fixes: popup geometry after MapGL paint/idle with accessible close and keyboard entry/escape; named mobile swipe navigation; focus to current successful advisor results. The next pass also reveals/focuses parsed conditions before explicit confirmation, and preserves the last intentional map selection while MapGL loads. No data, credentials or route-provider mocks shipped.
+
+Checks on integrated code:594Python tests passed,1optional browser module skipped locally;48JavaScript tests passed. Separate headless browsers exercise actual HTML/API. Public quick-trip checks confirmed duplicate-time validation, save/reload and anonymous isolation; full-catalog estimate stopped before paid routing. Independent headless desktop and360/390px guided flows passed, including gallery/contact, copied plans and visitor isolation. Proposal focus passed6mobile paths without auto-applying filters. A real early map click at0markers later opened exactly1correct popup with no second click. CI with the browser extra and the post-release public repeat are the remaining release gates.
