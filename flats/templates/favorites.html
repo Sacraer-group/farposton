@@ -3,7 +3,7 @@
 {% from "_ui.html" import icon %}
 {% block title %}Избранное · Берег{% endblock %}
 {% block content %}
-<div class="page-heading"><div><p class="eyebrow">Ваша подборка</p><h1>Избранное<span class="heading-dot">.</span></h1><p class="page-intro">Соберите 3–5 квартир и сравните их перед просмотром.</p></div><a href="/" class="button button-outline">{{ icon('arrow-left') }}Продолжить поиск</a></div>
+<div class="page-heading"><div><h1>Избранное</h1><p class="page-intro">Соберите 3–5 квартир и сравните их перед просмотром</p></div><a href="/" class="button button-outline">{{ icon('arrow-left') }}Продолжить поиск</a></div>
 <p class="muted">Сохранено только в этом браузере. При очистке данных сайта избранное удалится.</p>
 <div class="empty-state favorites-empty" id="favorites-empty">{{ icon('heart') }}<h2>Пока ничего не сохранено</h2><p>Нажмите «Сохранить» в подборке. Здесь будут квартиры, к которым стоит вернуться.</p><a href="/" class="button button-primary">Посмотреть квартиры {{ icon('arrow-right') }}</a></div>
 <div id="favorites-content" hidden>

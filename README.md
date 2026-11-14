@@ -81,6 +81,35 @@ Open «Мой выбор» (`/advisor`) to set requirements and a priority, revi
 
 Without a configured model provider, the advisor clearly uses retrieval. An optional OpenAI-compatible provider can be configured locally with `FLATS_LLM_BASE_URL` and `FLATS_LLM_MODEL`. The app appends `/chat/completions` to the base URL; for a compatible service, the base may end in `/v1`. Set `FLATS_LLM_API_KEY` if the provider requires a key, and keep it secret; a keyless local provider does not need one. Live provider behavior has not been verified. See [decision flow and demo](docs/decision-flow.md).
 
+## Map basemap, fonts and theme
+
+All embedded maps, including the journey point picker, use Leaflet with the
+official 2GIS Raster Tiles API. Set `FLATS_2GIS_MAP_KEY` in the untracked `.env`;
+Compose reads that file automatically. For a local shell, export its values before
+starting Flask:
+
+```bash
+set -a
+. ./.env
+set +a
+flask --app flats.web:create_app run --host 127.0.0.1
+```
+
+This map key is browser-visible: restrict its allowed origins in 2GIS and keep it
+separate from the server-only routing key in `FLATS_2GIS_KEY_FILE`. Tile loads
+consume the provider's quota, independently of the application's routing limits.
+Without a map key, address links and manual coordinate entry remain available.
+Demo keys expire and have provider-side limits.
+
+The font stack follows VL.ru: Arial with the locally hosted InterGlyphs ruble sign
+and a sans-serif fallback. Arial itself is not bundled. Font source and license:
+[`flats/static/fonts/README.md`](flats/static/fonts/README.md).
+
+The header's «Тёмная тема» button toggles light/dark mode and stores the choice in
+this browser under `bereg.theme`. Without a saved choice, the system preference is
+used. If browser storage is blocked, switching still works until the next reload.
+Print output uses the light palette.
+
 ## Refresh real data
 
 Needs a Metrapi API key. Use the official API only: their terms forbid scraping the website.

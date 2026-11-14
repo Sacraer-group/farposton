@@ -5,6 +5,7 @@ const test = require("node:test");
 const vm = require("node:vm");
 
 const source = fs.readFileSync(path.join(__dirname, "../flats/static/map.js"), "utf8");
+const tileSource = fs.readFileSync(path.join(__dirname, "../flats/static/map-tiles.js"), "utf8");
 
 function element(dataset = {}) {
   const listeners = new Map();
@@ -20,7 +21,7 @@ function element(dataset = {}) {
   };
 }
 
-function mapPage({ hidden = [], leaflet = true } = {}) {
+function mapPage({ hidden = [], leaflet = true, mapKey = "test-map-key" } = {}) {
   const cards = ["a", "b", "c"].map(key => ({ dataset: { listingKey: key }, hidden: hidden.includes(key) }));
   const links = cards.map((card, index) => Object.assign(element({
     key: card.dataset.listingKey, lat: "43.1", lon: String(131.9 + index / 100),
@@ -35,6 +36,7 @@ function mapPage({ hidden = [], leaflet = true } = {}) {
   })[selector];
   shell.querySelectorAll = () => links;
   const document = Object.assign(element(), {
+    querySelector: selector => selector === 'meta[name="2gis-map-key"]' ? { content: mapKey } : null,
     querySelectorAll: selector => selector === ".map-shell" ? [shell] : cards,
     createElement: () => element(),
   });
@@ -72,8 +74,9 @@ function mapPage({ hidden = [], leaflet = true } = {}) {
         openPopup() { this.opened = true; },
       };
     },
-    tileLayer() {
+    tileLayer(url, options) {
       const layer = Object.assign(element(), {
+        url, options,
         on(type, callback) { this.addEventListener(type, callback); return this; },
         addTo() { return this; },
       });
@@ -81,7 +84,7 @@ function mapPage({ hidden = [], leaflet = true } = {}) {
       return layer;
     },
   };
-  vm.runInNewContext(source, {
+  vm.runInNewContext(tileSource + "\n" + source, {
     document, window: { L: leaflet ? L : undefined }, L, URL,
     location: { href: "https://app.test/", origin: "https://app.test" },
     matchMedia: () => ({ matches: true }),
@@ -89,6 +92,29 @@ function mapPage({ hidden = [], leaflet = true } = {}) {
   return { cards, links, container, fallback, reset, status, shell, maps, layers, tiles,
     refresh() { document.fire("decisionschange"); } };
 }
+
+test("maps use the official 2GIS raster endpoint with encoded key and attribution", () => {
+  const view = mapPage({ mapKey: "demo key&other=value" });
+  assert.equal(view.tiles.length, 1);
+  assert.match(view.tiles[0].url, /^https:\/\/tile0\.maps\.2gis\.com\/v2\/tiles\/online_sd\/\{z\}\/\{x\}\/\{y\}\.png\?/);
+  const url = new URL(view.tiles[0].url);
+  assert.equal(url.searchParams.get("key"), "demo key&other=value");
+  assert.equal([...url.searchParams].length, 1);
+  assert.match(view.tiles[0].options.attribution, /https:\/\/2gis\.ru\//);
+  assert.doesNotMatch(view.tiles[0].url, /openstreetmap/);
+});
+
+test("missing browser key keeps usable address links without requesting tiles", () => {
+  const view = mapPage({ mapKey: "   " });
+  assert.equal(view.maps.length, 0);
+  assert.equal(view.tiles.length, 0);
+  assert.equal(view.container.hidden, true);
+  assert.equal(view.fallback.hidden, false);
+  assert.match(view.status.textContent, /2ГИС/);
+  view.cards[0].hidden = true;
+  view.refresh();
+  assert.equal(view.links[0].hidden, true);
+});
 
 test("skipping and undoing a listing updates grouped markers, popup links and counts", () => {
   const view = mapPage();

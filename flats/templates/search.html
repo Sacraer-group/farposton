@@ -3,10 +3,10 @@
 {% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}">{% endblock %}
 {% block content %}
 <div class="page-heading">
-  <div><p class="eyebrow">Долгосрочная аренда · Владивосток</p><h1>Квартиры для просмотра<span class="heading-dot">.</span></h1><p class="page-intro">Сравните расходы, расположение и сведения о доме.</p></div>
+  <div><p class="eyebrow">Долгосрочная аренда во Владивостоке</p><h1>Квартиры для просмотра</h1><p class="page-intro">Сравните расходы, расположение и сведения о доме</p></div>
   <a class="button button-outline heading-action" href="/favorites">{{ icon('heart') }}К моей подборке {{ icon('arrow-right') }}</a>
 </div>
-<section class="decision-entry commute-entry" aria-label="Подбор по поездкам"><div><span class="eyebrow">Дом под ваш ритм</span><strong>ДВФУ, работа, Луговая — откуда удобнее добираться?</strong><p>Добавьте места и поездки недели. Сравним квартиры по времени в дороге, пересадкам и вашим условиям.</p></div><a class="button button-primary" href="/trips">Подобрать по поездкам {{ icon('arrow-right') }}</a></section>
+<section class="decision-entry commute-entry" aria-label="Подбор по поездкам"><div><strong>Квартира под ваши поездки</strong><p>Добавьте места и поездки недели. Сравним квартиры по времени в дороге, пересадкам и вашим условиям.</p></div><a class="button button-primary" href="/trips">Подобрать по поездкам {{ icon('arrow-right') }}</a></section>
 <form method="post" class="filters" id="search-filters" aria-label="Условия поиска">
   <input type="hidden" name="csrf_token" value="{{ csrf_token|default('') }}"><input type="hidden" name="apply" value="1">
   <label class="money-filter"><span>Аренда в месяц до</span><span class="input-unit"><input name="monthly_max" inputmode="numeric" placeholder="Без ограничения" value="{{ profile.monthly_max or '' }}"><span>₽</span></span></label>

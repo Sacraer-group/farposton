@@ -21,6 +21,7 @@ def get_conn() -> Connection:
 def create_app(db_path: Path | None = None) -> Flask:
     app = Flask(__name__, template_folder="../templates", static_folder="../static")
     app.config["DB_PATH"] = db_path or config.db_path()
+    app.config["TWO_GIS_MAP_KEY"] = os.environ.get("FLATS_2GIS_MAP_KEY", "").strip()
     app.config['PUBLIC_DEMO'] = os.environ.get('FLATS_PUBLIC_DEMO', '0') == '1'
     app.secret_key = os.environ.get('FLATS_SECRET_KEY') or (None if app.config['PUBLIC_DEMO'] else secrets.token_hex(32))
     if not app.secret_key:
@@ -80,6 +81,7 @@ def create_app(db_path: Path | None = None) -> Flask:
         from flats.trips import trip_context
         keys=[(o.source,o.source_id) for o in repo_offers.all_offers(get_conn())]
         return {"last_import": row["finished_at"] if row is not None else None,
+                'two_gis_map_key':current_app.config["TWO_GIS_MAP_KEY"],
                 'csrf_token':session.get('csrf_token','') if has_request_context() else '',
                 'house_links_by_offer':house_links_for_offers(get_conn(),keys),
                 'trips_by_offer':trip_context(get_conn(),keys)}
