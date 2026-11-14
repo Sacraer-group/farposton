@@ -1,0 +1,53 @@
+{
+  "source": "https://docs.google.com/presentation/d/17VkgmGGk1mqcpUuRnTUXL8KHDxOGk3qvNd_0HsuWJdA/edit",
+  "verified_on": "2026-11-14",
+  "criteria": [
+    {
+      "id": "mvp",
+      "max_points": 12
+    },
+    {
+      "id": "architecture",
+      "max_points": 8
+    },
+    {
+      "id": "ai_process",
+      "max_points": 10
+    },
+    {
+      "id": "safety",
+      "max_points": 5
+    },
+    {
+      "id": "user_problem",
+      "max_points": 8
+    },
+    {
+      "id": "scenario",
+      "max_points": 12
+    },
+    {
+      "id": "decisions",
+      "max_points": 10
+    },
+    {
+      "id": "city_significance",
+      "max_points": 8
+    },
+    {
+      "id": "local_fit",
+      "max_points": 8
+    },
+    {
+      "id": "measurement",
+      "max_points": 4
+    },
+    {
+      "id": "presentation",
+      "max_points": 15
+    }
+  ],
+  "presentation_minutes": 7,
+  "questions_minutes": 3,
+  "score_awarded": null
+}

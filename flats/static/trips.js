@@ -5,7 +5,7 @@
   const placesList = document.querySelector('#trip-places');
   const legsList = document.querySelector('#trip-legs');
   const names = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
-  let schedule = { places: [], legs: [] }, version = null, job = null, running = false, dirty = false;
+  let schedule = { places: [], legs: [] }, version = null, job = null, running = false, dirty = false, estimate = null;
   const uid = () => crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const node = (tag, text, cls) => { const n = document.createElement(tag); if (text) n.textContent = text; if (cls) n.className = cls; return n; };
   const say = (text, error = false) => { status.textContent = text; status.className = error ? 'notice notice-error' : 'trip-status'; };
@@ -17,6 +17,8 @@
   }
   function changed() {
     dirty = true;
+    estimate = null;
+    document.querySelector('#start-trips').textContent = 'Оценить расчёт';
     document.querySelector('#trip-result-link').hidden = true;
     say('График изменён. Сохраните его и запустите новый расчёт.');
   }
@@ -70,7 +72,7 @@
     manual.elements.lon.value = Number(lon).toFixed(6);
     manual.elements.confirmed.checked = false;
     if (picker) {
-      if (!marker) marker = L.marker([lat, lon]).addTo(picker);
+      if (!marker) marker = L.circleMarker([lat, lon], { radius: 8, color: '#ffffff', weight: 3, fillColor: '#326951', fillOpacity: 1 }).addTo(picker);
       else marker.setLatLng([lat, lon]);
     }
     pickerStatus.textContent = `Выбрана точка ${Number(lat).toFixed(5)}, ${Number(lon).toFixed(5)}. Проверьте место и подтвердите его ниже.`;
@@ -99,10 +101,27 @@
   document.querySelector('#save-schedule').addEventListener('click', async () => { try { await save(); say('График сохранён. Можно запустить подбор.'); } catch (error) { say(error.message, true); } });
   function setRunning(value) { running = value; root.querySelectorAll('button:not(#cancel-trips), input, select').forEach(el => el.disabled = value); document.querySelector('#cancel-trips').hidden = !value; document.querySelector('#trip-progress').hidden = !value; if (!value) document.querySelector('#add-leg').disabled = !schedule.places.length; }
   function showJob(data) { const progress = document.querySelector('#trip-progress'); progress.max = data.total || 1; progress.value = data.done || 0; say(`Неделя ${data.week_start || ''} — ${data.week_end || ''}. Рассчитано ${data.done || 0} из ${data.total || 0} участков.`); }
+  document.addEventListener('decisionschange', () => { estimate = null; document.querySelector('#start-trips').textContent = 'Оценить расчёт'; });
+  document.querySelector('#trip-scope').addEventListener('change', () => { estimate = null; document.querySelector('#start-trips').textContent = 'Оценить расчёт'; say('Область подбора изменена. Повторите оценку расхода запросов.'); });
   document.querySelector('#start-trips').addEventListener('click', async () => {
-    try { const decisions = window.FlatsDecisions.current(); await save(); setRunning(true); const data = await api('/start', { method: 'POST', body: JSON.stringify({ version, decisions }) }); job = data.id; let current = data; showJob(current);
+    try {
+      await save();
+      const scope = document.querySelector('#trip-scope').value;
+      const decisions = window.FlatsDecisions.current();
+      const choiceKey = JSON.stringify(decisions);
+      if (!estimate || estimate.version !== version || estimate.scope !== scope || estimate.choiceKey !== choiceKey) {
+        estimate = await api('/estimate', { method: 'POST', body: JSON.stringify({ scope, decisions }) });
+        estimate.choiceKey = choiceKey;
+        const summary = `${estimate.candidates} квартир, ${estimate.total_tasks} участков недели. Потребуется до ${estimate.unique_queries} запросов; осталось ${estimate.remaining_session} на сессию и ${estimate.remaining_global} на сервер.`;
+        if (!estimate.sufficient_budget) { estimate = null; say(`${summary} Для полного расчёта недостаточно лимита: сократите число квартир, дней или поездок.`, true); return; }
+        document.querySelector('#start-trips').textContent = 'Запустить расчёт';
+        say(`${summary}${estimate.unresolved_tasks ? ` У ${estimate.unresolved_tasks} участков нет пригодных координат; они останутся неполными.` : ''} Проверьте оценку и нажмите «Запустить расчёт».`);
+        return;
+      }
+      setRunning(true); const data = await api('/start', { method: 'POST', body: JSON.stringify({ version, scope, decisions }) }); job = data.id; let current = data; showJob(current);
+
       while (running && current.status === 'running') { current = await api(`/${encodeURIComponent(job)}/step`, { method: 'POST', body: '{}' }); showJob(current); await new Promise(resolve => setTimeout(resolve, 80)); }
-      setRunning(false); say(current.status === 'complete' ? 'Расчёт завершён. Откройте подборку: сначала полностью рассчитанные подходящие квартиры.' : 'Расчёт остановлен или ограничен. Неполные результаты отмечены в подборке.'); document.querySelector('#trip-result-link').hidden = false;
+      setRunning(false); estimate = null; document.querySelector('#start-trips').textContent = 'Оценить расчёт'; say(current.status === 'complete' ? 'Расчёт завершён. Откройте подборку: сначала полностью рассчитанные подходящие квартиры.' : 'Расчёт остановлен или ограничен. Неполные результаты отмечены в подборке.'); document.querySelector('#trip-result-link').hidden = false;
     } catch (error) { setRunning(false); say(error.message, true); }
   });
   document.querySelector('#cancel-trips').addEventListener('click', async () => { running = false; try { if (job) await api(`/${encodeURIComponent(job)}/cancel`, { method: 'POST', body: '{}' }); say('Расчёт остановлен. Доступны только уже рассчитанные участки.'); document.querySelector('#trip-result-link').hidden = false; } catch (error) { say(error.message, true); } finally { setRunning(false); } });

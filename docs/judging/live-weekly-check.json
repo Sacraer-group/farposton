@@ -1,0 +1,22 @@
+{
+  "environment": "isolated server database copy; Flask HTTP test client; live 2GIS provider, no fixture",
+  "places": 5,
+  "schedule_legs": 6,
+  "weekdays": 5,
+  "selected_flats": 3,
+  "week_start": "2026-11-16",
+  "week_end": "2026-11-22",
+  "estimated_unique_queries": 50,
+  "dated_tasks": 90,
+  "processed_tasks": 90,
+  "job_status": "complete",
+  "leg_statuses": {
+    "ok": 90
+  },
+  "flat_statuses": {
+    "acceptable": 3
+  },
+  "elapsed_seconds": 4.24,
+  "place_precision": "OSM territory/point and source address coordinates; entrance-level accuracy not established",
+  "user_research": false
+}

@@ -276,3 +276,114 @@ def test_provider_freshness_is_preserved_for_reused_routes(conn):
     job=trips.start_job(conn,[row('unknown',lat=None),row('error')],'one')
     failed=finish(conn,job,get_route=lambda *args:{'status':'api_error','reason':'Нет доступа'})
     assert all('calculated_at' not in leg for result in failed['results'].values() for leg in result['legs'])
+
+
+def test_estimate_uses_shared_tasks_without_spending_or_replacing_job(conn):
+    trips.save_schedule(conn,schedule(),'one')
+    old=trips.start_job(conn,[row('old')],'one')
+    assert trips.reserve_request('one',conn)
+    before=[tuple(r) for r in conn.execute('SELECT * FROM trip_request_usage ORDER BY visitor_id')]
+    estimate=trips.estimate_job(conn,[row('a'),row('b',lat=43.3)],'one')
+    assert estimate['total_tasks']==8
+    assert estimate['unique_queries']==7  # constant a->b is reused between homes
+    assert estimate['candidates']==2 and estimate['remaining_session']==99
+    assert estimate['sufficient_budget']
+    assert trips._CURRENT['one']==old['id']
+    assert trips.status_job(conn,old['id'],'one')['status']=='running'
+    assert [tuple(r) for r in conn.execute('SELECT * FROM trip_request_usage ORDER BY visitor_id')]==before
+    job=trips.start_job(conn,[row('a'),row('b',lat=43.3)],'one')
+    calls=[]
+    def counted(*args):calls.append(args);return provider(*args)
+    assert finish(conn,job,get_route=counted)['status']=='complete'
+    assert len(calls)==estimate['unique_queries']
+
+
+def test_estimate_reports_both_remaining_quotas_and_missing_coordinates(conn,monkeypatch):
+    trips.save_schedule(conn,schedule(),'one')
+    monkeypatch.setenv('FLATS_TRIP_SESSION_BUDGET','2')
+    monkeypatch.setenv('FLATS_TRIP_GLOBAL_BUDGET','3')
+    assert trips.reserve_request('one',conn)
+    estimate=trips.estimate_job(conn,[row(),row('unknown',lat=None)],'one')
+    assert estimate['remaining_session']==1 and estimate['remaining_global']==2
+    assert not estimate['sufficient_budget']
+    assert estimate['unresolved_tasks']==3  # constant a->b still has valid coordinates
+    assert trips._CURRENT=={}
+
+
+@pytest.fixture
+def public_trips_app(tmp_path,monkeypatch):
+    from flats import repo_offers
+    from flats.web import create_app,get_conn
+    monkeypatch.setenv('FLATS_PUBLIC_DEMO','1')
+    monkeypatch.setenv('FLATS_SECRET_KEY','test-public-scope-secret')
+    app=create_app(tmp_path/'public-trips.db');app.testing=True
+    with app.app_context():
+        c=get_conn()
+        c.execute("INSERT INTO import_runs(id,started_at,status) VALUES (1,'test','ok')")
+        for ident,price,group in [('saved',30000,'shared'),('alternate',32000,'shared'),('expensive',50000,'other'),('foreign',31000,'foreign')]:
+            repo_offers.upsert_offer(c,dict(source='s',source_id=ident,group_id=group,price=price,lat=43.2,lon=131.2),1)
+        c.commit()
+    return app
+
+
+def _public_client(app):
+    client=app.test_client();client.get('/trips')
+    with client.session_transaction() as state:
+        headers={'X-CSRF-Token':state['csrf_token']}
+    return client,headers
+
+
+def test_saved_scope_uses_explicit_browser_ids_and_money_filters(public_trips_app):
+    from flats import repo_user
+    from flats.web import get_conn
+    a,ah=_public_client(public_trips_app);b,bh=_public_client(public_trips_app)
+    # Legacy persisted choices are not a browser snapshot or a fallback.
+    with public_trips_app.app_context():
+        conn=get_conn();repo_user.decide(conn,'s','foreign','save')
+        before=[tuple(r) for r in conn.execute('SELECT * FROM decisions')]
+    decisions=[['s','saved','save'],['s','expensive','save']]
+    a.post('/',data={'apply':'1','monthly_max':'35000'},headers=ah)
+    a.post('/api/trips/schedule',json=schedule(),headers=ah)
+    b.post('/api/trips/schedule',json=schedule(),headers=bh)
+    estimate=a.post('/api/trips/estimate',json={'scope':'saved','decisions':decisions},headers=ah)
+    assert estimate.status_code==200
+    assert estimate.json['offers']==1 and estimate.json['candidates']==1
+    assert b.post('/api/trips/estimate',json={'scope':'saved','decisions':[]},headers=bh).status_code==400
+    assert a.post('/api/trips/estimate',json={'scope':'saved'},headers=ah).status_code==400
+    job=a.post('/api/trips/start',json={'scope':'saved','version':estimate.json['version'],'decisions':decisions},headers=ah)
+    assert job.status_code==200
+    assert set(job.json['results'])=={'s:saved'}
+    assert a.get('/api/trips/estimate?scope=invalid').status_code==400
+    assert a.post('/api/trips/start',json={'scope':'saved','version':999,'decisions':decisions},headers=ah).status_code==400
+    assert a.post('/api/trips/start',json={'scope':[]},headers=ah).status_code==400
+    with public_trips_app.app_context():
+        assert [tuple(r) for r in get_conn().execute('SELECT * FROM decisions')]==before
+        assert get_conn().execute('SELECT COUNT(*) FROM visitor_decisions').fetchone()[0]==0
+
+
+def test_saved_scope_rejects_empty_invalid_and_more_than_five_flats(public_trips_app):
+    from flats import repo_offers
+    from flats.web import get_conn
+    c,ch=_public_client(public_trips_app)
+    c.post('/api/trips/schedule',json=schedule(),headers=ch)
+    assert c.get('/api/trips/estimate?scope=saved').status_code==400
+    with public_trips_app.app_context():
+        conn=get_conn()
+        for i in range(6):repo_offers.upsert_offer(conn,dict(source='s',source_id=f'saved{i}',price=30000,lat=43.2,lon=131.2),1)
+        conn.commit()
+    decisions=[['s',f'saved{i}','save'] for i in range(6)]
+    assert c.post('/api/trips/estimate',json={'scope':'saved','decisions':decisions},headers=ch).status_code==400
+    assert c.post('/api/trips/start',json={'scope':'saved','decisions':decisions},headers=ch).status_code==400
+    assert c.get('/api/trips/estimate?scope=all').status_code==200
+    for invalid in (None,[['s','saved0','like']],[['s','saved0','save'],['s','saved0','save']]):
+        assert c.post('/api/trips/estimate',json={'scope':'saved','decisions':invalid},headers=ch).status_code==400
+    assert c.post('/api/trips/estimate',json={'scope':'saved','decisions':[['s','unknown','save']]},headers=ch).status_code==400
+
+
+def test_saved_scope_does_not_charge_skipped_siblings(public_trips_app):
+    c,ch=_public_client(public_trips_app)
+    c.post('/api/trips/schedule',json=schedule(),headers=ch)
+    decisions=[['s','saved','skip'],['s','alternate','save'],['s','foreign','skip']]
+    result=c.post('/api/trips/start',json={'scope':'saved','decisions':decisions},headers=ch)
+    assert result.status_code==200
+    assert set(result.json['results'])=={'s:alternate'}

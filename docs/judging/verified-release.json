@@ -1,0 +1,28 @@
+{
+  "checked_at": "2026-11-14T00:18:36.226142+00:00",
+  "revision": "8983ee90f85ea6dce170e3bf0920a38b0754dd18",
+  "url": "https://farposton.renosaza.com",
+  "ci_run": 43532864183,
+  "tests_passed": 410,
+  "browser": {
+    "desktop_width": 1440,
+    "mobile_width": 390,
+    "places": 5,
+    "legs": 6,
+    "isolation": true,
+    "favorites_compare_house_swipe_undo": true,
+    "page_errors": 0
+  },
+  "live_public_route_results": 4,
+  "csrf_missing_rejected": 403,
+  "restart_schedule_favorites_session_preserved": true,
+  "house_snapshot": {
+    "houses": 48,
+    "offers": 50
+  },
+  "limitations": [
+    "Places API meta403; map selection available",
+    "Routing tariff quota not independently confirmed",
+    "Calculation jobs expire in memory and require rerun after restart"
+  ]
+}

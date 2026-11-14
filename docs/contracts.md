@@ -239,3 +239,9 @@ Advisor and `/api/trips/start` JSON requests carry compact local decisions, vali
 | pets unknown | `Можно ли жить с животными?` |
 | another offer of the card differs in price/deposit/commission/prepayment (raw, stripped, lowercased) | `Условия на площадках различаются — подтвердите условия этого предложения` |
 | always | `Есть ли другие платежи при въезде?` |
+
+### Routing preflight and saved shortlist
+
+`POST /api/trips/estimate` accepts `{scope: "saved"|"all", decisions: [[source, source_id, action], ...]}`. It validates a transient browser snapshot, applies the current monetary filters, and reads the versioned schedule. It returns candidate/offer counts, dated task count, unique provider request estimate, unresolved coordinate count, remaining visitor/server quotas and `sufficient_budget`. It never calls2GIS, charges quota or replaces a current job. POST keeps local choices out of query strings; existing GET estimate remains compatible with the default all/no-choices case.
+
+`POST /api/trips/start` accepts the same scope/decisions plus optional schedule version. For saved scope exactly saved eligible offers are used, with an explicit limit of five distinct apartments and a clear error for empty/oversized selection. The browser invalidates preflight when its local decisions or schedule change. Quota is checked again during execution; estimate does not reserve requests.
