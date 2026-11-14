@@ -148,6 +148,21 @@ def test_latest_failure_preserves_success_and_writer_does_not_commit(conn):
     assert passport['sources']['last_successful'][0]['fetch_status'] == 'ok'
 
 
+def test_coordinate_only_source_does_not_render_an_empty_facts_table(conn):
+    from flats.web import create_app
+    hid = ensure_house(conn, address('Владивосток', 'улица Ленина 1'),
+                       address_display='улица Ленина 1', created_at='2026-11-13T00:00:00+00:00')
+    coordinates = observation(section='coordinates')
+    coordinates['facts'] = {'lat': 43.1, 'lon': 131.9, 'raw_json': {}}
+    store_house_observation(conn, hid, coordinates)
+    conn.commit()
+    path = Path(conn.execute('PRAGMA database_list').fetchone()[2])
+    html = create_app(path).test_client().get(f'/house/{hid}').get_data(as_text=True)
+    assert 'Характеристики пока не найдены в проверенных источниках.' in html
+    assert '<table class="house-facts-table">' not in html
+    assert '43.1, 131.9' in html
+
+
 @pytest.mark.parametrize('status,label', [
     ('error', 'Не удалось получить сведения из источника; актуальность не проверена'),
     ('not_found', 'Запись по этому дому не найдена в источнике'),

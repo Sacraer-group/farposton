@@ -69,6 +69,33 @@ def check_layout(page, name):
     page.screenshot(path=str(output / f"{name}.png"), full_page=True)
 
 
+@pytest.mark.parametrize("width", [320, 390, 768, 1440])
+@pytest.mark.parametrize("theme", ["light", "dark"])
+def test_house_facts_tables_are_readable_on_both_pages(browser, site, width, theme):
+    context = context_for(browser, width)
+    page = context.new_page()
+    page.goto(site + "/house/for-offer/farpost/133892276")
+    flat_url = page.locator("#house-related a[href^='/flat/']").first.get_attribute("href")
+    for kind, url in [("house", page.url), ("flat", site + flat_url)]:
+        page.goto(url)
+        page.evaluate("(theme) => document.documentElement.dataset.theme = theme", theme)
+        tables = page.locator("#facts .house-facts-table")
+        assert tables.count() >= 2, "Keep different sources separate"
+        for table in tables.all():
+            pw.expect(table.locator("caption")).to_contain_text("По данным")
+            assert table.locator("th[scope='row']").count() > 0
+            assert table.evaluate("""table => {
+                const cells = [...table.querySelectorAll('th, td')];
+                return cells.every(cell => cell.scrollWidth <= cell.clientWidth + 1)
+                    && cells.every(cell => parseFloat(getComputedStyle(cell).fontSize) >= 14)
+                    && table.querySelector('th').getBoundingClientRect().right
+                       <= table.querySelector('td').getBoundingClientRect().left + 1;
+            }"""), "Labels and values must be legible, aligned and not clipped"
+        assert page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
+        page.locator("#facts").screenshot(path=f"test-results/facts-{kind}-{theme}-{width}.png")
+    context.close()
+
+
 @pytest.mark.parametrize("width", [1440, 390])
 def test_text_to_viewing_flow_and_browser_local_favorites(browser, site, width):
     context = context_for(browser, width)
