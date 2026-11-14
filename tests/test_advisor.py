@@ -44,7 +44,8 @@ def test_retrieval_filters_and_decisions_are_preserved(env):
     conn, _ = env
     before = repo_user.get_profile(conn)
     decisions = repo_user.current_decisions(conn)
-    result = ask(conn, filters={"monthly_max": 50000, "rooms": [1], "pets_required": True})
+    result = ask(conn, filters={"monthly_max": 50000, "rooms": [1], "pets_required": True},
+                 decisions=[["farpost", "skip", "skip"]])
     assert result["mode"] == "retrieval" and result["model_used"] is False
     assert {r["offer_id"] for r in result["recommendations"]} == {"farpost:a", "farpost:g-b"}
     assert result["total_candidates"] == 2
@@ -56,8 +57,8 @@ def test_retrieval_filters_and_decisions_are_preserved(env):
 
 def test_saved_context_keeps_exact_source_costs_and_dates(env):
     conn, _ = env
-    repo_user.decide(conn, "farpost", "g-a", "save")
-    result = ask(conn, scope="saved", offer_ids=["farpost:g-a"])
+    result = ask(conn, scope="saved", offer_ids=["farpost:g-a"],
+                 decisions=[["farpost", "g-a", "save"]])
     [item] = result["recommendations"]
     assert item["offer_id"] == "farpost:g-a" and item["key"] == "g"
     assert item["monthly_known"] == 35000 and item["move_in_known"] == 70000
@@ -68,6 +69,64 @@ def test_saved_context_keeps_exact_source_costs_and_dates(env):
     assert all(fact["url"] == item["source_url"] and fact["observed_at"] == item["last_seen"]
                and fact["imported_at"] == imported_at for fact in listing)
     assert "37 000" not in json.dumps(result, ensure_ascii=False)
+
+
+def test_missing_browser_decisions_never_fall_back_to_database(env):
+    conn, _ = env
+    repo_user.decide(conn, "farpost", "a", "save")
+    result = ask(conn)
+    assert "farpost:skip" in {r["offer_id"] for r in result["recommendations"]}
+    assert ask(conn, scope="saved")["recommendations"] == []
+    with pytest.raises(ValueError, match="не находится в избранном"):
+        ask(conn, scope="saved", offer_ids=["farpost:a"])
+
+
+def test_browser_group_decisions_are_applied_before_candidate_selection(env):
+    conn, _ = env
+    choices = [["farpost", "g-a", "skip"]]
+    result = ask(conn, filters={"monthly_max": 50000}, decisions=choices)
+    assert result["total_candidates"] == 3
+    assert not any(r["key"] == "g" for r in result["recommendations"])
+    choices.append(["farpost", "g-b", "save"])
+    result = ask(conn, filters={"monthly_max": 50000}, decisions=choices)
+    assert result["total_candidates"] == 4
+    assert "farpost:g-b" in {r["offer_id"] for r in result["recommendations"]}
+
+
+def test_saved_scope_ranks_all_browser_favorites_before_limiting_recommendations(env):
+    conn, _ = env
+    run_import(conn, [offer("last-cheapest", price=10000)])
+    ids = ["a", "b", "expensive", "skip", "g-a", "g-b", "last-cheapest"]
+    result = ask(conn, scope="saved", decisions=[["farpost", key, "save"] for key in ids])
+    assert result["total_candidates"] == len(ids)
+    assert len(result["recommendations"]) == 3
+    assert result["recommendations"][0]["offer_id"] == "farpost:last-cheapest"
+
+
+def test_public_advisor_does_not_read_or_store_visitor_decisions(env, monkeypatch):
+    conn, original_client = env
+    monkeypatch.setenv("FLATS_PUBLIC_DEMO", "1")
+    monkeypatch.setenv("FLATS_SECRET_KEY", "test-advisor-browser-decisions")
+    app = create_app(original_client.application.config["DB_PATH"])
+    app.testing = True
+    client = app.test_client()
+    client.get("/advisor")
+    with client.session_transaction() as session:
+        headers = {"X-CSRF-Token": session["csrf_token"]}
+        visitor_id = session["visitor_id"]
+    conn.execute("INSERT INTO visitor_decisions(visitor_id,source,source_id,action,created_at)"
+                 " VALUES (?, 'farpost', 'a', 'save', '2026-11-14')", (visitor_id,))
+    conn.commit()
+    before = [tuple(row) for row in conn.execute("SELECT * FROM visitor_decisions")]
+    payload = {"question": "Подбери квартиру по бюджету", "scope": "saved"}
+    response = client.post("/api/advisor", json=payload, headers=headers)
+    assert response.status_code == 200 and response.get_json()["recommendations"] == []
+    payload["decisions"] = [["farpost", "g-a", "save"]]
+    response = client.post("/api/advisor", json=payload, headers=headers)
+    assert response.status_code == 200
+    assert [r["offer_id"] for r in response.get_json()["recommendations"]] == ["farpost:g-a"]
+    assert [tuple(row) for row in conn.execute("SELECT * FROM visitor_decisions")] == before
+    assert repo_user.current_decisions(conn) == {("farpost", "skip"): "skip"}
 
 
 def test_unknown_and_zero_values_stay_distinct(env):
@@ -120,7 +179,7 @@ def test_default_viewing_question_and_retrieval_bounds(env):
     conn, _ = env
     run_import(conn, [offer(f"extra-{n}") for n in range(5)])
     result = ask(conn, question="С каких квартир начать просмотры и что нужно уточнить?")
-    assert result["total_candidates"] == 9
+    assert result["total_candidates"] == 10
     assert len(result["recommendations"]) == 3
     listing_sources = {f["url"] for f in result["evidence"] if f["kind"] == "listing"}
     assert len(listing_sources) == 5
@@ -231,6 +290,13 @@ def test_no_implicit_remote_provider(env, monkeypatch):
     {"filters": {"rooms": [True]}}, {"filters": {"rooms": [11]}}, {"filters": {"rooms": "1"}},
     {"filters": {"pets_required": 1}}, {"filters": {"districts": ["Центр"]}},
     {"base_url": "https://attacker.example"}, {"filters": None},
+    {"decisions": None}, {"decisions": {}}, {"decisions": [None]},
+    {"decisions": [["farpost", "a"]]}, {"decisions": [["farpost", "a", "save", True]]},
+    {"decisions": [["", "a", "save"]]}, {"decisions": [["farpost", 1, "save"]]},
+    {"decisions": [["farpost", "a", "like"]]}, {"decisions": [["farpost", "a", {}]]},
+    {"decisions": [["farpost", "x" * 301, "save"]]},
+    {"decisions": [["farpost", "a", "save"], ["farpost", "a", "skip"]]},
+    {"scope": "saved", "offer_ids": ["farpost:a"], "decisions": [["farpost", "a", "skip"]]},
 ])
 def test_api_rejects_invalid_inputs(env, changes):
     _, client = env
@@ -263,5 +329,7 @@ def test_advisor_page_context_and_exact_flat_validation(env, monkeypatch):
     assert client.get("/advisor?key=g&o=farpost:a").status_code == 400
     assert client.get("/advisor?key=missing").status_code == 404
     assert client.get("/advisor?o=farpost:missing").status_code == 400
+    assert client.get("/advisor?scope=saved&o=farpost:a").status_code == 200
+    assert contexts[-1][1]["scope"] == "saved" and contexts[-1][1]["offer_ids"] == ["farpost:a"]
     assert client.get("/flat/g").status_code == 200
     assert contexts[-1][1]["house_facts"] == [] and contexts[-1][1]["house_sources"] == []

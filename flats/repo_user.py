@@ -6,6 +6,24 @@ from .types import Profile
 from .visitors import owner
 
 
+def validate_browser_decisions(values) -> dict[tuple[str, str], str]:
+    """Validate a browser snapshot without reading or writing persisted decisions."""
+    if not isinstance(values, list):
+        raise ValueError("Неверные решения браузера")
+    decisions = {}
+    for entry in values:
+        if (not isinstance(entry, list) or len(entry) != 3
+                or any(not isinstance(value, str) or not value for value in entry[:2])
+                or len(entry[0]) + len(entry[1]) + 1 > 300
+                or entry[2] not in ("save", "skip")):
+            raise ValueError("Неверные решения браузера")
+        key = (entry[0], entry[1])
+        if key in decisions:
+            raise ValueError("Решения браузера не должны повторяться")
+        decisions[key] = entry[2]
+    return decisions
+
+
 def get_profile(conn: sqlite3.Connection) -> Profile:
     if owner() != 'local':
         row = conn.execute('SELECT profile_json FROM visitor_profiles WHERE visitor_id=?', (owner(),)).fetchone()

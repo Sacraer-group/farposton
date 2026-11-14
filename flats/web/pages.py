@@ -103,10 +103,6 @@ def advisor_page():
             offer_ids = [f"{o.source}:{o.source_id}" for o in group_offers(related)[0].offers[:5]]
     if scope == "offers" and not offer_ids:
         abort(400, "Выберите предложения для разбора")
-    if scope == "saved":
-        decisions = repo_user.current_decisions(conn)
-        if any(decisions.get((by_id[key].source, by_id[key].source_id)) != "save" for key in offer_ids):
-            abort(400, "Выбранное предложение не находится в избранном")
     return render_template("advisor.html", profile=repo_user.get_profile(conn), offer_ids=offer_ids,
                            scope=scope, query=query, priority=priority, flat_key=flat_key,
                            llm_available=advisor.llm_available(), all_offer_count=len(offers),

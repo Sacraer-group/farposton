@@ -10,5 +10,5 @@ bp = Blueprint("swipe", __name__)
 @bp.get("/swipe")
 def swipe():
     conn = get_conn()
-    rows = [r for r in search(conn, repo_user.get_profile(conn)) if r.decision != "save"]
+    rows = search(conn, repo_user.get_profile(conn))
     return render_template("swipe.html", rows=rows)

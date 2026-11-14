@@ -24,14 +24,15 @@ def app(tmp_path):
     return app
 
 
-def test_swipe_uses_search_order_without_saved_and_skipped(app, tmp_path):
+def test_swipe_ignores_legacy_decisions_for_new_browsers(app, tmp_path):
     html = app.test_client().get("/swipe").get_data(as_text=True)
+    assert app.test_client().get("/swipe").get_data(as_text=True) == html
     shown = re.findall(r'data-source-id="([^"]+)"', html)[::-1]  # stack is rendered bottom-up
     conn = db.connect(tmp_path / "t.db")
-    expected = [r.offer.source_id for r in search(conn, repo_user.get_profile(conn)) if r.decision != "save"]
+    expected = [r.offer.source_id for r in search(conn, repo_user.get_profile(conn))]
     conn.close()
     assert shown == expected
-    assert "demo-1" not in shown and "demo-2" not in shown
+    assert "demo-1" in shown and "demo-2" in shown
     assert "swipe.js" in html
 
 

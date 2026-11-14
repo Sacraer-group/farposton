@@ -32,17 +32,17 @@ def places():
         return jsonify(error=str(exc)),503
 
 
-def _candidates(conn, scope):
+def _candidates(conn, scope, decisions):
     from flats.search import search
     if scope not in ('all','saved'):
         raise ValueError('Выберите избранные или все подходящие квартиры')
     token=trips.BUILDING.set(True)
     try:
-        rows=trips.candidate_rows(conn,search(conn,repo_user.get_profile(conn)))
+        rows=trips.candidate_rows(conn,search(conn,repo_user.get_profile(conn),decisions=decisions))
     finally:
         trips.BUILDING.reset(token)
+    rows=[r for r in rows if decisions.get((r.offer.source,r.offer.source_id))!='skip']
     if scope=='saved':
-        decisions=repo_user.current_decisions(conn)
         rows=[r for r in rows if decisions.get((r.offer.source,r.offer.source_id))=='save']
         count=len({r.card.key for r in rows})
         if not count:
@@ -52,26 +52,33 @@ def _candidates(conn, scope):
     return rows
 
 
-@bp.get('/estimate')
+def _input():
+    data=request.get_json(silent=True) if request.get_data() else {}
+    if not isinstance(data,dict):
+        raise ValueError('Ожидается JSON-объект')
+    decisions=repo_user.validate_browser_decisions(data.get('decisions',[]))
+    scope=data.get('scope',request.args.get('scope','all'))
+    return data,scope,decisions
+
+
+@bp.route('/estimate',methods=['GET','POST'])
 def estimate():
     try:
+        _data,scope,decisions=_input()
         conn=get_conn()
-        scope=request.args.get('scope','all')
-        return jsonify(scope=scope,**trips.estimate_job(conn,_candidates(conn,scope)))
+        return jsonify(scope=scope,**trips.estimate_job(conn,_candidates(conn,scope,decisions)))
     except ValueError as exc:
         return jsonify(error=str(exc)),400
 
 
 @bp.post('/start')
 def start():
-    data=request.get_json(silent=True)
-    if data is None:data={}
-    if not isinstance(data,dict):return jsonify(error='Неверные параметры расчёта'),400
     try:
+        data,scope,decisions=_input()
         conn=get_conn()
         if 'version' in data and data['version']!=trips.get_schedule(conn)['version']:
             raise ValueError('График изменился. Повторите оценку расчёта.')
-        return jsonify(trips.start_job(conn,_candidates(conn,data.get('scope','all'))))
+        return jsonify(trips.start_job(conn,_candidates(conn,scope,decisions)))
     except ValueError as exc:
         return jsonify(error=str(exc)),400
 

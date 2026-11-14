@@ -9,6 +9,7 @@
   const brief = document.getElementById("viewing-brief");
   const evidencePanel = document.getElementById("evidence");
   const question = form.elements.question;
+  const decisions = window.FlatsDecisions;
   let briefText = "";
   let busy = false;
   const money = value => Number.isFinite(value) ? value.toLocaleString("ru-RU") + " ₽" : "Не указано";
@@ -31,6 +32,19 @@
     if (!Number.isFinite(item.lat) || !Number.isFinite(item.lon)
         || Math.abs(item.lat) > 90 || Math.abs(item.lon) > 180) return "";
     return "https://yandex.ru/maps/?rtext=~" + encodeURIComponent(item.lat + "," + item.lon);
+  }
+  function refreshCandidateButtons() {
+    const buttons = [...cards.querySelectorAll("[data-save-candidate]")];
+    if (!buttons.length) return;
+    try {
+      const saved = new Set(decisions.current()
+        .filter(([, , action]) => action === "save")
+        .map(([source, id]) => `${source}:${id}`));
+      buttons.forEach(save => {
+        save.disabled = saved.has(save.dataset.offerId);
+        save.querySelector("[data-candidate-label]").textContent = save.disabled ? "В избранном" : "В избранное";
+      });
+    } catch { decisions.reportError(); }
   }
   async function post(url, body) {
     const controller = new AbortController();
@@ -98,17 +112,26 @@
       const routeUrl = routeLink(item);
       if (routeUrl) route.href = routeUrl; else route.remove();
       const save = card.querySelector("[data-save-candidate]");
-      save.addEventListener("click", async () => {
+      save.dataset.offerId = item.offer_id;
+      const label = text("span", "В избранное");
+      label.dataset.candidateLabel = "";
+      save.replaceChildren(...save.querySelectorAll("svg"), label);
+      save.addEventListener("click", () => {
         save.disabled = true;
         const cut = item.offer_id.indexOf(":");
         try {
-          await post("/api/decide", {source: item.offer_id.slice(0, cut), source_id: item.offer_id.slice(cut + 1), action: "save"});
-          save.textContent = "В избранном";
+          decisions.decide(item.offer_id.slice(0, cut), item.offer_id.slice(cut + 1), "save");
+          decisions.refresh();
           status.textContent = "Предложение сохранено. Избранные квартиры можно сравнить вместе.";
-        } catch (error) { save.disabled = false; status.textContent = error.message; }
+        } catch {
+          save.disabled = false;
+          decisions.reportError();
+          status.textContent = "Не удалось сохранить предложение в браузере. Проверьте, разрешено ли хранение данных сайта.";
+        }
       });
       cards.append(card);
     });
+    refreshCandidateButtons();
     const list = document.getElementById("evidence-list");
     list.replaceChildren();
     evidence.forEach((item, i) => {
@@ -186,7 +209,14 @@
       filters: {monthly_max: values.get("monthly_max") ? Number(values.get("monthly_max")) : null,
         move_in_max: values.get("move_in_max") ? Number(values.get("move_in_max")) : null,
         rooms: values.getAll("rooms").map(Number), pets_required: values.has("pets_required")}};
-    try { render(await post("/api/advisor", payload)); }
+    try {
+      try { payload.decisions = decisions.current(); }
+      catch {
+        decisions.reportError();
+        throw new Error("Не удалось прочитать избранное и пропуски. Проверьте, разрешено ли хранение данных сайта в браузере.");
+      }
+      render(await post("/api/advisor", payload));
+    }
     catch (error) { status.textContent = error.name === "AbortError" ? "Ответ задерживается. Повторите запрос; условия остались в форме." : error.message; }
     finally { busy = false; button.disabled = false; results.setAttribute("aria-busy", "false"); }
   });
@@ -200,4 +230,5 @@
     }
   });
   document.getElementById("print-brief").addEventListener("click", () => window.print());
+  document.addEventListener("decisionschange", refreshCandidateButtons);
 })();

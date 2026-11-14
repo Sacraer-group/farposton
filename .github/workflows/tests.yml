@@ -16,6 +16,7 @@ jobs:
           cache: pip
       - run: pip install -e '.[dev]'
       - run: pytest -q
+      - run: node --test tests/test_*.cjs
       - run: docker build -t bereg:test .
   deploy:
     needs: pytest

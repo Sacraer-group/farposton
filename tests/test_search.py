@@ -56,14 +56,18 @@ def test_unknown_rent_last(conn):
     assert ids(search(conn, EMPTY)) == ["priced", "no-price"]
 
 
-def test_skip_and_save(conn):
+def test_legacy_decisions_require_explicit_input(conn):
     add(conn, "s", price=40000)
     add(conn, "k", price=41000)
     repo_user.decide(conn, "farpost", "s", "save")
     repo_user.decide(conn, "farpost", "k", "skip")
     rows = search(conn, EMPTY)
+    assert ids(rows) == ["s", "k"]
+    assert all(r.decision is None for r in rows)
+    decisions = repo_user.current_decisions(conn)
+    rows = search(conn, EMPTY, decisions=decisions)
     assert ids(rows) == ["s"] and rows[0].decision == "save"
-    rows = search(conn, EMPTY, include_skipped=True)
+    rows = search(conn, EMPTY, include_skipped=True, decisions=decisions)
     assert [(r.offer.source_id, r.decision) for r in rows] == [("s", "save"), ("k", "skip")]
 
 

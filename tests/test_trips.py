@@ -165,6 +165,80 @@ def test_api_contract_ownership_start_step_cancel(conn,tmp_path):
         assert client.get('/api/trips/missing').status_code==404
 
 
+@pytest.fixture
+def trip_browser(conn, tmp_path, monkeypatch):
+    from flats import repo_user
+    from flats.importer import run_import
+    from flats.web import create_app
+
+    monkeypatch.setenv('FLATS_PUBLIC_DEMO', '1')
+    monkeypatch.setenv('FLATS_SECRET_KEY', 'test-trip-browser-decisions')
+    run_import(conn, [dict(source='s', source_id=ident, group_id=group, price=30000,
+                          lat=lat, lon=131.2, deposit_raw='Без залога',
+                          commission_raw='Без комиссии', prepayment_raw='за 1 месяц')
+                      for ident, group, lat in [('first', 'shared', 43.2),
+                                                ('second', 'shared', 43.3), ('kept', None, 43.4)]])
+    client = create_app(tmp_path/'trips.db').test_client()
+    client.get('/')
+    with client.session_transaction() as session:
+        headers = {'X-CSRF-Token': session['csrf_token']}
+        visitor = session['visitor_id']
+    trips.save_schedule(conn, schedule(), visitor)
+    for ident in ('first', 'second', 'kept'):
+        repo_user.decide(conn, 's', ident, 'skip')
+        conn.execute("INSERT INTO visitor_decisions(visitor_id,source,source_id,action,created_at)"
+                     " VALUES (?, 's', ?, 'skip', '2026-11-14')", (visitor, ident))
+    conn.commit()
+    return client, headers, visitor
+
+
+@pytest.mark.parametrize('decisions, expected', [
+    (None, {'first', 'second', 'kept'}),
+    ([['s', 'first', 'skip']], {'kept'}),
+    ([['s', 'first', 'skip'], ['s', 'second', 'save']], {'second', 'kept'}),
+    ([['s', 'kept', 'skip']], {'first', 'second'}),
+])
+def test_start_applies_browser_decisions_before_spending_route_budget(conn, trip_browser, decisions, expected):
+    client, headers, visitor = trip_browser
+    before = {table: [tuple(r) for r in conn.execute(f'SELECT * FROM {table} ORDER BY id')]
+              for table in ('decisions', 'visitor_decisions')}
+    body = {} if decisions is None else {'json': {'version': 1, 'decisions': decisions}}
+    if decisions is None:
+        assert client.post('/api/trips/start').status_code == 403
+        assert client.post('/api/trips/start', headers={'X-CSRF-Token': 'wrong'}).status_code == 403
+        assert not trips._JOBS
+    response = client.post('/api/trips/start', headers=headers, **body)
+    assert response.status_code == 200
+    job = response.get_json()
+    assert set(job['results']) == {f's:{ident}' for ident in expected}
+    assert job['total'] == 4 * len(expected)
+    assert not trips.BUILDING.get()
+    calls = []
+
+    def counted(source, target, start_time):
+        calls.append((source, target))
+        return provider(source, target, start_time)
+
+    assert finish(conn, job, owner=visitor, get_route=counted)['status'] == 'complete'
+    home_lats = {point['lat'] for call in calls for point in call} & {43.2, 43.3, 43.4}
+    lat_by_id = {'first': 43.2, 'second': 43.3, 'kept': 43.4}
+    assert home_lats == {lat_by_id[ident] for ident in expected}
+    assert {table: [tuple(r) for r in conn.execute(f'SELECT * FROM {table} ORDER BY id')]
+            for table in ('decisions', 'visitor_decisions')} == before
+
+
+@pytest.mark.parametrize('body', [
+    '[]', 'null', '{broken', '{"decisions": null}',
+    '{"decisions": [["s", "first", "skip"], ["s", "first", "save"]]}',
+])
+def test_start_rejects_malformed_browser_state_before_creating_a_job(conn, trip_browser, body):
+    client, headers, _ = trip_browser
+    response = client.post('/api/trips/start', data=body, content_type='application/json', headers=headers)
+    assert response.status_code == 400 and response.get_json()['error']
+    assert not trips._JOBS and not trips.BUILDING.get()
+    assert conn.execute('SELECT COUNT(*) FROM trip_request_usage').fetchone()[0] == 0
+
+
 def test_group_chooses_eligible_offer_with_own_costs(conn):
     from flats import repo_offers,repo_user
     from flats.search import search
@@ -259,25 +333,35 @@ def _public_client(app):
     return client,headers
 
 
-def test_saved_scope_obeys_current_owner_exact_offer_and_money_filters(public_trips_app):
+def test_saved_scope_uses_explicit_browser_ids_and_money_filters(public_trips_app):
+    from flats import repo_user
+    from flats.web import get_conn
     a,ah=_public_client(public_trips_app);b,bh=_public_client(public_trips_app)
-    for ident in ('saved','expensive'):
-        assert a.post('/api/decide',json={'source':'s','source_id':ident,'action':'save'},headers=ah).status_code==200
-    b.post('/api/decide',json={'source':'s','source_id':'foreign','action':'save'},headers=bh)
+    # Legacy persisted choices are not a browser snapshot or a fallback.
+    with public_trips_app.app_context():
+        conn=get_conn();repo_user.decide(conn,'s','foreign','save')
+        before=[tuple(r) for r in conn.execute('SELECT * FROM decisions')]
+    decisions=[['s','saved','save'],['s','expensive','save']]
     a.post('/',data={'apply':'1','monthly_max':'35000'},headers=ah)
     a.post('/api/trips/schedule',json=schedule(),headers=ah)
-    estimate=a.get('/api/trips/estimate?scope=saved')
+    b.post('/api/trips/schedule',json=schedule(),headers=bh)
+    estimate=a.post('/api/trips/estimate',json={'scope':'saved','decisions':decisions},headers=ah)
     assert estimate.status_code==200
     assert estimate.json['offers']==1 and estimate.json['candidates']==1
-    job=a.post('/api/trips/start',json={'scope':'saved','version':estimate.json['version']},headers=ah)
+    assert b.post('/api/trips/estimate',json={'scope':'saved','decisions':[]},headers=bh).status_code==400
+    assert a.post('/api/trips/estimate',json={'scope':'saved'},headers=ah).status_code==400
+    job=a.post('/api/trips/start',json={'scope':'saved','version':estimate.json['version'],'decisions':decisions},headers=ah)
     assert job.status_code==200
     assert set(job.json['results'])=={'s:saved'}
     assert a.get('/api/trips/estimate?scope=invalid').status_code==400
-    assert a.post('/api/trips/start',json={'scope':'saved','version':999},headers=ah).status_code==400
+    assert a.post('/api/trips/start',json={'scope':'saved','version':999,'decisions':decisions},headers=ah).status_code==400
     assert a.post('/api/trips/start',json={'scope':[]},headers=ah).status_code==400
+    with public_trips_app.app_context():
+        assert [tuple(r) for r in get_conn().execute('SELECT * FROM decisions')]==before
+        assert get_conn().execute('SELECT COUNT(*) FROM visitor_decisions').fetchone()[0]==0
 
 
-def test_saved_scope_rejects_empty_and_more_than_five_flats(public_trips_app):
+def test_saved_scope_rejects_empty_invalid_and_more_than_five_flats(public_trips_app):
     from flats import repo_offers
     from flats.web import get_conn
     c,ch=_public_client(public_trips_app)
@@ -287,7 +371,19 @@ def test_saved_scope_rejects_empty_and_more_than_five_flats(public_trips_app):
         conn=get_conn()
         for i in range(6):repo_offers.upsert_offer(conn,dict(source='s',source_id=f'saved{i}',price=30000,lat=43.2,lon=131.2),1)
         conn.commit()
-    for i in range(6):c.post('/api/decide',json={'source':'s','source_id':f'saved{i}','action':'save'},headers=ch)
-    assert c.get('/api/trips/estimate?scope=saved').status_code==400
-    assert c.post('/api/trips/start',json={'scope':'saved'},headers=ch).status_code==400
+    decisions=[['s',f'saved{i}','save'] for i in range(6)]
+    assert c.post('/api/trips/estimate',json={'scope':'saved','decisions':decisions},headers=ch).status_code==400
+    assert c.post('/api/trips/start',json={'scope':'saved','decisions':decisions},headers=ch).status_code==400
     assert c.get('/api/trips/estimate?scope=all').status_code==200
+    for invalid in (None,[['s','saved0','like']],[['s','saved0','save'],['s','saved0','save']]):
+        assert c.post('/api/trips/estimate',json={'scope':'saved','decisions':invalid},headers=ch).status_code==400
+    assert c.post('/api/trips/estimate',json={'scope':'saved','decisions':[['s','unknown','save']]},headers=ch).status_code==400
+
+
+def test_saved_scope_does_not_charge_skipped_siblings(public_trips_app):
+    c,ch=_public_client(public_trips_app)
+    c.post('/api/trips/schedule',json=schedule(),headers=ch)
+    decisions=[['s','saved','skip'],['s','alternate','save'],['s','foreign','skip']]
+    result=c.post('/api/trips/start',json={'scope':'saved','decisions':decisions},headers=ch)
+    assert result.status_code==200
+    assert set(result.json['results'])=={'s:alternate'}

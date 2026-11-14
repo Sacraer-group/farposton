@@ -12,3 +12,5 @@ Next: judging-readiness: explicit quota-safe shortlist, full live weekly demo, e
 Release: new image uses1 Gunicorn worker8threads, persistent SQLite and API quota ledger. Existing803 photo vectors retained; new model training not required. Public Places API unavailable meta403; pin confirmation is available.
 
 Judging-readiness follow-up: new scoped saved-candidate calculation and non-mutating quota estimate;414tests passed. Real-provider check on isolated serverDB copy:5places6legs5weekdays3flats ->90/90ok,50uniquequeries. Detailed rubric/source verification, defense script, AI evidence and unfilled real-user protocol in docs/judging. No user-study outcome claimed.
+
+Concurrent mainPR40 merged preserving browser-local favorites. Explicit transient choices now sent by POST estimate/start; no server favorites fallback. Combined442pytest+21node pass; realChrome cross-tab estimate invalidation and isolated browsers verified with explicit fixture routes. Judging source deck checked by public export/txt; own GoogleSlides deck not authored because connector requires reauth, defense text prepared locally.

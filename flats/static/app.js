@@ -50,6 +50,9 @@
   const count = document.querySelector("[data-selected-count]");
   const hint = document.querySelector("[data-compare-hint]");
   function updateComparison() {
+    choices.forEach(input => {
+      if (input.closest("[data-saved-offer]")?.hidden) input.checked = false;
+    });
     const selected = choices.filter(input => input.checked).length;
     if (!compareButton) return;
     compareButton.disabled = selected === 0 || selected > 5;
@@ -58,9 +61,12 @@
       ? "Выбрано максимум. Снимите отметку, чтобы заменить вариант"
       : selected ? "Расходы, дом и условия — в одной таблице"
         : "Отметьте квартиры, которые хотите сопоставить";
-    choices.forEach(input => { input.disabled = !input.checked && selected >= 5; });
+    choices.forEach(input => {
+      input.disabled = Boolean(input.closest("[data-saved-offer]")?.hidden) || (!input.checked && selected >= 5);
+    });
   }
   choices.forEach(input => input.addEventListener("change", updateComparison));
+  document.addEventListener("decisionschange", updateComparison);
   updateComparison();
 
   document.querySelectorAll("[data-copy-questions]").forEach(button => {

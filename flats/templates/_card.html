@@ -1,6 +1,6 @@
 {% from "_evidence.html" import evidence with context %}
 {% set o = row.offer %}{% set c = row.costs %}
-<article class="listing-card" data-listing-key="{{ row.card.key }}">
+<article class="listing-card" data-listing-key="{{ row.card.key }}" data-card-offers='[{% for offer in row.card.offers %}{{ [offer.source, offer.source_id]|tojson }}{% if not loop.last %},{% endif %}{% endfor %}]'>
   <div class="listing-photo">
     <a href="{{ url_for('pages.flat', key=row.card.key) }}" tabindex="-1" aria-hidden="true">
       {% if row.similar %}<img class="thumb" src="{{ row.similar[1] }}" alt="Похожий интерьер: {{ o.address or '' }}" loading="lazy" referrerpolicy="no-referrer">
@@ -15,16 +15,17 @@
     <h2><a href="{{ url_for('pages.flat', key=row.card.key) }}">{{ room_label(o.rooms) }} · {{ o.area_total or '?' }} м²{% if o.floor is not none %} · {{ o.floor }}/{{ o.floors_total or '?' }} эт.{% endif %}</a></h2>
     <p class="listing-address">{{ o.address or 'Адрес не указан' }}</p>
     <p class="listing-district">{{ o.district or 'Район не указан' }}</p>
+    <span data-saved-label class="similar-label" hidden>В избранном</span>
     <div class="move-in-line"><span>На въезд, известно</span><strong>{{ c.move_in_known|rub }}</strong></div>
     <p class="cost-note">{% if c.move_in_unknown %}Не указано: {{ c.move_in_unknown|map('part_label')|join(', ') }}.{% else %}Предоплата, залог и комиссия учтены.{% endif %}{% if 'utilities' in c.monthly_unknown %} Коммунальные — уточнить.{% endif %}</p>
     {% if row.similar %}<p class="similar-label">{{ icon('scan-eye') }}Похожий интерьер</p>{% endif %}
     {% if row.verdict.reasons %}<details class="verdict-details"><summary>Почему нужно уточнить</summary><ul class="reasons">{% for r in row.verdict.reasons %}<li>{{ r }}</li>{% endfor %}</ul></details>{% endif %}
     {{ evidence(o) }}
     <div class="listing-bottom">
-      <form method="post" action="/api/decide" class="actions"><input type="hidden" name="csrf_token" value="{{ csrf_token|default('') }}">
+      <form method="post" action="/api/decide" class="actions" data-decision-form><input type="hidden" name="csrf_token" value="{{ csrf_token|default('') }}">
         <input type="hidden" name="source" value="{{ o.source }}"><input type="hidden" name="source_id" value="{{ o.source_id }}">
-        <button name="action" value="save" class="button button-small{% if row.decision == 'save' %} button-saved{% else %} button-soft{% endif %}">{{ icon('heart') }}{{ 'В избранном' if row.decision == 'save' else 'Сохранить' }}</button>
-        <button name="action" value="skip" class="icon-button skip-button" aria-label="Пропустить: {{ o.address or o.source_id }}" title="Пропустить">{{ icon('x') }}</button>
+        <button name="action" value="save" class="button button-small button-soft" disabled>{{ icon('heart') }}<span data-save-label>Сохранить</span></button>
+        <button name="action" value="skip" class="icon-button skip-button" aria-label="Пропустить: {{ o.address or o.source_id }}" title="Пропустить" disabled>{{ icon('x') }}</button>
       </form>
       {% if o.lat is not none and o.lon is not none %}<button type="button" class="icon-button" data-map-focus="{{ row.card.key }}" aria-label="На карте: {{ o.address or o.source_id }}" title="Показать на карте">{{ icon('map-pinned') }}</button>{% endif %}
       <a class="details-link" href="{{ url_for('pages.flat', key=row.card.key) }}">Подробнее {{ icon('arrow-up-right') }}</a>
