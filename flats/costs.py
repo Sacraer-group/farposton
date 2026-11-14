@@ -17,7 +17,10 @@ def compute_costs(offer: Offer) -> Costs:
         ("deposit", deposit),
         ("commission", commission),
     )
-    known = [amount.rub for _, amount in components if amount.rub is not None]
+    rent_parts = [value for value in (rent, prepayment.rub) if value is not None]
+    known = ([max(rent_parts)] if rent_parts else []) + [
+        amount.rub for amount in (deposit, commission) if amount.rub is not None
+    ]
 
     monthly_unknown = []
     if rent is None:
@@ -33,7 +36,7 @@ def compute_costs(offer: Offer) -> Costs:
         deposit=deposit,
         commission=commission,
         move_in_known=sum(known) if known else None,
-        move_in_unknown=tuple(
+        move_in_unknown=(("rent",) if rent is None else ()) + tuple(
             name for name, amount in components if amount.rub is None
         ),
     )

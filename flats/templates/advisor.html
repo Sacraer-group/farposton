@@ -2,34 +2,56 @@
 {% from "_ui.html" import icon %}
 {% block title %}Мой выбор · Берег{% endblock %}
 {% block content %}
-<div id="advisor" data-scope="{{ scope }}" data-offer-ids="{{ offer_ids|tojson|forceescape }}">
+<div id="advisor" data-scope="{{ scope }}" data-offer-ids="{{ offer_ids|tojson|forceescape }}" data-has-query="{{ 'true' if query else 'false' }}">
   <div class="page-heading advisor-heading"><div><p class="eyebrow">Выбор перед просмотром</p><h1>С каких квартир начать</h1><p class="page-intro">Сопоставьте условия, сведения о доме и вопросы перед просмотром</p></div><span class="advisor-label">Помощник по источникам</span></div>
-  <nav class="decision-steps" aria-label="Путь к просмотру"><a href="#scenario" aria-current="step"><span>01</span>Ваши условия</a><a href="#advisor-results"><span>02</span>Три кандидата</a><a href="#evidence"><span>03</span>Дом и основания</a><a href="#viewing-brief"><span>04</span>План просмотров</a></nav>
+  <nav class="decision-steps" aria-label="Путь к просмотру"><a href="#request-panel" aria-current="step"><span>01</span>Задача и условия</a><a href="#advisor-results"><span>02</span>Три кандидата</a><a href="#evidence"><span>03</span>Дом и основания</a><a href="#viewing-brief"><span>04</span>План просмотров</a></nav>
   {% if offer_ids %}<div class="scope-banner">{{ icon('columns-3') }}<span>Разбираем выбранные предложения: {{ offer_ids|length }}. У каждого сохраняются собственные условия и источник.</span><a href="/advisor" class="text-link">Вся подборка</a></div>{% elif scope == 'saved' %}<div class="scope-banner">{{ icon('heart') }}<span>Выбираем из вашего избранного.</span><a href="/advisor" class="text-link">Вся подборка</a></div>{% endif %}
+  <section id="request-panel" class="request-panel panel" aria-labelledby="request-heading">
+    <div class="request-heading"><div><p class="eyebrow">Начните с вашей жизни</p><h2 id="request-heading">Опишите, какую квартиру ищете</h2></div><a href="#scenario" class="text-link">Или заполните форму {{ icon('chevron-down') }}</a></div>
+    <p class="section-intro">Бюджет, комнаты, животные и район — обычными словами. Сначала покажем, что распознано, затем вы проверите условия.</p>
+    <label class="question-field" for="requirements-text">Ваша задача<textarea id="requirements-text" name="question" form="advisor-form" maxlength="1200" rows="3" placeholder="Ищу студию или однокомнатную до 45 тыс в месяц. На въезд до 100 тыс, с котом. Работаю из дома.">{{ query }}</textarea></label>
+    <div class="question-presets" aria-label="Примеры задач">
+      <button type="button" data-question="Ищу студию или однокомнатную до 45 тыс в месяц. На въезд до 100 тыс, с котом." data-priority="budget">С котом и понятным бюджетом</button>
+      <button type="button" data-question="Работаю из дома. Нужна квартира до 50 тыс в месяц. Что известно об управляющей компании и отключениях?" data-priority="house">Работаю из дома</button>
+      <button type="button" data-question="Ищу однокомнатную до 50 тыс в месяц. Езжу в ДВФУ по будням, хочу проверить дорогу." data-priority="commute">Езжу в ДВФУ</button>
+    </div>
+    <div class="request-actions"><button type="button" id="parse-request" class="button button-primary">Разобрать запрос {{ icon('arrow-right') }}</button><span>Вы решаете, какие условия применить</span></div>
+    <p id="request-status" class="request-status" role="status" aria-live="polite"></p>
+    <div id="request-proposal" class="request-proposal" hidden>
+      <h3>Проверьте, что удалось понять</h3>
+      <dl id="parsed-values" class="parsed-values"></dl>
+      <ul id="request-notes" class="request-notes"></ul>
+      <p class="small-note">Перенесём в форму только распознанные поля. Остальные условия формы сохранятся.</p>
+      <button type="button" id="apply-request" class="button button-primary">Перенести в форму {{ icon('check') }}</button>
+    </div>
+    <p id="draft-status" class="draft-status" role="status">Черновик условий сохраняется только в этом браузере.</p>
+  </section>
   <div class="advisor-layout">
     <aside id="scenario" class="scenario-panel panel">
-      <div class="panel-title"><h2>Ваши условия</h2></div>
+      <div class="panel-title"><h2>Проверьте условия</h2></div>
       <form id="advisor-form">
-        <div class="scenario-money"><label>В месяц до, ₽<input name="monthly_max" type="number" min="1" step="1" inputmode="numeric" placeholder="50 000" value="{{ profile.monthly_max or '' }}"></label><label>На въезд до, ₽<input name="move_in_max" type="number" min="1" step="1" inputmode="numeric" placeholder="100 000" value="{{ profile.move_in_max or '' }}"></label></div>
-        <fieldset class="room-filter"><legend>Комнаты</legend><div class="room-options">{% for n in [0, 1, 2, 3, 4] %}<label><input type="checkbox" name="rooms" value="{{ n }}"{% if n in profile.rooms %} checked{% endif %}><span>{{ 'Студия' if n == 0 else n }}</span></label>{% endfor %}</div></fieldset>
+        <div class="scenario-money"><label>В месяц до, ₽<input name="monthly_max" type="number" min="1" step="1" inputmode="numeric" placeholder="50 000" value="{{ profile.monthly_max or '' }}"></label><label>На въезд до, ₽ (с первым месяцем аренды)<input name="move_in_max" type="number" min="1" step="1" inputmode="numeric" placeholder="100 000" value="{{ profile.move_in_max or '' }}"></label></div>
+        <fieldset class="room-filter"><legend>Комнаты</legend><div class="room-options">{% for n in [0, 1, 2, 3, 4] %}<label><input type="checkbox" name="rooms" value="{{ n }}"{% if n in profile.rooms %} checked{% endif %}><span>{{ 'Студия' if n == 0 else n }}</span></label>{% endfor %}</div><details class="extra-rooms"{% if profile.rooms|select('gt', 4)|list %} open{% endif %}><summary>5–10 комнат</summary><div class="room-options">{% for n in range(5, 11) %}<label><input type="checkbox" name="rooms" value="{{ n }}"{% if n in profile.rooms %} checked{% endif %}><span>{{ n }}</span></label>{% endfor %}</div></details></fieldset>
         <label class="pets-filter"><input type="checkbox" name="pets_required"{% if profile.pets_required %} checked{% endif %}>Нужно разрешение на животных</label>
-        {% if profile.districts %}<p class="small-note">Районы из поиска: {{ profile.districts|join(', ') }}. <a href="/#search-filters" class="text-link">Изменить</a></p>{% endif %}
+        <details class="scenario-districts"><summary>Районы <span id="district-summary">{{ profile.districts|join(', ') if profile.districts else 'Любые' }}</span>{{ icon('chevron-down') }}</summary><div>{% for d in districts|default([]) %}<label><input type="checkbox" name="districts" value="{{ d }}"{% if d in profile.districts %} checked{% endif %}>{{ d }}</label>{% else %}<p class="small-note">Районы появятся после загрузки объявлений.</p>{% endfor %}</div></details>
         <fieldset class="priority-choices"><legend>Что важнее при выборе?</legend>
-          {% for value, title, note, glyph in [('budget', 'Меньше платить в месяц', 'Сравнить известные расходы', 'sliders-horizontal'), ('move_in', 'Легче въехать', 'Залог, комиссия и пробелы', 'arrow-right'), ('house', 'Разобраться с домом', 'УК, источники, ремонт', 'building-2'), ('commute', 'Проверить повседневный путь', 'Работа, учёба, пеший участок', 'map-pinned')] %}
+          {% for value, title, note, glyph in [('budget', 'Меньше платить в месяц', 'Сравнить известные расходы', 'sliders-horizontal'), ('move_in', 'Легче въехать', 'Первый месяц, залог и комиссия', 'arrow-right'), ('house', 'Разобраться с домом', 'УК, источники, ремонт', 'building-2'), ('commute', 'Проверить повседневный путь', 'Работа, учёба, пеший участок', 'map-pinned')] %}
           <label><input type="radio" name="priority" value="{{ value }}"{% if priority == value %} checked{% endif %}><span>{{ icon(glyph) }}<span><strong>{{ title }}</strong><small>{{ note }}</small></span></span></label>{% endfor %}
         </fieldset>
-        <label class="question-field">Что разобрать вместе?<textarea name="question" maxlength="1200" rows="3" required placeholder="Например: с каких квартир начать просмотры и что уточнить по дому?">{{ query or 'С каких квартир начать просмотры и что нужно уточнить?' }}</textarea></label>
-        <div class="question-presets" aria-label="Примеры вопросов"><button type="button" data-question="Какие расходы на въезд известны и что нужно уточнить?" data-priority="move_in">Расходы на въезд</button><button type="button" data-question="Работаю из дома. Что известно об управляющей компании и отключениях?" data-priority="house">Работаю из дома</button><button type="button" data-question="Что проверить в ежедневной дороге до работы или учёбы?" data-priority="commute">Путь каждый день</button></div>
-        <button class="button button-primary full-width" id="ask-advisor">Собрать три кандидата {{ icon('arrow-right') }}</button>
+        <button class="button button-primary full-width" id="ask-advisor">Подобрать варианты {{ icon('arrow-right') }}</button>
         <p class="scenario-note">Лимиты применяются к известным суммам. Доплаты и условия, которых нет в источнике, будут отмечены отдельно.</p>
+        <button type="button" id="clear-scenario" class="text-link clear-scenario">Сбросить условия и черновик</button>
       </form>
       <div class="assistant-mode"><span class="map-status-dot"></span><span>{% if llm_available %}ИИ выбирает основания из найденных данных.{% else %}Сейчас доступен подбор по источникам. ИИ-синтез не подключён.{% endif %}</span></div>
+      <a class="scenario-trip-link" href="/trips">{{ icon('map-pinned') }}<span><strong>Проверьте свою неделю</strong><small>Работа, учёба, пересадки и пешие участки</small></span>{{ icon('arrow-right') }}</a>
     </aside>
     <div class="advisor-main">
       <section id="advisor-results" aria-labelledby="results-heading" aria-busy="false" tabindex="-1">
         <div class="section-heading"><div><p class="eyebrow">Ваш следующий шаг</p><h2 id="results-heading">С каких адресов начать</h2></div><a class="text-link" href="/">Открыть карту {{ icon('arrow-up-right') }}</a></div>
-        <p id="advisor-status" class="advisor-status" role="status" aria-live="polite">Задайте условия слева. Помощник покажет основания выбора и важные неизвестные.</p>
-        <div id="advisor-empty" class="advisor-welcome panel"><div class="welcome-symbol">{{ icon('building-2') }}</div><h3>Цена в объявлении — начало выбора</h3><p>Сопоставим платежи, адресные сведения и ваши приоритеты. Вы увидите, что известно, что стоит проверить и какой вопрос задать первым.</p><div class="local-lenses"><div>{{ icon('droplets') }}<strong>Коммунальные службы</strong><span>Сведения по адресу и дата источника</span></div><div>{{ icon('map-pinned') }}<strong>Жизнь во Владивостоке</strong><span>Повседневный путь и пеший участок</span></div><div>{{ icon('copy') }}<strong>Готовность к просмотру</strong><span>Конкретные вопросы по выбранной квартире</span></div></div></div>
+        <p id="advisor-status" class="advisor-status" role="status" aria-live="polite">Опишите задачу или заполните форму. После подбора здесь появятся основания выбора и важные неизвестные.</p>
+        <div id="applied-conditions" class="applied-conditions" hidden aria-label="Условия этой подборки"></div>
+        <div id="result-actions" class="result-actions" hidden><a id="compare-candidates" class="button button-outline" href="/compare">{{ icon('columns-3') }}Сравнить кандидатов</a><a href="#viewing-brief" class="text-link">Перейти к плану просмотров {{ icon('chevron-down') }}</a></div>
+        <div id="advisor-empty" class="advisor-welcome panel"><div class="welcome-symbol">{{ icon('building-2') }}</div><h3>Цена в объявлении — начало выбора</h3><p>Сопоставим платежи, адресные сведения и ваши приоритеты. Вы увидите, что известно, что стоит проверить и какой вопрос задать первым.</p><div class="empty-recovery" hidden><a class="button button-outline" href="#scenario">Изменить условия</a><a class="text-link" href="/">Все квартиры {{ icon('arrow-right') }}</a></div><div class="local-lenses"><div>{{ icon('droplets') }}<strong>Дом и службы</strong><span>Паспорт дома, УК, публикации и даты источников</span></div><div>{{ icon('map-pinned') }}<strong>Ваша неделя</strong><span>Поездки и пешие участки в отдельном расчёте</span></div><div>{{ icon('copy') }}<strong>План просмотров</strong><span>Конкретные вопросы по выбранной квартире</span></div></div></div>
         <div id="recommendations" class="recommendations"></div>
       </section>
       <section id="local-context" class="local-context" hidden aria-label="Что проверить во Владивостоке"></section>
@@ -38,6 +60,6 @@
     </div>
   </div>
 </div>
-<template id="recommendation-template"><article class="decision-card panel"><div class="decision-card-heading"><span class="candidate-number"></span><div><p class="eyebrow candidate-subtitle">Кандидат на просмотр</p><h3><a data-detail></a></h3><p class="candidate-district"></p></div><img class="candidate-photo" alt="" loading="lazy" referrerpolicy="no-referrer"></div><div class="candidate-prices"><div><span>В месяц, известно</span><strong data-monthly></strong></div><div><span>На въезд, известно</span><strong data-move-in></strong></div></div><div class="candidate-reasoning"><div><h4>Основания выбора</h4><ul data-reasons></ul></div><div class="candidate-unknown"><h4>Может изменить решение</h4><ul data-unknowns></ul></div></div><div class="candidate-first-question"><span>Спросите первым</span><p data-first-question></p></div><div class="candidate-actions"><button type="button" class="button button-soft button-small" data-save-candidate>{{ icon('heart') }}В избранное</button><a data-house class="text-link">Проверить дом {{ icon('arrow-right') }}</a><a data-route class="text-link" target="_blank" rel="noopener noreferrer">Маршрут {{ icon('arrow-up-right') }}</a></div></article></template>
+<template id="recommendation-template"><article class="decision-card panel"><div class="decision-card-heading"><span class="candidate-number"></span><div><p class="eyebrow candidate-subtitle">Кандидат на просмотр</p><h3><a data-detail></a></h3><p class="candidate-district"></p></div><img class="candidate-photo" alt="" loading="lazy" referrerpolicy="no-referrer"></div><div class="candidate-prices"><div><span>В месяц, известно</span><strong data-monthly></strong></div><div><span>На въезд, известно (с первым месяцем)</span><strong data-move-in></strong></div></div><p data-trip-summary class="candidate-trip"></p><div class="candidate-reasoning"><div><h4>Основания выбора</h4><ul data-reasons></ul></div><div class="candidate-unknown"><h4>Может изменить решение</h4><ul data-unknowns></ul></div></div><div class="candidate-first-question"><span>Спросите первым</span><p data-first-question></p></div><div class="candidate-actions"><button type="button" class="button button-soft button-small" data-save-candidate>{{ icon('heart') }}В избранное</button><a data-house class="text-link">Паспорт дома {{ icon('arrow-right') }}</a><a data-route class="text-link" target="_blank" rel="noopener noreferrer">Открыть маршрут {{ icon('arrow-up-right') }}</a></div></article></template>
 {% endblock %}
 {% block scripts %}<script src="{{ url_for('static', filename='advisor.js') }}" defer></script>{% endblock %}

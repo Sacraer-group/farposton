@@ -14,7 +14,8 @@ function element(dataset = {}) {
     append(...children) { this.children.push(...children); },
     setAttribute(name, value) { this[name] = value; },
     focus() { this.focused = true; },
-    contains(node) { return this === node || this.children.some(child => child.contains(node)); },
+    remove() { this.removed = true; },
+    contains(node) { return node === this || this.children.some(child => child.contains?.(node)); },
     addEventListener(type, callback) {
       if (!listeners.has(type)) listeners.set(type, []);
       listeners.get(type).push(callback);
@@ -23,8 +24,10 @@ function element(dataset = {}) {
   };
 }
 
+function descendants(node) { return [node, ...node.children.flatMap(descendants)]; }
+
 function mapPage({ hidden = [], sdk = true, mapKey = "test-map-key", fail = false, mutateLinks,
-  markerBounds, mapBounds, popupBounds } = {}) {
+  markerBounds, mapBounds, popupBounds, viewport = { width: 320, height: 600 } } = {}) {
   const cards = ["a", "b", "c"].map(key => ({ dataset: { listingKey: key }, hidden: hidden.includes(key) }));
   const links = cards.map((card, index) => Object.assign(element({
     key: card.dataset.listingKey, lat: "43.1", lon: String(131.9 + index / 100),
@@ -69,7 +72,7 @@ function mapPage({ hidden = [], sdk = true, mapKey = "test-map-key", fail = fals
     },
   };
   vm.runInNewContext(sdkSource + "\n" + source, {
-    document, window: { mapgl: sdk ? mapgl : undefined, innerWidth: 1440, innerHeight: 1000 }, URL,
+    document, window: { mapgl: sdk ? mapgl : undefined, innerWidth: viewport.width, innerHeight: viewport.height }, URL,
     location: { href: "https://app.test/", origin: "https://app.test" },
     setTimeout(callback, delay) { const timer = { callback, delay }; timers.push(timer); return timer; },
     clearTimeout(timer) { if (timer) timer.cleared = true; },
@@ -110,8 +113,8 @@ test("skipping and undoing a listing updates grouped markers, popup links and co
   const house = view.visibleMarkers()[0];
   assert.equal(house.options.html.textContent, "20 000 ₽");
   house.options.html.fire("click");
-  assert.deepEqual(view.popup().options.html.children.filter(node => node.href).map(node => node.href),
-    ["https://app.test/house/7", "https://app.test/flat/b"]);
+  assert.deepEqual(descendants(view.popup().options.html).filter(node => node.href).map(node => node.href),
+    ["https://app.test/flat/b", "https://app.test/flat/b#house"]);
   assert.equal(view.links[0].hidden, true);
   assert.match(view.status.textContent, /Домов на карте: 2 · квартир: 2/);
   view.cards[2].hidden = true;
@@ -216,59 +219,96 @@ test("invalid coordinates and unsafe links never become markers or popup navigat
   assert.equal(view.visibleMarkers().length, 1);
   view.visibleMarkers()[0].options.html.fire("click");
   const content = view.popup().options.html;
-  assert.equal(content.children[1].textContent, address);
-  assert.deepEqual(content.children.filter(node => node.href).map(node => node.href), ["https://app.test/flat/a"]);
+  assert.equal(descendants(content).find(node => node.className === "map-popup-address").textContent, address);
+  assert.deepEqual(descendants(content).filter(node => node.href).map(node => node.href), ["https://app.test/flat/a", "https://app.test/flat/a#house"]);
 });
 
 
-test("hover opens a photo preview without stealing focus, pointer crossing keeps it open", () => {
+test("group popup preserves each offer and validates image URLs", () => {
   const view = mapPage({ mutateLinks(links) {
-    links[0].dataset.photo = "https://photos.test/flat.jpg";
-    links[0].dataset.summary = "2 комнаты · 64 м²";
+    Object.assign(links[0].dataset, { photo: "https://images.test/one.jpg", rooms: "1-комн.", area: "40 м²", floor: "3/9 эт." });
+    Object.assign(links[1].dataset, { photo: "javascript:alert(1)", rooms: "Студия", address: "Другой адрес" });
   } });
+  view.visibleMarkers()[0].options.html.fire("click");
+  const nodes = descendants(view.popup().options.html);
+  const cards = nodes.filter(node => node.className === "map-popup-card");
+  assert.equal(cards.length, 2);
+  assert.equal(descendants(cards[0]).find(node => node.className === "map-popup-price").textContent, "10 000 ₽ / месяц");
+  assert.equal(descendants(cards[0]).find(node => node.className === "map-popup-details").textContent, "1-комн. · 40 м² · 3/9 эт.");
+  assert.equal(descendants(cards[1]).find(node => node.className === "map-popup-address").textContent, "Другой адрес");
+  const img = descendants(cards[0]).find(node => node.src);
+  assert.equal(img.src, "https://images.test/one.jpg");
+  img.fire("error");
+  assert.equal(img.removed, true);
+  assert.equal(descendants(cards[1]).some(node => node.src), false);
+  assert.deepEqual(nodes.filter(node => node.href).map(node => node.href), ["https://app.test/flat/a", "https://app.test/flat/b", "https://app.test/house/7"]);
+});
+
+
+test("hover keeps preview while entering it and closes after leaving", () => {
+  const view = mapPage();
   const pill = view.visibleMarkers()[0].options.html;
   pill.fire("pointerenter");
-  const popup = view.popup(), content = popup.options.html;
-  view.frame();
-  assert.equal(content.children[0].focused, undefined);
-  const offer = content.children.find(node => node.className === "map-popup-offer");
-  assert.equal(offer.children[0].src, "https://photos.test/flat.jpg");
-  assert.equal(offer.children[2].textContent, "2 комнаты · 64 м²");
+  const popup = view.popup();
+  assert.ok(popup);
   pill.fire("pointerleave");
-  const closeTimer = view.timers.at(-1);
-  content.fire("pointerenter");
-  assert.equal(closeTimer.cleared, true);
-  content.fire("pointerleave");
+  const timer = view.timers.at(-1);
+  assert.equal(timer.delay, 200);
+  popup.options.html.fire("pointerenter");
+  assert.equal(timer.cleared, true);
+  popup.options.html.fire("pointerleave");
   view.timers.at(-1).callback();
   assert.equal(popup.destroyed, true);
 });
 
-test("moving to another marker replaces the preview and cancels old close timers", () => {
+test("popup positions inside a narrow compact map", () => {
   const view = mapPage();
-  const [a, b] = view.visibleMarkers().map(marker => marker.options.html);
-  a.fire("pointerenter");
-  const old = view.popup();
-  a.fire("pointerleave");
-  const pending = view.timers.at(-1);
-  b.fire("pointerenter");
-  assert.equal(old.destroyed, true);
-  assert.equal(pending.cleared, true);
-  assert.notEqual(view.popup(), old);
+  view.container.getBoundingClientRect = () => ({ left: 20, right: 300, top: 100, bottom: 380, width: 280 });
+  const pill = view.visibleMarkers()[0].options.html;
+  pill.getBoundingClientRect = () => ({ left: 26, width: 60, top: 125, bottom: 155 });
+  view.visibleMarkers()[0].options.html.fire("click");
+  const content = view.popup().options.html;
+  view.frame();
+  assert.equal(content.dataset.placement, "below");
+  assert.equal(content.style.maxWidth, "264px");
+  assert.equal(content.style.maxHeight, "264px");
+  assert.equal(content.style.marginLeft, "104px");
 });
 
-test("unsafe image URLs never load in preview cards", () => {
-  const view = mapPage({mutateLinks(links) { links[0].dataset.photo = "javascript:alert(1)"; }});
-  view.visibleMarkers()[0].options.html.fire("click");
-  const offer = view.popup().options.html.children.find(node => node.className === "map-popup-offer");
-  assert.equal(offer.children.some(node => node.src), false);
+
+test("compact popup uses visible map height and shifts inside it", () => {
+  const view = mapPage();
+  view.container.getBoundingClientRect = () => ({ left: 0, right: 280, top: 100, bottom: 380, width: 280 });
+  const pill = view.visibleMarkers()[0].options.html;
+  pill.getBoundingClientRect = () => ({ left: 110, width: 60, top: 225, bottom: 255 });
+  pill.fire("click");
+  const content = view.popup().options.html;
+  content.getBoundingClientRect = () => ({ top: -40, bottom: 224, height: 264 });
+  view.frame();
+  assert.equal(content.style.maxHeight, "264px");
+  assert.equal(content.style.marginTop, "148px");
+});
+
+test("click after hover moves focus into existing preview", () => {
+  const view = mapPage();
+  const pill = view.visibleMarkers()[0].options.html;
+  pill.fire("pointerenter");
+  const popup = view.popup();
+  const close = popup.options.html.children[0];
+  view.frame();
+  assert.equal(close.focused, undefined);
+  pill.fire("click");
+  assert.equal(view.popup(), popup);
+  view.frame();
+  assert.equal(close.focused, true);
 });
 
 
 test("popup placement uses settled marker bounds and keeps its close control inside the map", () => {
   const markerBounds = { left: 1100, top: 450, width: 60, bottom: 482 };
   const mapBounds = { left: 844, top: 522, right: 1399, bottom: 1002, width: 555 };
-  const popupBounds = { left: 990, top: 378, width: 264, height: 200 };
-  const view = mapPage({ markerBounds, mapBounds, popupBounds });
+  const popupBounds = { left: 990, top: 378, width: 300, height: 200 };
+  const view = mapPage({ markerBounds, mapBounds, popupBounds, viewport: { width: 1440, height: 1000 } });
   view.document.fire("farposton:map-focus", { key: "a" });
   const content = view.popup().options.html;
   assert.equal(content.style.maxHeight, undefined);
@@ -276,14 +316,15 @@ test("popup placement uses settled marker bounds and keeps its close control ins
   markerBounds.bottom = 778;
   view.frame();
   assert.equal(content.dataset.placement, "above");
-  assert.equal(content.style.maxHeight, "192px");
+  assert.equal(content.style.maxHeight, "360px");
+  assert.equal(content.style.maxWidth, "300px");
   assert.equal(content.style.marginTop, "152px");
   assert.equal(content.children[0].focused, true);
   markerBounds.top = 580;
   markerBounds.bottom = 612;
   view.maps[0].fire("idle");
   assert.equal(content.dataset.placement, "below");
-  assert.equal(content.style.maxHeight, "356px");
+  assert.equal(content.style.maxHeight, "360px");
 });
 
 

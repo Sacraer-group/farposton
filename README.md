@@ -2,13 +2,12 @@
 
 Подбор долгосрочной аренды во Владивостоке по бюджету, множеству поездок недели,
 интерьеру и опубликованным сведениям дома. Список, карта, свайпы и сравнение используют
-общие правила. У публичного демо раздельные анонимные профили браузеров и CSRF.
+общие правила. Расходы на въезд включают первый месяц аренды, залог и комиссию; указанная предоплата за дополнительные месяцы учитывается без повторного сложения первого месяца. Неизвестные платежи отмечаются отдельно. У публичного демо раздельные анонимные профили браузеров и CSRF.
 
 ## Поездки и дома
 
-`/trips`: подтвердите места поиском или точкой на карте, добавьте независимые поездки
-и цепочки с днями и временем выезда. Даты — следующая календарная неделя во Владивостоке.
-Расчёт запускается явно, порциями, с отменой. Для короткого списка выберите область «Избранные квартиры»: до5 квартир, только сохранённые предложения с действующими условиями поиска. Первое нажатие оценивает расход и остаток квоты без обращения к2ГИС; второе запускает расчёт. Если лимита явно недостаточно, интерфейс предложит сузить выбор. Подходящие полностью рассчитанные варианты
+`/trips`: подтвердите место поиском или точкой на карте. Для пустого графика появятся поездки туда и обратно по будням с отправлением в 08:00 и 18:00; время можно изменить. Другие дни, места, цепочки и ограничения настраиваются отдельно; существующий график сохраняется. Даты — следующая календарная неделя во Владивостоке.
+«Подобрать квартиры» сохраняет график, оценивает расход и запускает расчёт всех подходящих квартир с учётом исключённых вариантов. Если квоты недостаточно для полного расчёта, можно отдельно запустить доступную часть; при исчерпанной квоте расчёт останавливается. Расчёт выполняется порциями, его можно отменить. Подходящие полностью рассчитанные варианты
 сортируются по недельному времени; неполные отмечаются, нарушающие ограничения исключаются.
 Пешие маршруты обозначены отдельно. Время — оценка 2ГИС, не гарантия прибытия.
 
@@ -42,7 +41,7 @@ flats import-house-passports research/house-passports/2026-11-14/farposton-house
 `compose.yaml` использует существующий внешний том `bereg-data`; ключ монтируется
 отдельным закрытым файлом. Docker-образ не содержит ключей, базы и фотографий.
 
-CI проверяет pytest и сборку контейнера. После push в main deploy использует
+CI проверяет pytest, браузерный сценарий и сборку контейнера. После push в main deploy использует
 ограниченный SSH-вход, резервную копию SQLite, проверку кандидата и переключение Caddy.
 Описание продолжения и ограничения: [docs/implementation-status.md](docs/implementation-status.md).
 
@@ -59,10 +58,22 @@ python3 -m venv .venv && . .venv/bin/activate
 pip install -e '.[dev]'
 flats init-db
 flats demo                      # 50 real offers (Metrapi snapshot, 2026-11-13)
-flats demo --set invented       # optional: 26 invented edge-case offers
+flats import-house-passports research/house-passports/2026-11-14/farposton-house-data-2026-11-14.zip
 flask --app flats.web:create_app run --host 127.0.0.1
 pytest -q
 ```
+
+For invented edge cases instead of the real snapshot, run `flats demo --set invented`.
+
+To run the optional Chromium acceptance scenarios locally:
+
+```bash
+pip install -e '.[dev,browser]'
+python -m playwright install chromium
+pytest -q tests/test_browser_flow.py
+```
+
+On Linux, Chromium may also require system dependencies; CI installs them with `python -m playwright install --with-deps chromium`.
 
 Visual interior search (optional, CPU is enough, ~12 min for 800 photos):
 
@@ -77,7 +88,7 @@ Open http://127.0.0.1:5000: search, flat page, «Избранное» (compare u
 
 ## Advisor
 
-Open «Мой выбор» (`/advisor`) to set requirements and a priority, review candidates and evidence, compare them, and prepare viewing questions. The route link opens an external map with the destination; choose the starting point and travel mode there. House records are dated evidence, not live outage status.
+Open «Мой выбор» (`/advisor`) to enter a task in Russian or edit the structured requirements, including districts. Text extraction proposes explicit filters with supporting snippets and notes; review and apply them before requesting recommendations. It is deterministic, not an LLM. The draft stays in this browser. Review candidates and evidence, compare them, and prepare viewing questions. Previously calculated weekly trip results can inform recommendations; the external route link lets you choose an origin and mode. Imported house records are dated evidence, not live outage status.
 
 Without a configured model provider, the advisor clearly uses retrieval. An optional OpenAI-compatible provider can be configured locally with `FLATS_LLM_BASE_URL` and `FLATS_LLM_MODEL`. The app appends `/chat/completions` to the base URL; for a compatible service, the base may end in `/v1`. Set `FLATS_LLM_API_KEY` if the provider requires a key, and keep it secret; a keyless local provider does not need one. Live provider behavior has not been verified. See [decision flow and demo](docs/decision-flow.md).
 

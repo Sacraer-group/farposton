@@ -10,6 +10,14 @@
     } catch { return null; }
   }
 
+  function photoUrl(value) {
+    if (!value) return null;
+    try {
+      const url = new URL(value);
+      return ["http:", "https:"].includes(url.protocol) ? url.href : null;
+    } catch { return null; }
+  }
+
   document.querySelectorAll(".map-shell").forEach(shell => {
     const container = shell.querySelector("[data-map]");
     if (!container) return;
@@ -34,8 +42,8 @@
         link, key: link.dataset.key, lat, lon, href,
         price: link.dataset.price || "Цена не указана",
         address: link.dataset.address || "Адрес не указан",
-        photo: link.dataset.photo || null,
-        summary: link.dataset.summary || "",
+        photo: photoUrl(link.dataset.photo),
+        details: [link.dataset.rooms, link.dataset.area, link.dataset.floor].filter(Boolean).join(" · "),
         houseId: link.dataset.houseId || null,
         houseUrl: localUrl(link.dataset.houseUrl),
       });
@@ -71,12 +79,12 @@
       document.addEventListener("decisionschange", selectPoints);
       return;
     }
-    let closeTimer, popupContent, activePill, activeGroup;
+    let closeTimer, popupContent, activePill, activeGroup, activeClose;
     const keepPopup = () => clearTimeout(closeTimer);
     const closePopup = () => {
       keepPopup();
       popup?.destroy();
-      popup = popupContent = activePill = activeGroup = null;
+      popup = popupContent = activePill = activeGroup = activeClose = null;
     };
     const scheduleClose = () => {
       keepPopup();
@@ -95,11 +103,12 @@
       const above = markerBounds.top - top - 24;
       const below = bottom - markerBounds.bottom - 24;
       popupContent.dataset.placement = below > above ? "below" : "above";
-      popupContent.style.maxHeight = `${Math.max(40, Math.min(360, bottom - top, Math.max(above, below)))}px`;
+      popupContent.style.maxHeight = `${Math.max(0, Math.min(360, bottom - top))}px`;
+      const left = Math.max(0, mapBounds.left), right = Math.min(window.innerWidth, mapBounds.right);
+      const width = Math.max(0, Math.min(300, right - left - 16));
       const anchor = markerBounds.left + markerBounds.width / 2;
-      const half = Math.min(264, window.innerWidth - 48, mapBounds.width - 16) / 2;
-      const center = Math.max(mapBounds.left + half + 8, Math.min(mapBounds.right - half - 8, anchor));
-      popupContent.style.maxWidth = `${half * 2}px`;
+      const center = Math.max(left + width / 2 + 8, Math.min(right - width / 2 - 8, anchor));
+      popupContent.style.maxWidth = `${width}px`;
       popupContent.style.marginLeft = `${center - anchor}px`;
       popupContent.style.marginTop = "0px";
       const bounds = popupContent.getBoundingClientRect?.();
@@ -148,7 +157,7 @@
           keepPopup();
           if (activeGroup === group) {
             if (focus) requestAnimationFrame(() => {
-              if (activeGroup === group) popupContent?.children[0]?.focus();
+              if (activeGroup === group) activeClose?.focus();
             });
             return;
           }
@@ -165,48 +174,58 @@
           content.setAttribute("role", "group");
           content.setAttribute("aria-label", point.address);
           const close = document.createElement("button");
+          activeClose = close;
           close.type = "button";
           close.className = "text-button map-popup-close";
           close.textContent = "Закрыть";
           const dismiss = () => { closePopup(); dismissing = true; pill.focus(); dismissing = false; };
           close.addEventListener("click", dismiss);
           content.addEventListener("keydown", event => { if (event.key === "Escape") dismiss(); });
-          const address = document.createElement("strong");
-          address.textContent = point.address;
-          content.append(close, address);
-          if (point.houseUrl) {
+          content.addEventListener("click", event => event.stopPropagation());
+          const list = document.createElement("div");
+          list.className = "map-popup-list";
+          group.offers.forEach(offer => {
+            const card = document.createElement("article");
+            card.className = "map-popup-card";
+            const photo = document.createElement("div");
+            photo.className = "map-popup-photo";
+            photo.textContent = "Фото нет";
+            if (offer.photo) {
+              const img = document.createElement("img");
+              img.alt = "";
+              img.loading = "lazy";
+              img.referrerPolicy = "no-referrer";
+              img.addEventListener("error", () => { img.remove(); });
+              img.src = offer.photo;
+              photo.append(img);
+            }
+            const info = document.createElement("div");
+            info.className = "map-popup-info";
+            const price = document.createElement("strong");
+            price.className = "map-popup-price";
+            price.textContent = offer.price === "Цена не указана" ? offer.price : `${offer.price} / месяц`;
+            const details = document.createElement("p");
+            details.className = "map-popup-details";
+            details.textContent = offer.details || "Параметры не указаны";
+            const address = document.createElement("p");
+            address.className = "map-popup-address";
+            address.textContent = offer.address;
+            const link = document.createElement("a");
+            link.className = "map-popup-link";
+            link.href = offer.href;
+            link.textContent = "Подробнее о квартире →";
+            info.append(price, details, address, link);
+            card.append(photo, info);
+            list.append(card);
+          });
+          content.append(close, list);
+          if (point.houseUrl || group.offers.length === 1) {
             const house = document.createElement("a");
-            house.className = "map-popup-link";
-            house.href = point.houseUrl;
+            house.className = "map-popup-house";
+            house.href = group.offers.length === 1 ? `${point.href.split("#")[0]}#house` : point.houseUrl;
             house.textContent = "Паспорт дома →";
             content.append(house);
           }
-          group.offers.forEach(offer => {
-            const link = document.createElement("a");
-            link.href = offer.href;
-            link.className = "map-popup-offer";
-            if (offer.photo) {
-              let photoUrl;
-              try { photoUrl = new URL(offer.photo, location.href); } catch { /* Invalid image: keep the text card. */ }
-              if (photoUrl && ["http:", "https:"].includes(photoUrl.protocol)) {
-                const photo = document.createElement("img");
-                photo.src = photoUrl.href;
-                photo.alt = `Фото квартиры: ${offer.address}`;
-                photo.referrerPolicy = "no-referrer";
-                photo.addEventListener("error", () => { photo.hidden = true; });
-                link.append(photo);
-              }
-            }
-            const price = document.createElement("strong");
-            price.textContent = `${offer.price} / месяц`;
-            const summary = document.createElement("span");
-            summary.textContent = offer.summary || "Параметры не указаны";
-            const details = document.createElement("span");
-            details.className = "map-popup-link";
-            details.textContent = "Подробнее о квартире →";
-            link.append(price, summary, details);
-            content.append(link);
-          });
           popup = new window.mapgl.HtmlMarker(map, { coordinates, html: content, interactive: true, zIndex: 2 });
           // MapGL attaches markers and applies setCenter on the next frame.
           requestAnimationFrame(() => {
@@ -216,9 +235,7 @@
           });
         };
         pill.addEventListener("click", () => group.open());
-        pill.addEventListener("pointerenter", event => {
-          if (event.pointerType !== "touch") group.open(false);
-        });
+        pill.addEventListener("pointerenter", event => { if (event.pointerType !== "touch") group.open(false); });
         pill.addEventListener("pointerleave", scheduleClose);
         pill.addEventListener("focus", () => { if (!dismissing) group.open(false); });
         pill.addEventListener("blur", scheduleClose);

@@ -1,0 +1,11 @@
+{% from "_ui.html" import icon %}
+{% macro gallery(offer, featured=none, link=none) %}
+{% set photos = offer.photos|list %}
+{% if featured and featured not in photos %}{% set photos = [featured] + photos %}{% endif %}
+{% if photos %}
+<div class="card-gallery" data-gallery data-photos='{{ photos|tojson }}' data-index="{{ photos.index(featured) if featured in photos else 0 }}">
+  {% if link %}<a href="{{ link }}" tabindex="-1" aria-hidden="true">{% endif %}<img class="thumb" data-gallery-image src="{{ featured if featured else photos[0] }}" alt="Фото квартиры: {{ offer.address or '' }}" loading="lazy" draggable="false" referrerpolicy="no-referrer"><span class="photo-placeholder gallery-unavailable" data-gallery-error hidden>Фотография недоступна в источнике</span>{% if link %}</a>{% endif %}
+  {% if photos|length > 1 %}<button type="button" class="gallery-arrow gallery-prev" data-gallery-prev aria-label="Предыдущее фото" hidden>{{ icon('arrow-left') }}</button><button type="button" class="gallery-arrow gallery-next" data-gallery-next aria-label="Следующее фото" hidden>{{ icon('arrow-right') }}</button><span class="gallery-count" data-gallery-count aria-live="polite" hidden></span>{% endif %}
+</div>
+{% else %}<div class="photo-placeholder">{{ icon('image') }}<span>Нет фотографий</span></div>{% endif %}
+{% endmacro %}

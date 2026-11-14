@@ -50,4 +50,4 @@ def search(conn: sqlite3.Connection, profile: Profile, *, include_skipped: bool 
     rows.sort(key=_base_order)
     rows.sort(key=lambda r: -r.similar[0] if r.similar else float("inf"))
     from flats.trips import rank_rows
-    return rank_rows(conn, rows)
+    return rank_rows(conn, rows, profile=profile)
