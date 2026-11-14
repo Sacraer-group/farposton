@@ -37,6 +37,8 @@
         price: link.dataset.price || "Цена не указана",
         address: link.dataset.address || "Адрес не указан",
         href: url.href,
+        houseId: link.dataset.houseId || null,
+        houseUrl: link.dataset.houseUrl || null,
       });
     });
     if (!points.length) {
@@ -74,32 +76,35 @@
     };
     fit();
     const markers = new Map();
-    points.forEach((point) => {
-      const pill = document.createElement("span");
-      pill.className = "map-price-pill";
-      pill.textContent = point.price;
+    const groups = new Map();
+    points.forEach(point => {
+      const key = point.houseId ? `house:${point.houseId}` : `offer:${point.key}`;
+      if (!groups.has(key)) groups.set(key, []);
+      if (!groups.get(key).some(p => p.key === point.key)) groups.get(key).push(point);
+    });
+    groups.forEach(offers => {
+      const point = offers[0];
+      const pill = document.createElement('span');
+      pill.className = 'map-price-pill';
+      pill.textContent = offers.length > 1 ? `${offers.length} квартиры` : point.price;
       const marker = L.marker([point.lat, point.lon], {
-        icon: L.divIcon({className: "map-price-marker", html: pill, iconSize: null, iconAnchor: [0, 0]}),
-        title: `${point.price} · ${point.address}`,
-        keyboard: true,
-        riseOnHover: true,
+        icon: L.divIcon({className: 'map-price-marker', html: pill, iconSize: null, iconAnchor: [0, 0]}),
+        title: `${point.address} · вариантов: ${offers.length}`,
+        keyboard: true, riseOnHover: true,
       }).addTo(map);
-      marker.getElement().setAttribute("aria-label", `${point.price} · ${point.address}. Подробнее о квартире`);
-      const popup = document.createElement("div");
-      popup.className = "map-popup";
-      const price = document.createElement("strong");
-      price.className = "map-popup-price";
-      price.textContent = point.price;
-      const address = document.createElement("p");
-      address.className = "map-popup-address";
-      address.textContent = point.address;
-      const link = document.createElement("a");
-      link.className = "map-popup-link";
-      link.href = point.href;
-      link.textContent = "Открыть квартиру";
-      popup.append(price, address, link);
-      marker.bindPopup(popup, {maxWidth: 260});
-      markers.set(point.key, marker);
+      marker.getElement().setAttribute('aria-label', `${point.address}. Вариантов: ${offers.length}`);
+      const popup = document.createElement('div'); popup.className = 'map-popup';
+      const address = document.createElement('strong'); address.textContent = point.address; popup.append(address);
+      if (point.houseUrl) {
+        const house = document.createElement('a'); house.className = 'map-popup-link';
+        house.href = point.houseUrl; house.textContent = 'Паспорт дома →'; popup.append(house);
+      }
+      offers.forEach(offer => {
+        const link = document.createElement('a'); link.className = 'map-popup-link';
+        link.href = offer.href; link.textContent = `${offer.price} · квартира →`; popup.append(link);
+        markers.set(offer.key, marker);
+      });
+      marker.bindPopup(popup, {maxWidth: 280});
     });
 
     container.dataset.mapReady = "true";
@@ -114,7 +119,7 @@
         report("error", "Не удалось загрузить карту. Адреса и ссылки на квартиры доступны ниже.");
       })
       .on("load", () => {
-        if (!tileErrors) report("ready", `Вариантов на карте: ${points.length}`);
+        if (!tileErrors) report("ready", `Домов на карте: ${groups.size} · квартир: ${points.length}`);
       }).addTo(map);
     if (reset) reset.addEventListener("click", fit);
     maps.push({map, markers, fit, container, visible: container.clientWidth > 0 && container.clientHeight > 0});

@@ -76,14 +76,14 @@ def test_house_data_is_distinguished_from_listing_data(client):
     assert 'href="https://dom.gosuslugi.ru/#!/houses"' in html
 
 
-def test_map_preserves_coordinates_and_escapes_listing_address(client):
+def test_map_does_not_promote_unverified_listing_coordinates(client):
     conn = db.connect(client.application.config["DB_PATH"])
     run_import(conn, [{"source": "farpost", "source_id": "map-xss", "lat": 43.125,
                       "lon": 131.875, "address": '<img src=x onerror="alert(1)">'}])
     conn.close()
     html = client.get("/").get_data(as_text=True)
-    assert 'data-lat="43.125" data-lon="131.875"' in html
-    assert 'data-address="&lt;img src=x onerror=&#34;alert(1)&#34;&gt;"' in html
+    assert 'data-lat="43.125" data-lon="131.875"' not in html
+    assert '&lt;img src=x onerror=&#34;alert(1)&#34;&gt;' in html
     assert '<img src=x onerror="alert(1)">' not in html
 
 

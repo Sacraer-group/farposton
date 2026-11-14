@@ -1,4 +1,16 @@
 (() => {
+  const originalFetch = window.fetch.bind(window);
+  window.fetch = (input, options = {}) => {
+    const url = new URL(input instanceof Request ? input.url : input, location.href);
+    const method = (options.method || (input instanceof Request ? input.method : 'GET')).toUpperCase();
+    if (url.origin === location.origin && !['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+      const headers = new Headers(options.headers || (input instanceof Request ? input.headers : undefined));
+      const token = document.querySelector('meta[name="csrf-token"]')?.content;
+      if (token) headers.set('X-CSRF-Token', token);
+      options = { ...options, headers };
+    }
+    return originalFetch(input, options);
+  };
   const workspace = document.querySelector("[data-workspace]");
   const compact = matchMedia("(max-width: 900px)");
   const switches = [...document.querySelectorAll("button[data-view]")];

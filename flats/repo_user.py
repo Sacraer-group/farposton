@@ -3,9 +3,16 @@ import sqlite3
 from datetime import datetime, timezone
 
 from .types import Profile
+from .visitors import owner
 
 
 def get_profile(conn: sqlite3.Connection) -> Profile:
+    if owner() != 'local':
+        row = conn.execute('SELECT profile_json FROM visitor_profiles WHERE visitor_id=?', (owner(),)).fetchone()
+        if row is None:
+            return Profile(None, None, (), (), False, None)
+        d = json.loads(row['profile_json'])
+        return Profile(d['monthly_max'], d['move_in_max'], tuple(d['rooms']), tuple(d['districts']), d['pets_required'], d['sample_photo_url'])
     row = conn.execute("SELECT * FROM search_profile WHERE id = 1").fetchone()
     if row is None:
         return Profile(None, None, (), (), False, None)
@@ -20,6 +27,11 @@ def get_profile(conn: sqlite3.Connection) -> Profile:
 
 
 def save_profile(conn: sqlite3.Connection, p: Profile) -> None:
+    if owner() != 'local':
+        from dataclasses import asdict
+        conn.execute('INSERT OR REPLACE INTO visitor_profiles VALUES (?,?)', (owner(), json.dumps(asdict(p))))
+        conn.commit()
+        return
     conn.execute(
         """
         INSERT OR REPLACE INTO search_profile (
@@ -44,6 +56,10 @@ def decide(
 ) -> int:
     if action not in ("save", "skip"):
         raise ValueError("action must be 'save' or 'skip'")
+    if owner() != "local":
+        cursor = conn.execute("INSERT INTO visitor_decisions(visitor_id,source,source_id,action,created_at) VALUES (?,?,?,?,?)", (owner(),source,source_id,action,datetime.now(timezone.utc).isoformat()))
+        conn.commit()
+        return cursor.lastrowid
     cursor = conn.execute(
         """
         INSERT INTO decisions (source, source_id, action, created_at, undone)
@@ -56,6 +72,13 @@ def decide(
 
 
 def undo_last(conn: sqlite3.Connection) -> int | None:
+    if owner() != 'local':
+        row=conn.execute('SELECT id FROM visitor_decisions WHERE visitor_id=? AND undone=0 ORDER BY id DESC LIMIT 1',(owner(),)).fetchone()
+        if row is None:
+            return None
+        conn.execute('UPDATE visitor_decisions SET undone=1 WHERE id=? AND visitor_id=?',(row['id'],owner()))
+        conn.commit()
+        return row['id']
     row = conn.execute(
         "SELECT id FROM decisions WHERE undone = 0 ORDER BY id DESC LIMIT 1"
     ).fetchone()
@@ -67,6 +90,9 @@ def undo_last(conn: sqlite3.Connection) -> int | None:
 
 
 def current_decisions(conn: sqlite3.Connection) -> dict[tuple[str, str], str]:
+    if owner() != "local":
+        rows=conn.execute("SELECT source,source_id,action FROM visitor_decisions WHERE visitor_id=? AND id IN (SELECT MAX(id) FROM visitor_decisions WHERE visitor_id=? AND undone=0 GROUP BY source,source_id)",(owner(),owner()))
+        return {(r["source"],r["source_id"]):r["action"] for r in rows}
     rows = conn.execute(
         """
         SELECT source, source_id, action FROM decisions

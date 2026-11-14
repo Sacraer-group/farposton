@@ -1,6 +1,6 @@
 from dataclasses import replace
 
-from flask import Blueprint, abort, render_template, request
+from flask import Blueprint, abort, render_template, request, current_app
 
 from flats import advisor, place_context, repo_offers, repo_user
 from flats.costs import compute_costs
@@ -13,7 +13,7 @@ bp = Blueprint("pages", __name__)
 
 
 def _int(name, errors):
-    value = request.args.get(name, "").replace(" ", "")
+    value = request.values.get(name, "").replace(" ", "")
     if not value:
         return None
     if value.isdigit():
@@ -22,27 +22,44 @@ def _int(name, errors):
     return None
 
 
-@bp.get("/")
+@bp.route("/", methods=["GET", "POST"])
 def index():
     conn = get_conn()
     profile = repo_user.get_profile(conn)
     errors = []
-    if request.args.get("apply"):
+    if request.values.get("apply"):
         profile = replace(
             profile,
             monthly_max=_int("monthly_max", errors),
             move_in_max=_int("move_in_max", errors),
-            rooms=tuple(int(r) for r in request.args.getlist("rooms") if r.isdigit()),
-            districts=tuple(request.args.getlist("districts")),
-            pets_required=bool(request.args.get("pets_required")),
+            rooms=tuple(int(r) for r in request.values.getlist("rooms") if r.isdigit()),
+            districts=tuple(request.values.getlist("districts")),
+            pets_required=bool(request.values.get("pets_required")),
         )
-        repo_user.save_profile(conn, profile)
+        if request.method == "POST" or not current_app.config["PUBLIC_DEMO"]:
+            repo_user.save_profile(conn, profile)
     rows = search(conn, profile)
     total = len(group_offers(repo_offers.all_offers(conn)))
     districts = [r[0] for r in conn.execute(
         "SELECT DISTINCT district FROM offers WHERE district IS NOT NULL ORDER BY district")]
+    from flats.repo_houses import house_links_for_offers
+    links=house_links_for_offers(conn, [(r.offer.source,r.offer.source_id) for r in rows])
+    groups={}
+    unlocated=[]
+    from urllib.parse import quote
+    for row in rows:
+        link=links[(row.offer.source,row.offer.source_id)]
+        coords=(link.get('summary') or {}).get('coordinates')
+        if link['status'] not in ('exact','manual') or not coords:
+            unlocated.append(row)
+            continue
+        group=groups.setdefault(link['house_id'],{'id':link['house_id'],'address':link['summary']['address'],
+            'lat':coords['lat'],'lon':coords['lon'],'offers':[]})
+        if not any(o['key']==row.card.key for o in group['offers']):
+            group['offers'].append({'key':row.card.key,'url':'/flat/'+quote(row.card.key,safe=''),
+                                  'price':row.costs.monthly_known,'address':row.offer.address})
     return render_template("search.html", rows=rows, total=total, profile=profile,
-                           districts=districts, errors=errors)
+                           districts=districts, errors=errors, map_houses=list(groups.values()), map_unlocated=unlocated)
 
 
 @bp.get("/flat/<path:key>")
@@ -65,7 +82,7 @@ def advisor_page():
     priority = request.args.get("priority", "budget")
     flat_key = request.args.get("key")
     try:
-        offer_ids = advisor.validate_offer_ids(request.args.getlist("o"))
+        offer_ids = advisor.validate_offer_ids(request.values.getlist("o"))
     except ValueError as exc:
         abort(400, str(exc))
     scope = request.args.get("scope", "offers" if offer_ids or flat_key else "search")

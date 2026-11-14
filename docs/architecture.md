@@ -1,3 +1,10 @@
+## Current implementation — 14 November 2026
+
+House passports, explicit weekly transit calculations, public browser-session isolation
+and the PR38 interface are implemented on feature/bereg-complete. The historical
+proposal paragraphs below record the prior baseline; current runtime and limitations
+are in README and implementation-status.md. Flask/Jinja/SQLite remain the stack.
+
 # Architecture
 
 ## Implemented baseline
@@ -10,7 +17,7 @@
 | Favorites and comparison | Save flats, compare up to 5 by the same fields, questions for missing data |
 | Swipe mode | Save / skip / details / undo over the same list, filters and favorites |
 
-## Accepted next slice (proposed)
+## Previously proposed house integration (historical)
 
 The earlier v1 exclusion of house passports is superseded by the user's decision to use collected house evidence for rental decisions. [Product brief](product-brief.md), [house proposal](house-passport/README.md), and [dataset](../research/house-passports/README.md) describe the intended integration. House ingestion, storage and routes are not implemented on this baseline. The [open draft PR 38](https://github.com/Sacraer-group/farposton/pull/38) proposes UI changes; it is not merged. Separately, manual house-source collection may be considered subject to source access rules; listing ingestion remains through the official Metrapi API and existing security, privacy and money constraints remain in force.
 
@@ -22,7 +29,7 @@ The redesign exposes this hierarchy using the existing offer data. The source sn
 
 ## Out of scope
 
-Route calculation; fair price prediction; own parsers; own duplicate model; unrestricted AI chat and long reports; owner/fraud/defect checks; notifications, accounts, shared choice, mobile app; scheduler, Redis, vector DB, SPA, model server; uploading external reference photos; learning from swipes.
+Fair price prediction; own parsers; own duplicate model; unrestricted AI chat and long reports; owner/fraud/defect checks; notifications, accounts, shared choice, mobile app; scheduler, Redis, vector DB, SPA, model server; uploading external reference photos; learning from swipes.
 
 ## Advisor direction
 

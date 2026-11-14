@@ -648,3 +648,67 @@ kbd { display: flex; align-items: center; justify-content: center; background: w
   .brief-item { break-inside: avoid; }
   .brief-item > a::after { content: " (" attr(href) ")"; }
 }
+
+/* Weekly journeys reuse the catalog's surfaces, controls and evidence states. */
+.trip-layout { display: grid; grid-template-columns: 1fr 1.2fr; gap: 24px; align-items: start; }
+.trip-editor, .trip-run { padding: 26px; min-width: 0; }
+.trip-editor .section-intro { margin: 12px 0 22px; }
+.trip-search label, .trip-editor form > label, .trip-two label, .trip-limits label { display: flex; flex-direction: column; gap: 7px; font-size: 12px; color: var(--muted); }
+.trip-search-line { display: flex; gap: 8px; }
+.trip-editor input:not([type=checkbox]), .trip-editor select { width: 100%; min-width: 0; padding: 10px; border: 1px solid var(--line); background: #fcfcfa; color: var(--ink); border-radius: 8px; }
+.trip-search-line input { flex: 1; }
+.trip-place-results { margin: 12px 0; }
+.trip-place-result { display: grid; gap: 7px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.trip-place-result small, .trip-places small { display: block; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.trip-place-result button { justify-self: start; white-space: normal; text-align: left; }
+.manual-place { margin-top: 20px; font-size: 13px; }
+.manual-place summary { cursor: pointer; color: var(--accent); }
+.manual-place form { display: grid; gap: 12px; margin-top: 15px; }
+.trip-editor form > .trip-confirm { flex-direction: row; align-items: start; color: var(--ink); }
+.trip-places { padding: 0; list-style: none; }
+.trip-places li { display: flex; gap: 12px; align-items: center; justify-content: space-between; border-top: 1px solid var(--line); padding: 14px 0; }
+.trip-two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.trip-leg { border: 1px solid var(--line); border-radius: 12px; padding: 15px; margin: 0 0 18px; min-width: 0; }
+.trip-leg legend { padding: 0 8px; font-size: 13px; font-weight: 650; }
+.trip-leg-order { display: flex; gap: 6px; justify-content: flex-end; margin-bottom: 12px; }
+.trip-leg-order button { min-height: 32px; }
+.trip-days { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0; }
+.trip-days label { display: flex; align-items: center; gap: 4px; padding: 6px 7px; background: var(--bg); border-radius: 6px; font-size: 11px; cursor: pointer; }
+.trip-limits { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
+.trip-note { color: var(--muted); font-size: 11px; margin-top: 18px; }
+.trip-run { grid-column: 1 / -1; display: grid; gap: 16px; }
+.trip-run > p { max-width: 800px; }
+.trip-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+.trip-status { color: var(--accent); }
+.trip-run progress { width: 100%; accent-color: var(--accent); }
+.rental-evidence { display: grid; gap: 10px; font-size: 12px; margin: 12px 0; }
+.rental-evidence:empty { display: none; }
+.trip-summary { display: grid; gap: 6px; background: var(--accent-soft); padding: 12px; border-radius: 9px; }
+.trip-incomplete, .trip-violates { background: var(--amber-soft); }
+.house-link-state { display: grid; gap: 4px; }
+.house-link-state small { color: var(--amber); }
+.trip-leg-results { padding: 0; list-style: none; }
+.trip-leg-results li { display: grid; gap: 4px; padding: 12px 0; border-top: 1px solid var(--line); }
+.trip-summary details summary { cursor: pointer; }
+.commute-entry > div { max-width: 760px; }
+@media (max-width: 900px) {
+ .trip-layout { grid-template-columns: 1fr; }
+ .trip-editor, .trip-run { padding: 18px; }
+ .main-nav { overflow-x: auto; }
+ .main-nav a { white-space: nowrap; }
+}
+@media (max-width: 480px) {
+ .trip-limits { grid-template-columns: 1fr; }
+ .trip-two { grid-template-columns: 1fr; }
+ .trip-buttons { flex-direction: column; }
+ .trip-buttons .button { width: 100%; white-space: normal; }
+ .trip-search-line { flex-wrap: wrap; }
+ .trip-search-line input { flex-basis: 100%; }
+ .trip-leg { padding: 12px; }
+ .trip-places li { align-items: start; }
+}
+@media (prefers-reduced-motion: reduce) {
+ html { scroll-behavior: auto; }
+ *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+#place-picker-map { width: 100%; height: 280px; border-radius: 12px; margin-top: 16px; background: var(--bg); }

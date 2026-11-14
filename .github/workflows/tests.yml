@@ -1,10 +1,10 @@
 name: tests
-
 on:
   push:
-    branches: [main]
+    branches: [main, feature/bereg-complete]
   pull_request:
-
+permissions:
+  contents: read
 jobs:
   pytest:
     runs-on: ubuntu-latest
@@ -12,7 +12,33 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.11"
+          python-version: '3.11'
           cache: pip
       - run: pip install -e '.[dev]'
       - run: pytest -q
+      - run: docker build -t bereg:test .
+  deploy:
+    needs: pytest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: bereg-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build tested commit
+        run: docker build -t bereg:${{ github.sha }} .
+      - name: Configure restricted deployment connection
+        env:
+          DEPLOY_KEY: ${{ secrets.BEREG_DEPLOY_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.BEREG_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/bereg
+          chmod 600 ~/.ssh/bereg
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Deploy and verify public health
+        run: |
+          set -o pipefail
+          docker save bereg:${{ github.sha }} | ssh -i ~/.ssh/bereg -o BatchMode=yes tech@176.53.253.25 deploy ${{ github.sha }}
+          curl --fail --retry 3 https://farposton.renosaza.com/health

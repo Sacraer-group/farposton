@@ -8,12 +8,16 @@
 {% endif %}
 {%- endmacro %}
 
-{% macro map_shell(title='Квартиры на карте', compact=false) -%}
+{% macro map_shell(title='Квартиры на карте', compact=false, provenance='Координаты из объявлений. Привязка к конкретному дому требует проверки.') -%}
 <section class="map-shell{% if compact %} map-compact{% endif %}" aria-label="{{ title }}">
   <div class="map-heading"><div><span class="eyebrow">Расположение</span><h2>{{ title }}</h2></div><button type="button" class="icon-button" data-map-reset aria-label="Показать все точки на карте" title="Показать все точки">{{ icon('map-pinned') }}</button></div>
   <div class="rental-map" data-map role="region" aria-label="{{ title }}"></div>
   <div class="map-data" hidden>{{ caller() }}</div>
   <div class="map-caption"><span class="map-status-dot"></span><span data-map-status>Загрузка карты…</span></div>
-  <p class="map-provenance">Координаты из объявлений. Привязка к конкретному дому требует проверки.</p>
+  <p class="map-provenance">{{ provenance }}</p>
 </section>
+{%- endmacro %}
+
+{% macro map_house(h) -%}
+{% for o in h.offers %}<a data-map-point data-key="{{ o.key }}" data-house-id="{{ h.id }}" data-house-url="/house/{{ h.id }}" data-lat="{{ h.lat }}" data-lon="{{ h.lon }}" data-price="{{ o.price }}" data-address="{{ h.address }}" href="{{ o.url }}">{{ h.address }} · {{ o.price }}</a>{% endfor %}
 {%- endmacro %}
