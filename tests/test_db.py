@@ -18,6 +18,8 @@ def test_init_db_creates_schema(tmp_path):
             for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
         }
         assert tables == {
+        "visitors", "visitor_profiles", "visitor_decisions", "trip_schedules", "trip_request_usage",
+        "houses", "offer_houses", "house_sources", "house_facts", "house_contacts", "house_events",
             "import_runs", "offers", "photo_features", "search_profile", "decisions"
         }
         assert conn.execute(

@@ -1,27 +1,32 @@
 {% extends "base.html" %}
+{% from "_ui.html" import icon, map_shell, map_point, map_house %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}">{% endblock %}
 {% block content %}
-<h1>Долгосрочная аренда во Владивостоке</h1>
-<form method="get" class="filters">
-  <input type="hidden" name="apply" value="1">
-  <label>Ежемесячно до, ₽ <input name="monthly_max" inputmode="numeric" value="{{ profile.monthly_max or '' }}"></label>
-  <label>На въезд до, ₽ <input name="move_in_max" inputmode="numeric" value="{{ profile.move_in_max or '' }}"></label>
-  <fieldset><legend>Комнат</legend>
-    {% for n in [0, 1, 2, 3, 4] %}<label><input type="checkbox" name="rooms" value="{{ n }}"{% if n in profile.rooms %} checked{% endif %}> {{ 'студия' if n == 0 else n }}</label> {% endfor %}
-  </fieldset>
-  <label>Районы
-    <select name="districts" multiple size="5">{% for d in districts %}<option{% if d in profile.districts %} selected{% endif %}>{{ d }}</option>{% endfor %}</select>
-  </label>
-  <label><input type="checkbox" name="pets_required" value="1"{% if profile.pets_required %} checked{% endif %}> Нужно с животными</label>
-  <button>Подобрать</button>
-</form>
-{% if profile.sample_photo_url %}
-<div class="sample" role="status">
-  <img src="{{ profile.sample_photo_url }}" alt="Выбранный образец интерьера" referrerpolicy="no-referrer">
-  <p>Сначала показаны квартиры с похожим интерьером{% if not rows|selectattr('similar')|list %} — для этого запустите <code>flats embed</code>{% endif %}.</p>
-  <form method="post" action="/api/sample/clear"><button>Сбросить образец</button></form>
+<div class="page-heading">
+  <div><p class="eyebrow">Долгосрочная аренда · Владивосток</p><h1>Квартиры для просмотра<span class="heading-dot">.</span></h1><p class="page-intro">Сравните расходы, расположение и сведения о доме.</p></div>
+  <a class="button button-outline heading-action" href="/favorites">{{ icon('heart') }}К моей подборке {{ icon('arrow-right') }}</a>
 </div>
+<section class="decision-entry commute-entry" aria-label="Подбор по поездкам"><div><span class="eyebrow">Дом под ваш ритм</span><strong>ДВФУ, работа, Луговая — откуда удобнее добираться?</strong><p>Добавьте места и поездки недели. Сравним квартиры по времени в дороге, пересадкам и вашим условиям.</p></div><a class="button button-primary" href="/trips">Подобрать по поездкам {{ icon('arrow-right') }}</a></section>
+<form method="post" class="filters" id="search-filters" aria-label="Условия поиска">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token|default('') }}"><input type="hidden" name="apply" value="1">
+  <label class="money-filter"><span>Аренда в месяц до</span><span class="input-unit"><input name="monthly_max" inputmode="numeric" placeholder="Без ограничения" value="{{ profile.monthly_max or '' }}"><span>₽</span></span></label>
+  <label class="money-filter"><span>На въезд до</span><span class="input-unit"><input name="move_in_max" inputmode="numeric" placeholder="Без ограничения" value="{{ profile.move_in_max or '' }}"><span>₽</span></span></label>
+  <fieldset class="room-filter"><legend>Комнат</legend><div class="room-options">{% for n in [0, 1, 2, 3, 4] %}<label><input type="checkbox" name="rooms" value="{{ n }}"{% if n in profile.rooms %} checked{% endif %}><span>{{ 'Студия' if n == 0 else n }}</span></label>{% endfor %}</div></fieldset>
+  <details class="district-filter"><summary>{{ icon('map-pinned') }}Районы{% if profile.districts %}<span class="count-pill">{{ profile.districts|length }}</span>{% endif %}{{ icon('chevron-down') }}</summary><div class="district-options">{% for d in districts %}<label><input type="checkbox" name="districts" value="{{ d }}"{% if d in profile.districts %} checked{% endif %}>{{ d }}</label>{% else %}<p class="muted">Районы ещё не загружены.</p>{% endfor %}</div></details>
+  <label class="pets-filter"><input type="checkbox" name="pets_required" value="1"{% if profile.pets_required %} checked{% endif %}><span>С животными</span></label>
+  <button class="button button-primary filter-submit">Подобрать {{ icon('arrow-right') }}</button>
+</form>
+{% for e in errors %}<p class="notice notice-error" role="alert">{{ e }}</p>{% endfor %}
+{% if profile.sample_photo_url %}
+<div class="sample" role="status"><img src="{{ profile.sample_photo_url }}" alt="Выбранный образец интерьера" referrerpolicy="no-referrer"><div><strong>Подборка по похожему интерьеру</strong><p>Сначала — визуально похожие варианты с учётом ваших условий.{% if not rows|selectattr('similar')|list %} Для этих объявлений сравнение фотографий пока недоступно.{% endif %}</p></div><form method="post" action="/api/sample/clear"><input type="hidden" name="csrf_token" value="{{ csrf_token|default('') }}"><button class="button button-outline">Сбросить образец</button></form></div>
 {% endif %}
-{% for e in errors %}<p class="status-reject" role="alert">{{ e }}</p>{% endfor %}
-<p>Подходят или требуют уточнения: {{ rows|length }} из {{ total }}.{% if rows|length < 3 %} Остальные нарушают известные условия — попробуйте смягчить фильтры.{% endif %}</p>
-<div class="cards">{% for row in rows %}{% include "_card.html" %}{% endfor %}</div>
+<div class="results-toolbar"><div><strong>{{ rows|length }} вариантов</strong><span class="muted"> из {{ total }} · подходят или требуют уточнения</span></div><div class="view-switch" aria-label="Вид подборки"><button type="button" data-view="split" class="split-option" aria-pressed="true">{{ icon('columns-3') }}Список и карта</button><button type="button" data-view="list" aria-pressed="false">{{ icon('list') }}Список</button><button type="button" data-view="map" aria-pressed="false">{{ icon('map-pinned') }}Карта</button></div></div>
+<div class="search-workspace" data-workspace data-view="{{ request.args.get('view') if request.args.get('view') in ['list', 'map'] else 'split' }}">
+  <section class="results-list" aria-label="Подходящие квартиры">
+    {% if rows %}<div class="cards">{% for row in rows %}{% include "_card.html" %}{% endfor %}</div>{% else %}<div class="empty-state">{{ icon('sliders-horizontal') }}<h2>По этим условиям квартир нет</h2><p>Попробуйте увеличить бюджет или выбрать другие районы. Неизвестные условия сами по себе не исключают квартиру.</p><a class="button button-primary" href="/?apply=1">Сбросить условия</a></div>{% endif %}
+    {% if rows and rows|length < 3 %}<p class="notice">Остальные варианты нарушают известные условия — попробуйте смягчить фильтры.</p>{% endif %}
+  </section>
+  <aside class="results-map">{% call map_shell(provenance=('Адресные точки сопоставленных домов; точность до входа не подтверждена.' if map_houses is defined else 'Координаты из объявлений. Привязка к конкретному дому требует проверки.')) %}{% if map_houses is defined %}{% for h in map_houses %}{{ map_house(h) }}{% endfor %}{% else %}{% for row in rows %}{{ map_point(row.offer, row.costs, row.card.key) }}{% endfor %}{% endif %}{% endcall %}{% if map_houses is defined %}<p class="trip-note">На карте — адресные точки сопоставленных домов. Точность до входа не подтверждена.</p>{% endif %}{% if map_unlocated|default([]) %}<details class="panel"><summary>Адрес требует проверки · {{ map_unlocated|length }}</summary><ul>{% for row in map_unlocated %}<li><a class="text-link" href="{{ url_for('pages.flat',key=row.card.key) }}">{{ row.offer.address or 'Адрес не указан' }}</a></li>{% endfor %}</ul></details>{% endif %}<div class="map-help">{{ icon('building-2') }}<div><strong>У квартиры есть контекст</strong><p>Паспорт дома, службы и отключения — на странице квартиры. Отсутствующие сведения отмечены отдельно.</p></div></div></aside>
+</div>
 {% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='vendor/leaflet/leaflet.js') }}" defer></script><script src="{{ url_for('static', filename='map.js') }}" defer></script>{% endblock %}

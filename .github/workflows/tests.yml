@@ -1,10 +1,10 @@
 name: tests
-
 on:
   push:
-    branches: [main]
+    branches: [main, feature/bereg-complete]
   pull_request:
-
+permissions:
+  contents: read
 jobs:
   pytest:
     runs-on: ubuntu-latest
@@ -12,27 +12,35 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.11"
+          python-version: '3.11'
           cache: pip
       - run: pip install -e '.[dev]'
       - run: pytest -q
-
+      - run: docker build -t bereg:test .
   deploy:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: pytest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     concurrency:
-      group: production-deploy
+      group: bereg-production
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v5
-      - name: Deploy tested revision
+      - name: Build tested commit
+        run: docker build -t bereg:${{ github.sha }} .
+      - name: Configure restricted deployment connection
         env:
-          DEPLOY_KEY: ${{ secrets.FLATS_DEPLOY_KEY }}
-          DEPLOY_HOST_KEY: ${{ secrets.FLATS_DEPLOY_HOST_KEY }}
+          DEPLOY_KEY: ${{ secrets.BEREG_DEPLOY_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.BEREG_KNOWN_HOSTS }}
         run: |
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          printf '%s\n' "$DEPLOY_HOST_KEY" > ~/.ssh/known_hosts
-          git archive "$GITHUB_SHA" | ssh -o BatchMode=yes tech@176.53.253.25 "$GITHUB_SHA"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/bereg
+          chmod 600 ~/.ssh/bereg
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Deploy and verify public health
+        run: |
+          set -o pipefail
+          latest=$(git ls-remote origin refs/heads/main | cut -f1)
+          if [ "$latest" != "${{ github.sha }}" ]; then echo "Superseded main commit; skipping release"; exit 0; fi
+          docker save bereg:${{ github.sha }} | ssh -i ~/.ssh/bereg -o BatchMode=yes tech@176.53.253.25 deploy ${{ github.sha }}
+          curl --fail --retry 3 https://farposton.renosaza.com/health

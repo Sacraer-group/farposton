@@ -19,4 +19,4 @@ flats = "flats.cli:main"
 include = ["flats*"]
 
 [tool.setuptools.package-data]
-flats = ["*.sql", "templates/*", "static/*", "demo/*.json"]
+flats = ["*.sql", "templates/*", "static/*", "static/vendor/*", "static/vendor/leaflet/*", "demo/*.json"]

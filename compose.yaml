@@ -1,0 +1,26 @@
+services:
+  bereg:
+    build: .
+    image: ${BEREG_IMAGE:-bereg:local}
+    restart: unless-stopped
+    init: true
+    ports:
+      - "127.0.0.1:${BEREG_PORT:-5001}:5000"
+    env_file: .env
+    environment:
+      FLATS_DB: /data/flats.db
+      FLATS_PUBLIC_DEMO: "1"
+      FLATS_SECURE_COOKIE: "1"
+      FLATS_2GIS_KEY_FILE: /run/secrets/2gis_api_key
+    volumes:
+      - bereg-data:/data
+      - ${BEREG_KEY_FILE:-/home/tech/.config/bereg/2gis_api_key}:/run/secrets/2gis_api_key:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health', timeout=3)"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+volumes:
+  bereg-data:
+    external: true
+    name: ${BEREG_DATA_VOLUME:-bereg-data}

@@ -17,3 +17,9 @@ def connect(path: Path | None = None) -> sqlite3.Connection:
 def init_db(conn: sqlite3.Connection) -> None:
     schema = Path(__file__).with_name("schema.sql").read_text(encoding="utf-8")
     conn.executescript(schema)
+    from flats.visitors import init_visitors
+    init_visitors(conn)
+    from flats.repo_houses import init_house_db
+    init_house_db(conn)
+    from flats.trips import init_trips_db
+    init_trips_db(conn)

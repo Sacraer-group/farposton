@@ -29,6 +29,8 @@ def main(argv=None) -> int:
     sub.add_parser("init-db", help="create the SQLite schema")
     p = sub.add_parser("import-json", help="load normalized offers from a JSON list")
     p.add_argument("path", type=Path)
+    p = sub.add_parser("import-house-passports", help="import an offline version 1 house JSON or ZIP snapshot")
+    p.add_argument("path", type=Path)
     p = sub.add_parser("demo", help="load the bundled dataset")
     p.add_argument("--set", choices=sorted(DEMO_FILES), default="real")
     p = sub.add_parser("embed", help="compute photo vectors for visual search (needs .[ml])")
@@ -41,6 +43,22 @@ def main(argv=None) -> int:
         return 0
     if args.command == "import-json":
         return _import(args.path)
+    if args.command == "import-house-passports":
+        import json
+        from flats.house_import import load_house_bundle, import_house_passports
+        from flats.repo_houses import init_house_db
+        conn = db.connect()
+        try:
+            bundle = load_house_bundle(args.path)
+            db.init_db(conn)
+            init_house_db(conn)
+            print(json.dumps(import_house_passports(conn, bundle), ensure_ascii=False))
+            return 0
+        except Exception as exc:
+            print(f"house import failed: {exc}", file=sys.stderr)
+            return 1
+        finally:
+            conn.close()
     if args.command == "embed":
         from flats import embed, similar
 

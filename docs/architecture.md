@@ -1,6 +1,13 @@
+## Current implementation — 14 November 2026
+
+House passports, explicit weekly transit calculations, public browser-session isolation
+and the PR38 interface are implemented on feature/bereg-complete. The historical
+proposal paragraphs below record the prior baseline; current runtime and limitations
+are in README and implementation-status.md. Flask/Jinja/SQLite remain the stack.
+
 # Architecture
 
-## Scope (v1)
+## Implemented baseline
 
 | Feature | What is built |
 | --- | --- |
@@ -10,13 +17,23 @@
 | Favorites and comparison | Save flats, compare up to 5 by the same fields, questions for missing data |
 | Swipe mode | Save / skip / details / undo over the same list, filters and favorites |
 
-## Accepted next slice (proposed)
+## Previously proposed house integration (historical)
 
 The earlier v1 exclusion of house passports is superseded by the user's decision to use collected house evidence for rental decisions. [Product brief](product-brief.md), [house proposal](house-passport/README.md), and [dataset](../research/house-passports/README.md) describe the intended integration. House ingestion, storage and routes are not implemented on this baseline. The [open draft PR 38](https://github.com/Sacraer-group/farposton/pull/38) proposes UI changes; it is not merged. Separately, manual house-source collection may be considered subject to source access rules; listing ingestion remains through the official Metrapi API and existing security, privacy and money constraints remain in force.
 
-## Out of scope (v1, historical)
+## Product direction and data boundary
 
-House passport (management company, outages, complaints); route calculation; fair price prediction; own parsers; own duplicate model; AI chat and long reports; owner/fraud/defect checks; notifications, accounts, shared choice, mobile app; scheduler, Redis, vector DB, SPA, model server; uploading external reference photos; learning from swipes.
+The decision journey is requirements and priority → three candidates → source-backed house check and comparison → viewing brief and questions. The goal is to understand cash, house evidence and route uncertainty before visiting. Swipe is secondary. See [decision-flow.md](decision-flow.md).
+
+The redesign exposes this hierarchy using the existing offer data. The source snapshot has addresses, coordinates and floors; it does not supply building year, material, managing company, outages or repairs. Missing house information must be shown as unavailable, not inferred. Offer eligibility is separate from verification of the house address. Additional locally curated house records may have their own source and date; they are snapshots, not live provider data. Missing records remain unknown.
+
+## Out of scope
+
+Fair price prediction; own parsers; own duplicate model; unrestricted AI chat and long reports; owner/fraud/defect checks; notifications, accounts, shared choice, mobile app; scheduler, Redis, vector DB, SPA, model server; uploading external reference photos; learning from swipes.
+
+## Advisor direction
+
+A bounded advisor is now in scope. It reuses eligibility and offer costs, retrieves at most five actual candidates lexically, and can call an optional OpenAI-compatible chat/completions provider. The model selects supplied candidate, fact and question IDs; server-side rendering rejects unknown and cross-offer IDs. Without a configured provider the response is explicitly retrieval-based. No new schema, packages or vector database are required. Implementation and verification are tracked in [state.md](state.md).
 
 ## Data flow
 
@@ -63,7 +80,7 @@ Package name: `flats` (directory `flats/`). Each module has one owner task per s
 
 ## Stack
 
-Python 3.11+, Flask (Jinja), `sqlite3` from stdlib, `requests`, NumPy; Transformers + PyTorch + Pillow only for sprint 4. Plain HTML/CSS/JS. `pytest` for tests.
+Python 3.11+, Flask (Jinja), `sqlite3` from stdlib, `requests`, NumPy; Transformers + PyTorch + Pillow only for sprint 4. Plain HTML/CSS/JS. The map uses locally served Leaflet assets and OpenStreetMap tiles; tiles require a network connection and OpenStreetMap attribution. `pytest` for tests.
 
 ## Key rules
 

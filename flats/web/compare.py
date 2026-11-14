@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request
 
-from flats import repo_offers, repo_user
+from flats import place_context, repo_offers, repo_user
 from flats.costs import compute_costs
 from flats.grouping import group_offers
 from flats.questions import questions_for
@@ -35,4 +35,6 @@ def compare():
     if missing:
         notes.append(f"Не найдены в избранном: {len(missing)}.")
     columns = [(o, compute_costs(o), questions_for(card, o)) for o, card in (by_id[w] for w in wanted if w in by_id)]
-    return render_template("compare.html", columns=columns, notes=notes)
+    house_by_offer = {f"{o.source}:{o.source_id}": place_context.house_facts(o.address)
+                      for o, _costs, _questions in columns}
+    return render_template("compare.html", columns=columns, notes=notes, house_by_offer=house_by_offer)
