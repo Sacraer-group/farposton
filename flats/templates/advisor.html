@@ -3,14 +3,14 @@
 {% block title %}Мой выбор · Берег{% endblock %}
 {% block content %}
 <div id="advisor" data-scope="{{ scope }}" data-offer-ids="{{ offer_ids|tojson|forceescape }}">
-  <div class="page-heading advisor-heading"><div><p class="eyebrow">Владивосток · выбор перед просмотром</p><h1>Где вам будет удобно жить<span class="heading-dot">?</span></h1><p class="page-intro">Три кандидата, понятные компромиссы и вопросы, которые стоит задать заранее.</p></div><span class="advisor-label">{{ icon('layers-2') }}Помощник по источникам</span></div>
+  <div class="page-heading advisor-heading"><div><p class="eyebrow">Выбор перед просмотром</p><h1>С каких квартир начать</h1><p class="page-intro">Сопоставьте условия, сведения о доме и вопросы перед просмотром</p></div><span class="advisor-label">Помощник по источникам</span></div>
   <nav class="decision-steps" aria-label="Путь к просмотру"><a href="#scenario" aria-current="step"><span>01</span>Ваши условия</a><a href="#advisor-results"><span>02</span>Три кандидата</a><a href="#evidence"><span>03</span>Дом и основания</a><a href="#viewing-brief"><span>04</span>План просмотров</a></nav>
   {% if offer_ids %}<div class="scope-banner">{{ icon('columns-3') }}<span>Разбираем выбранные предложения: {{ offer_ids|length }}. У каждого сохраняются собственные условия и источник.</span><a href="/advisor" class="text-link">Вся подборка</a></div>{% elif scope == 'saved' %}<div class="scope-banner">{{ icon('heart') }}<span>Выбираем из вашего избранного.</span><a href="/advisor" class="text-link">Вся подборка</a></div>{% endif %}
   <div class="advisor-layout">
     <aside id="scenario" class="scenario-panel panel">
-      <div class="panel-title">{{ icon('sliders-horizontal') }}<h2>Как вы будете здесь жить?</h2></div>
+      <div class="panel-title"><h2>Ваши условия</h2></div>
       <form id="advisor-form">
-        <div class="scenario-money"><label>В месяц до, ₽<input name="monthly_max" type="number" min="1" step="1" inputmode="numeric" placeholder="Например, 50 000" value="{{ profile.monthly_max or '' }}"></label><label>На въезд до, ₽<input name="move_in_max" type="number" min="1" step="1" inputmode="numeric" placeholder="Например, 100 000" value="{{ profile.move_in_max or '' }}"></label></div>
+        <div class="scenario-money"><label>В месяц до, ₽<input name="monthly_max" type="number" min="1" step="1" inputmode="numeric" placeholder="50 000" value="{{ profile.monthly_max or '' }}"></label><label>На въезд до, ₽<input name="move_in_max" type="number" min="1" step="1" inputmode="numeric" placeholder="100 000" value="{{ profile.move_in_max or '' }}"></label></div>
         <fieldset class="room-filter"><legend>Комнаты</legend><div class="room-options">{% for n in [0, 1, 2, 3, 4] %}<label><input type="checkbox" name="rooms" value="{{ n }}"{% if n in profile.rooms %} checked{% endif %}><span>{{ 'Студия' if n == 0 else n }}</span></label>{% endfor %}</div></fieldset>
         <label class="pets-filter"><input type="checkbox" name="pets_required"{% if profile.pets_required %} checked{% endif %}>Нужно разрешение на животных</label>
         {% if profile.districts %}<p class="small-note">Районы из поиска: {{ profile.districts|join(', ') }}. <a href="/#search-filters" class="text-link">Изменить</a></p>{% endif %}

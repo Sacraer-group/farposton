@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="csrf-token" content="{{ csrf_token|default('') }}">
-  <meta name="theme-color" content="#f4f5f1">
+  <meta name="theme-color" content="#f5f6f4">
   <title>{% block title %}Квартиры{% endblock %}</title>
   {% block head %}{% endblock %}
   <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
@@ -25,12 +25,12 @@
       <a class="swipe-nav" href="/swipe"{% if request.path == '/swipe' %} aria-current="page"{% endif %}>{{ icon('layers-2') }}<span>Свайпы</span></a>
     </div>
   </header>
-  <main id="main" class="page-shell">
+  <main id="main" class="page-shell" tabindex="-1">
     <noscript><p class="notice">Для избранного и свайпов включите JavaScript. Сохранения остаются только в этом браузере.</p></noscript>
     <p id="decisions-error" class="notice notice-error" role="alert" hidden></p>
     {% block content %}{% endblock %}
   </main>
-  <footer class="site-footer"><span>Берег · выбор квартиры во Владивостоке</span><span class="import-status">{% if last_import %}Данные от {{ last_import }}{% else %}Данные не загружены{% endif %}</span></footer>
+  <footer class="site-footer"><span>Берег · выбор квартиры во Владивостоке</span><span class="import-status">{% if last_import %}<time datetime="{{ last_import }}" title="Данные от {{ last_import }}">Данные от {{ last_import[:10] }}</time>{% else %}Данные не загружены{% endif %}</span></footer>
   <script src="{{ url_for('static', filename='decisions.js') }}" defer></script>
   <script src="{{ url_for('static', filename='app.js') }}" defer></script>
   {% block scripts %}{% endblock %}

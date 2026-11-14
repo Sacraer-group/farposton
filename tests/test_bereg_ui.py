@@ -1,8 +1,26 @@
 """UI contracts for the weekly routine, safe evidence and mutation forms."""
 from pathlib import Path
 
+import pytest
 from flask import render_template
 from flats.web import create_app
+
+
+@pytest.mark.parametrize(
+    ("path", "active"),
+    [("/", "/"), ("/trips", "/trips"), ("/advisor", "/advisor"),
+     ("/favorites", "/favorites"), ("/compare", "/favorites"), ("/swipe", "/swipe")],
+)
+def test_page_navigation_and_keyboard_entry(tmp_path, path, active):
+    client = create_app(tmp_path / "navigation.db").test_client()
+    response = client.get(path)
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert f'href="{active}" aria-current="page"' in html
+    assert 'href="#main"' in html
+    assert '<main id="main" class="page-shell" tabindex="-1">' in html
+    assert 'name="csrf-token"' in html
+    assert '/static/decisions.js' in html
 
 
 def test_trip_editor_and_csrf_forms(tmp_path):
