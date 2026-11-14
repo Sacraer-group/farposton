@@ -16,3 +16,23 @@ jobs:
           cache: pip
       - run: pip install -e '.[dev]'
       - run: pytest -q
+
+  deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: pytest
+    runs-on: ubuntu-latest
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v5
+      - name: Deploy tested revision
+        env:
+          DEPLOY_KEY: ${{ secrets.FLATS_DEPLOY_KEY }}
+          DEPLOY_HOST_KEY: ${{ secrets.FLATS_DEPLOY_HOST_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$DEPLOY_HOST_KEY" > ~/.ssh/known_hosts
+          git archive "$GITHUB_SHA" | ssh -o BatchMode=yes tech@176.53.253.25 "$GITHUB_SHA"
