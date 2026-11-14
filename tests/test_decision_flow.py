@@ -1,10 +1,12 @@
 from urllib.parse import urlencode
+from pathlib import Path
 
 import pytest
 
 from flats import db, place_context, repo_offers
 from flats.cli import DEMO_FILES
 from flats.importer import load_json, run_import
+from flats.house_import import import_house_passports, load_house_bundle
 from flats.web import create_app
 
 
@@ -18,6 +20,15 @@ def real_client(tmp_path):
     app = create_app(path)
     app.testing = True
     return app.test_client()
+
+
+@pytest.fixture
+def houses_client(real_client):
+    conn = db.connect(real_client.application.config["DB_PATH"])
+    archive = Path(__file__).resolve().parents[1] / "research/house-passports/2026-11-14/farposton-house-data-2026-11-14.zip"
+    import_house_passports(conn, load_house_bundle(archive))
+    conn.close()
+    return real_client
 
 
 def test_house_context_never_attaches_to_nearby_house():
@@ -38,7 +49,8 @@ def test_real_house_page_separates_reported_data_from_current_status(real_client
     assert "Дом требует проверки" in html
 
 
-def test_advisor_page_and_context_preserve_the_selected_offer(real_client):
+def test_advisor_page_and_context_preserve_the_selected_offer(houses_client):
+    real_client = houses_client
     selected = "farpost:139158750"
     html = real_client.get("/advisor?" + urlencode({"o": selected, "priority": "house"})).get_data(as_text=True)
     assert 'id="advisor-form"' in html and 'id="viewing-brief"' in html
@@ -53,6 +65,33 @@ def test_advisor_page_and_context_preserve_the_selected_offer(real_client):
     assert any(f["kind"] == "guide" for f in data["evidence"])
     assert data["recommendations"][0]["monthly_known"] == 30000
     assert "управляет" in data["recommendations"][0]["questions"][0]["text"]
+
+
+def test_advisor_retrieves_full_house_archive_and_keeps_conflicting_sources(houses_client):
+    selected = "farpost:133892276"
+    response = houses_client.post("/api/advisor", json={
+        "question": "Работаю из дома. Какая УК и что известно об отключениях и ремонте?",
+        "scope": "offers", "offer_ids": [selected], "priority": "house"})
+    assert response.status_code == 200
+    data = response.get_json()
+    [item] = data["recommendations"]
+    assert item["house_url"].startswith("/house/") and item["house_status"] == "exact"
+    assert any("разные управляющие организации" in text for text in item["unknowns"])
+    facts = [fact for fact in data["evidence"] if fact["kind"] == "house_fact"]
+    assert any("ТЕХНОЛОГИЯ КОМФОРТА" in fact["text"] for fact in facts)
+    assert any("Технология управления" in fact["text"] for fact in facts)
+    assert any("Публикаций об отключениях" in fact["text"] and "не число фактических" in fact["text"] for fact in facts)
+    assert any("плана капремонта" in fact["text"] and "Выполнение работ планом не подтверждено" in fact["text"] for fact in facts)
+    assert all(fact["id"].startswith(f"offer:{selected}:house:") and fact["url"].startswith("https://") and fact["observed_at"] for fact in facts)
+    assert houses_client.get(item["house_url"]).status_code == 200
+
+
+def test_advisor_without_imported_passports_does_not_claim_house_coverage(real_client):
+    data = real_client.post("/api/advisor", json={"question": "Что известно о доме?",
+        "scope": "offers", "offer_ids": ["farpost:139158750"], "priority": "house"}).get_json()
+    assert data["coverage"]["house"] is False
+    assert not any(fact["kind"] == "house_fact" for fact in data["evidence"])
+    assert data["recommendations"][0]["house_url"] is None
 
 
 def test_address_trailing_interface_label_is_not_part_of_house_identity(tmp_path):

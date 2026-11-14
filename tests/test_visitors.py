@@ -55,3 +55,13 @@ def test_public_isolation_and_csrf(app):
 def test_public_requires_stable_secret(monkeypatch,tmp_path):
     monkeypatch.setenv('FLATS_PUBLIC_DEMO','1');monkeypatch.delenv('FLATS_SECRET_KEY',raising=False)
     with pytest.raises(RuntimeError):create_app(tmp_path/'test.db')
+
+
+def test_public_filter_reset_is_persistent_and_keeps_other_visitors(app):
+    a, b = app.test_client(), app.test_client()
+    ah, bh = csrf(a), csrf(b)
+    a.post('/', data={'apply': '1', 'monthly_max': '40000'}, headers=ah)
+    b.post('/', data={'apply': '1', 'monthly_max': '50000'}, headers=bh)
+    assert a.post('/', data={'apply': '1'}, headers=ah).status_code == 200
+    assert 'value="40000"' not in a.get('/').get_data(as_text=True)
+    assert 'value="50000"' in b.get('/').get_data(as_text=True)

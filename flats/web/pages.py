@@ -13,12 +13,12 @@ bp = Blueprint("pages", __name__)
 
 
 def _int(name, errors):
-    value = request.values.get(name, "").replace(" ", "")
+    value = "".join(request.values.get(name, "").split())
     if not value:
         return None
-    if value.isdigit():
+    if value.isascii() and value.isdecimal() and len(value) <= 10 and 0 < int(value) <= 1_000_000_000:
         return int(value)
-    errors.append(f"Неверное число: {value}")
+    errors.append(f"Неверное число: {value}. Укажите целую сумму от 1 до 1 000 000 000 ₽.")
     return None
 
 
@@ -26,22 +26,30 @@ def _int(name, errors):
 def index():
     conn = get_conn()
     profile = repo_user.get_profile(conn)
+    districts = [r[0] for r in conn.execute(
+        "SELECT DISTINCT district FROM offers WHERE district IS NOT NULL AND district != '' ORDER BY district")]
     errors = []
     if request.values.get("apply"):
-        profile = replace(
+        rooms = request.values.getlist("rooms")
+        selected_districts = request.values.getlist("districts")
+        if any(value not in {str(n) for n in range(11)} for value in rooms):
+            errors.append("Выберите количество комнат из списка.")
+        if any(value not in districts for value in selected_districts):
+            errors.append("Выберите район из списка.")
+        proposed = replace(
             profile,
             monthly_max=_int("monthly_max", errors),
             move_in_max=_int("move_in_max", errors),
-            rooms=tuple(int(r) for r in request.values.getlist("rooms") if r.isdigit()),
-            districts=tuple(request.values.getlist("districts")),
+            rooms=tuple(dict.fromkeys(int(r) for r in rooms if r in {str(n) for n in range(11)})),
+            districts=tuple(dict.fromkeys(selected_districts)),
             pets_required=bool(request.values.get("pets_required")),
         )
-        if request.method == "POST" or not current_app.config["PUBLIC_DEMO"]:
-            repo_user.save_profile(conn, profile)
+        if not errors:
+            profile = proposed
+            if request.method == "POST" or not current_app.config["PUBLIC_DEMO"]:
+                repo_user.save_profile(conn, profile)
     rows = search(conn, profile)
     total = len(group_offers(repo_offers.all_offers(conn)))
-    districts = [r[0] for r in conn.execute(
-        "SELECT DISTINCT district FROM offers WHERE district IS NOT NULL ORDER BY district")]
     from flats.repo_houses import house_links_for_offers
     links=house_links_for_offers(conn, [(r.offer.source,r.offer.source_id) for r in rows])
     groups={}
@@ -103,8 +111,11 @@ def advisor_page():
             offer_ids = [f"{o.source}:{o.source_id}" for o in group_offers(related)[0].offers[:5]]
     if scope == "offers" and not offer_ids:
         abort(400, "Выберите предложения для разбора")
+    from flats.repo_houses import house_links_for_offers
+    links = house_links_for_offers(conn, [(o.source, o.source_id) for o in offers])
+    districts = sorted({o.district for o in offers if o.district})
     return render_template("advisor.html", profile=repo_user.get_profile(conn), offer_ids=offer_ids,
                            scope=scope, query=query, priority=priority, flat_key=flat_key,
-                           llm_available=advisor.llm_available(), all_offer_count=len(offers),
-                           house_count=sum(bool(place_context.house_facts(address))
-                                           for address in {o.address for o in offers if o.address}))
+                           llm_available=advisor.llm_available(), all_offer_count=len(offers), districts=districts,
+                           house_count=len({link["house_id"] for link in links.values()
+                                            if link["status"] in ("exact", "manual") and link["summary"]}))

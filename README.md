@@ -42,7 +42,7 @@ flats import-house-passports research/house-passports/2026-11-14/farposton-house
 `compose.yaml` использует существующий внешний том `bereg-data`; ключ монтируется
 отдельным закрытым файлом. Docker-образ не содержит ключей, базы и фотографий.
 
-CI проверяет pytest и сборку контейнера. После push в main deploy использует
+CI проверяет pytest, браузерный сценарий и сборку контейнера. После push в main deploy использует
 ограниченный SSH-вход, резервную копию SQLite, проверку кандидата и переключение Caddy.
 Описание продолжения и ограничения: [docs/implementation-status.md](docs/implementation-status.md).
 
@@ -59,10 +59,12 @@ python3 -m venv .venv && . .venv/bin/activate
 pip install -e '.[dev]'
 flats init-db
 flats demo                      # 50 real offers (Metrapi snapshot, 2026-11-13)
-flats demo --set invented       # optional: 26 invented edge-case offers
+flats import-house-passports research/house-passports/2026-11-14/farposton-house-data-2026-11-14.zip
 flask --app flats.web:create_app run --host 127.0.0.1
 pytest -q
 ```
+
+For invented edge cases instead of the real snapshot, run `flats demo --set invented`.
 
 Visual interior search (optional, CPU is enough, ~12 min for 800 photos):
 
@@ -77,7 +79,7 @@ Open http://127.0.0.1:5000: search, flat page, «Избранное» (compare u
 
 ## Advisor
 
-Open «Мой выбор» (`/advisor`) to set requirements and a priority, review candidates and evidence, compare them, and prepare viewing questions. The route link opens an external map with the destination; choose the starting point and travel mode there. House records are dated evidence, not live outage status.
+Open «Мой выбор» (`/advisor`) to enter a task in Russian or edit the structured requirements, including districts. Text extraction proposes explicit filters with supporting snippets and notes; review and apply them before requesting recommendations. It is deterministic, not an LLM. The draft stays in this browser. Review candidates and evidence, compare them, and prepare viewing questions. Previously calculated weekly trip results can inform recommendations; the external route link lets you choose an origin and mode. Imported house records are dated evidence, not live outage status.
 
 Without a configured model provider, the advisor clearly uses retrieval. An optional OpenAI-compatible provider can be configured locally with `FLATS_LLM_BASE_URL` and `FLATS_LLM_MODEL`. The app appends `/chat/completions` to the base URL; for a compatible service, the base may end in `/v1`. Set `FLATS_LLM_API_KEY` if the provider requires a key, and keep it secret; a keyless local provider does not need one. Live provider behavior has not been verified. See [decision flow and demo](docs/decision-flow.md).
 
