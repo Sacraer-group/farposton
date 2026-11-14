@@ -66,6 +66,16 @@ pytest -q
 
 For invented edge cases instead of the real snapshot, run `flats demo --set invented`.
 
+To run the optional Chromium acceptance scenarios locally:
+
+```bash
+pip install -e '.[dev,browser]'
+python -m playwright install chromium
+pytest -q tests/test_browser_flow.py
+```
+
+On Linux, Chromium may also require system dependencies; CI installs them with `python -m playwright install --with-deps chromium`.
+
 Visual interior search (optional, CPU is enough, ~12 min for 800 photos):
 
 ```bash
