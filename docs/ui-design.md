@@ -18,7 +18,7 @@ Preserve house grouping, filtering, reset-to-bounds, list/map switching, listing
 
 ## Unslop pass
 
-The pass starts from the current Bereg interface, not the earlier Flats redesign. Direction: a considered local rental shortlist, grounded in addresses, weekly journeys and verifiable sources. Keep the name, green accent, system typeface, section order and features. Photos and the map carry visual richness; chrome stays quiet. Pair important figures with unknown conditions and source context.
+The pass starts from the current Bereg interface, not the earlier Flats redesign. Direction: a considered local rental shortlist, grounded in addresses, weekly journeys and verifiable sources. Keep the name, current blue and orange palette, system typeface, section order and features. Photos and the map carry visual richness; chrome stays quiet. Pair important figures with unknown conditions and source context.
 
 - Spacing: regularized shared panels, cards, forms and section gaps around the 4px rhythm.
 - Color: quieter navigation, callouts and auxiliary surfaces; darker secondary text.
