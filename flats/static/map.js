@@ -55,10 +55,11 @@
       report("empty", "Нет координат для отображения на карте. Адрес можно проверить в карточке квартиры.");
       return;
     }
-    if (!window.L) {
+    const tiles = window.FlatsMapTiles?.();
+    if (!tiles) {
       container.hidden = true;
       if (reset) reset.disabled = true;
-      report("error", "Карта не загрузилась. Адреса и ссылки на квартиры доступны ниже.");
+      report("error", "Карта 2ГИС недоступна. Проверьте подключение и настройку ключа. Адреса и ссылки на квартиры доступны ниже.");
       document.addEventListener("decisionschange", selectPoints);
       return;
     }
@@ -144,10 +145,7 @@
     });
 
     container.dataset.mapReady = "true";
-    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
-    }).on("loading", () => { tileErrors = false; tilesReady = false; reportState(); })
+    tiles.on("loading", () => { tileErrors = false; tilesReady = false; reportState(); })
       .on("tileerror", () => {
         tileErrors = true;
         reportState();

@@ -21,6 +21,38 @@ def test_page_navigation_and_keyboard_entry(tmp_path, path, active):
     assert '<main id="main" class="page-shell" tabindex="-1">' in html
     assert 'name="csrf-token"' in html
     assert '/static/decisions.js' in html
+    assert 'id="theme-toggle"' in html
+    assert html.index('/static/theme.js') < html.index('/static/app.css')
+
+
+def test_map_key_is_separate_from_server_routing_key(tmp_path, monkeypatch):
+    key_file = tmp_path / "routing-key"
+    key_file.write_text("private-routing-key")
+    monkeypatch.setenv("FLATS_2GIS_KEY_FILE", str(key_file))
+    monkeypatch.setenv("FLATS_2GIS_MAP_KEY", "browser-map-key")
+    client = create_app(tmp_path / "map.db").test_client()
+    for path in ("/", "/trips"):
+        html = client.get(path).get_data(as_text=True)
+        assert '<meta name="2gis-map-key" content="browser-map-key">' in html
+        assert "private-routing-key" not in html
+        assert "/static/map-tiles.js" in html
+        assert html.index("/static/map-tiles.js") < html.index("/static/vendor/leaflet/leaflet.js")
+    monkeypatch.delenv("FLATS_2GIS_MAP_KEY")
+    html = create_app(tmp_path / "no-map.db").test_client().get("/").get_data(as_text=True)
+    assert '<meta name="2gis-map-key" content="">' in html
+
+
+def test_local_ruble_font_is_served_with_its_license(tmp_path):
+    client = create_app(tmp_path / "fonts.db").test_client()
+    font = client.get("/static/fonts/InterGlyphs.woff2")
+    assert font.status_code == 200
+    assert font.data.startswith(b"wOF2")
+    license = client.get("/static/fonts/LICENSE.txt").get_data(as_text=True)
+    assert "SIL OPEN FONT LICENSE Version 1.1" in license
+    css = client.get("/static/app.css").get_data(as_text=True)
+    assert 'url("fonts/InterGlyphs.woff2")' in css
+    assert "unicode-range: U+20BD" in css
+    assert '"InterGlyphs", Arial, sans-serif' in css
 
 
 def test_trip_editor_and_csrf_forms(tmp_path):

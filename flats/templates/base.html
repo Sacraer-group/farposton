@@ -5,8 +5,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="csrf-token" content="{{ csrf_token|default('') }}">
+  <meta name="2gis-map-key" content="{{ two_gis_map_key|default('') }}">
   <meta name="theme-color" content="#f5f6f4">
   <title>{% block title %}Квартиры{% endblock %}</title>
+  <script src="{{ url_for('static', filename='theme.js') }}"></script>
   {% block head %}{% endblock %}
   <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
 </head>
@@ -22,6 +24,7 @@
         <a href="/"{% if request.path == '/' %} aria-current="page"{% endif %}>Карта и квартиры</a>
         <a href="/favorites"{% if request.path in ['/favorites', '/compare'] %} aria-current="page"{% endif %}>Избранное</a>
       </nav>
+      <button type="button" id="theme-toggle" class="button button-outline theme-toggle" aria-pressed="false" hidden>Тёмная тема</button>
       <a class="swipe-nav" href="/swipe"{% if request.path == '/swipe' %} aria-current="page"{% endif %}>{{ icon('layers-2') }}<span>Свайпы</span></a>
     </div>
   </header>
@@ -33,6 +36,7 @@
   <footer class="site-footer"><span>Берег · выбор квартиры во Владивостоке</span><span class="import-status">{% if last_import %}<time datetime="{{ last_import }}" title="Данные от {{ last_import }}">Данные от {{ last_import[:10] }}</time>{% else %}Данные не загружены{% endif %}</span></footer>
   <script src="{{ url_for('static', filename='decisions.js') }}" defer></script>
   <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='map-tiles.js') }}" defer></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -79,13 +79,11 @@
   }
   pickerDetails.addEventListener('toggle', () => {
     if (!pickerDetails.open) return;
-    if (!window.L) { pickerStatus.textContent = 'Карта не загрузилась. Можно ввести координаты вручную.'; return; }
     if (!picker) {
+      const tiles = window.FlatsMapTiles?.();
+      if (!tiles) { pickerStatus.textContent = 'Карта 2ГИС недоступна. Проверьте подключение и настройку ключа или введите координаты вручную.'; return; }
       picker = L.map('place-picker-map', { scrollWheelZoom: false }).setView([43.1155, 131.8855], 12);
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
-      }).on('tileerror', () => { pickerStatus.textContent = 'Не удалось загрузить карту. Можно ввести координаты вручную.'; }).addTo(picker);
+      tiles.on('tileerror', () => { pickerStatus.textContent = 'Не удалось загрузить карту 2ГИС. Можно ввести координаты вручную.'; }).addTo(picker);
       picker.on('click', event => setPoint(event.latlng.lat, event.latlng.lng));
     }
     requestAnimationFrame(() => picker.invalidateSize());
