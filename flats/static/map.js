@@ -85,7 +85,28 @@
         closePopup();
       }, 200);
     };
+    const positionPopup = () => {
+      if (!popupContent?.isConnected || !activePill) return;
+      const markerBounds = activePill.getBoundingClientRect?.();
+      const mapBounds = container.getBoundingClientRect?.();
+      if (!markerBounds || !mapBounds) return;
+      const top = Math.max(0, mapBounds.top) + 8;
+      const bottom = Math.min(window.innerHeight, mapBounds.bottom) - 8;
+      const above = markerBounds.top - top - 24;
+      const below = bottom - markerBounds.bottom - 24;
+      popupContent.dataset.placement = below > above ? "below" : "above";
+      popupContent.style.maxHeight = `${Math.max(40, Math.min(360, bottom - top, Math.max(above, below)))}px`;
+      const anchor = markerBounds.left + markerBounds.width / 2;
+      const half = Math.min(264, window.innerWidth - 48, mapBounds.width - 16) / 2;
+      const center = Math.max(mapBounds.left + half + 8, Math.min(mapBounds.right - half - 8, anchor));
+      popupContent.style.maxWidth = `${half * 2}px`;
+      popupContent.style.marginLeft = `${center - anchor}px`;
+      popupContent.style.marginTop = "0px";
+      const bounds = popupContent.getBoundingClientRect?.();
+      if (bounds) popupContent.style.marginTop = `${Math.max(top, Math.min(bottom - bounds.height, bounds.top)) - bounds.top}px`;
+    };
     map.on("click", closePopup);
+    map.on("idle", positionPopup);
     const fit = () => {
       if (!visiblePoints.length || !container.clientWidth || !container.clientHeight) return;
       map.invalidateSize();
@@ -125,25 +146,18 @@
         let dismissing = false;
         group.open = (focus = true) => {
           keepPopup();
-          if (activeGroup === group) return;
+          if (activeGroup === group) {
+            if (focus) requestAnimationFrame(() => {
+              if (activeGroup === group) popupContent?.children[0]?.focus();
+            });
+            return;
+          }
           closePopup();
           activeGroup = group;
           activePill = pill;
           const content = document.createElement("div");
           content.className = "map-popup";
           popupContent = content;
-          const markerBounds = pill.getBoundingClientRect?.();
-          const mapBounds = container.getBoundingClientRect?.();
-          if (markerBounds && mapBounds) {
-            const above = markerBounds.top - Math.max(0, mapBounds.top) - 24;
-            const below = Math.min(window.innerHeight, mapBounds.bottom) - markerBounds.bottom - 24;
-            if (below > above) content.dataset.placement = "below";
-            content.style.maxHeight = `${Math.max(120, Math.min(360, Math.max(above, below)))}px`;
-            const anchor = markerBounds.left + markerBounds.width / 2;
-            const half = Math.min(264, window.innerWidth - 48) / 2;
-            const center = Math.max(mapBounds.left + half + 8, Math.min(mapBounds.right - half - 8, anchor));
-            content.style.marginLeft = `${center - anchor}px`;
-          }
           content.addEventListener("pointerenter", keepPopup);
           content.addEventListener("pointerleave", scheduleClose);
           content.addEventListener("focusin", keepPopup);
@@ -194,8 +208,12 @@
             content.append(link);
           });
           popup = new window.mapgl.HtmlMarker(map, { coordinates, html: content, interactive: true, zIndex: 2 });
-          // MapGL attaches marker content on the next frame.
-          requestAnimationFrame(() => { if (focus && content.isConnected) close.focus(); });
+          // MapGL attaches markers and applies setCenter on the next frame.
+          requestAnimationFrame(() => {
+            if (popupContent !== content || !content.isConnected) return;
+            positionPopup();
+            if (focus) close.focus();
+          });
         };
         pill.addEventListener("click", () => group.open());
         pill.addEventListener("pointerenter", event => {
@@ -204,6 +222,12 @@
         pill.addEventListener("pointerleave", scheduleClose);
         pill.addEventListener("focus", () => { if (!dismissing) group.open(false); });
         pill.addEventListener("blur", scheduleClose);
+        pill.addEventListener("keydown", event => {
+          if (event.key === "Escape" && activeGroup === group) {
+            event.preventDefault();
+            closePopup();
+          }
+        });
         group.offers.forEach(offer => markers.set(offer.key, group));
       });
       reportState();

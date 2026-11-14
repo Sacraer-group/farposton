@@ -26,7 +26,7 @@
       <div class="assistant-mode"><span class="map-status-dot"></span><span>{% if llm_available %}ИИ выбирает основания из найденных данных.{% else %}Сейчас доступен подбор по источникам. ИИ-синтез не подключён.{% endif %}</span></div>
     </aside>
     <div class="advisor-main">
-      <section id="advisor-results" aria-labelledby="results-heading" aria-busy="false">
+      <section id="advisor-results" aria-labelledby="results-heading" aria-busy="false" tabindex="-1">
         <div class="section-heading"><div><p class="eyebrow">Ваш следующий шаг</p><h2 id="results-heading">С каких адресов начать</h2></div><a class="text-link" href="/">Открыть карту {{ icon('arrow-up-right') }}</a></div>
         <p id="advisor-status" class="advisor-status" role="status" aria-live="polite">Задайте условия слева. Помощник покажет основания выбора и важные неизвестные.</p>
         <div id="advisor-empty" class="advisor-welcome panel"><div class="welcome-symbol">{{ icon('building-2') }}</div><h3>Цена в объявлении — начало выбора</h3><p>Сопоставим платежи, адресные сведения и ваши приоритеты. Вы увидите, что известно, что стоит проверить и какой вопрос задать первым.</p><div class="local-lenses"><div>{{ icon('droplets') }}<strong>Коммунальные службы</strong><span>Сведения по адресу и дата источника</span></div><div>{{ icon('map-pinned') }}<strong>Жизнь во Владивостоке</strong><span>Повседневный путь и пеший участок</span></div><div>{{ icon('copy') }}<strong>Готовность к просмотру</strong><span>Конкретные вопросы по выбранной квартире</span></div></div></div>

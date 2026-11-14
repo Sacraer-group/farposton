@@ -216,6 +216,8 @@
         throw new Error("Не удалось прочитать избранное и пропуски. Проверьте, разрешено ли хранение данных сайта в браузере.");
       }
       render(await post("/api/advisor", payload));
+      results.focus({preventScroll: true});
+      results.scrollIntoView({block: "start"});
     }
     catch (error) { status.textContent = error.name === "AbortError" ? "Ответ задерживается. Повторите запрос; условия остались в форме." : error.message; }
     finally { busy = false; button.disabled = false; results.setAttribute("aria-busy", "false"); }

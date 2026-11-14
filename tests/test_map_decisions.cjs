@@ -10,7 +10,7 @@ const sdkSource = fs.readFileSync(path.join(__dirname, "../flats/static/map-sdk.
 function element(dataset = {}) {
   const listeners = new Map();
   return {
-    dataset, hidden: false, children: [], textContent: "", isConnected: true,
+    dataset, style: {}, hidden: false, children: [], textContent: "", isConnected: true,
     append(...children) { this.children.push(...children); },
     setAttribute(name, value) { this[name] = value; },
     focus() { this.focused = true; },
@@ -19,11 +19,12 @@ function element(dataset = {}) {
       if (!listeners.has(type)) listeners.set(type, []);
       listeners.get(type).push(callback);
     },
-    fire(type, detail) { for (const callback of listeners.get(type) || []) callback({ type, detail }); },
+    fire(type, detail, event = {}) { for (const callback of listeners.get(type) || []) callback({ type, detail, ...event }); },
   };
 }
 
-function mapPage({ hidden = [], sdk = true, mapKey = "test-map-key", fail = false, mutateLinks } = {}) {
+function mapPage({ hidden = [], sdk = true, mapKey = "test-map-key", fail = false, mutateLinks,
+  markerBounds, mapBounds, popupBounds } = {}) {
   const cards = ["a", "b", "c"].map(key => ({ dataset: { listingKey: key }, hidden: hidden.includes(key) }));
   const links = cards.map((card, index) => Object.assign(element({
     key: card.dataset.listingKey, lat: "43.1", lon: String(131.9 + index / 100),
@@ -31,7 +32,8 @@ function mapPage({ hidden = [], sdk = true, mapKey = "test-map-key", fail = fals
     price: `${index + 1}0 000 ₽`, address: index < 2 ? "Дом 7" : "Дом 9",
   }), { href: `https://app.test/flat/${card.dataset.listingKey}` }));
   mutateLinks?.(links);
-  const container = Object.assign(element(), { clientWidth: 500, clientHeight: 300 });
+  const container = Object.assign(element(), { clientWidth: 500, clientHeight: 300,
+    getBoundingClientRect: () => mapBounds });
   const fallback = element(), reset = element(), status = element(), shell = element();
   shell.querySelector = selector => ({
     "[data-map]": container, ".map-data": fallback,
@@ -41,7 +43,11 @@ function mapPage({ hidden = [], sdk = true, mapKey = "test-map-key", fail = fals
   const document = Object.assign(element(), {
     querySelector: () => ({ content: mapKey }),
     querySelectorAll: selector => selector === ".map-shell" ? [shell] : cards,
-    createElement: () => element(),
+    createElement() {
+      const node = element();
+      node.getBoundingClientRect = () => node.className === "map-price-pill" ? markerBounds : popupBounds;
+      return node;
+    },
   });
   const maps = [], markers = [], timers = [], frames = [];
   const mapgl = {
@@ -63,7 +69,7 @@ function mapPage({ hidden = [], sdk = true, mapKey = "test-map-key", fail = fals
     },
   };
   vm.runInNewContext(sdkSource + "\n" + source, {
-    document, window: { mapgl: sdk ? mapgl : undefined }, URL,
+    document, window: { mapgl: sdk ? mapgl : undefined, innerWidth: 1440, innerHeight: 1000 }, URL,
     location: { href: "https://app.test/", origin: "https://app.test" },
     setTimeout(callback, delay) { const timer = { callback, delay }; timers.push(timer); return timer; },
     clearTimeout(timer) { if (timer) timer.cleared = true; },
@@ -255,4 +261,49 @@ test("unsafe image URLs never load in preview cards", () => {
   view.visibleMarkers()[0].options.html.fire("click");
   const offer = view.popup().options.html.children.find(node => node.className === "map-popup-offer");
   assert.equal(offer.children.some(node => node.src), false);
+});
+
+
+test("popup placement uses settled marker bounds and keeps its close control inside the map", () => {
+  const markerBounds = { left: 1100, top: 450, width: 60, bottom: 482 };
+  const mapBounds = { left: 844, top: 522, right: 1399, bottom: 1002, width: 555 };
+  const popupBounds = { left: 990, top: 378, width: 264, height: 200 };
+  const view = mapPage({ markerBounds, mapBounds, popupBounds });
+  view.document.fire("farposton:map-focus", { key: "a" });
+  const content = view.popup().options.html;
+  assert.equal(content.style.maxHeight, undefined);
+  markerBounds.top = 746;
+  markerBounds.bottom = 778;
+  view.frame();
+  assert.equal(content.dataset.placement, "above");
+  assert.equal(content.style.maxHeight, "192px");
+  assert.equal(content.style.marginTop, "152px");
+  assert.equal(content.children[0].focused, true);
+  markerBounds.top = 580;
+  markerBounds.bottom = 612;
+  view.maps[0].fire("idle");
+  assert.equal(content.dataset.placement, "below");
+  assert.equal(content.style.maxHeight, "356px");
+});
+
+
+test("activating an already focused preview enters it and Escape returns to the marker", () => {
+  const view = mapPage();
+  const pill = view.visibleMarkers()[0].options.html;
+  pill.fire("focus");
+  view.frame();
+  const popup = view.popup(), close = popup.options.html.children[0];
+  assert.equal(close.focused, undefined);
+  pill.fire("click");
+  view.frame();
+  assert.equal(close.focused, true);
+  popup.options.html.fire("keydown", undefined, { key: "Escape" });
+  assert.equal(popup.destroyed, true);
+  assert.equal(pill.focused, true);
+  pill.fire("focus");
+  const next = view.popup();
+  let prevented = false;
+  pill.fire("keydown", undefined, { key: "Escape", preventDefault() { prevented = true; } });
+  assert.equal(prevented, true);
+  assert.equal(next.destroyed, true);
 });
