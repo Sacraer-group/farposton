@@ -121,9 +121,35 @@ def test_address_trailing_interface_label_is_not_part_of_house_identity(tmp_path
     conn.close()
 
 
-def test_comparison_keeps_house_sources_and_undated_outages_separate(real_client):
-    selected = ["farpost:139158750", "farpost:138877224"]
-    html = real_client.get("/compare?" + urlencode([("o", key) for key in selected])).get_data(as_text=True)
-    assert "Атлант" in html and "Эгершельд ДВ" in html
-    assert "18.11.2025" in html and "выполнение работ этой записью не подтверждены" in html
+def test_comparison_keeps_house_sources_and_undated_outages_separate(houses_client, monkeypatch):
+    monkeypatch.setattr(place_context, "house_facts", lambda *args: pytest.fail("Comparison must not read legacy house facts"))
+    selected = ["farpost:139158750", "farpost:133892276"]
+    html = houses_client.get("/compare?" + urlencode([("o", key) for key in selected])).get_data(as_text=True)
+    assert html.count("Адрес сопоставлен</strong>") == 2
+    assert "Сопоставление дома" in html and "Привязка к реестру" not in html
+    assert "Атлант" in html and "ТЕХНОЛОГИЯ КОМФОРТА" in html and "Технология управления" in html
+    assert "Источники называют разные УК" in html
+    assert "Архив публикаций об отключениях" in html and "не фактических отключений" in html
+    assert "строк опубликованного плана капремонта" in html and "Выполнение работ планом не подтверждено" in html
     assert "Текущие отключения" in html and "Актуальные сведения не получены" in html
+    assert "Листайте таблицу вправо" in html
+    conn = db.connect(houses_client.application.config["DB_PATH"])
+    for record in conn.execute("SELECT s.source_url,s.checked_at FROM house_sources s JOIN offer_houses h ON h.house_id=s.house_id "
+                               "WHERE h.source_id='139158750' AND s.section='outages' AND s.fetch_status='ok'"):
+        assert record["source_url"] in html and record["checked_at"] in html
+    conn.close()
+
+
+@pytest.mark.parametrize("state", ["missing", "stale"])
+def test_comparison_does_not_reuse_house_data_when_link_is_missing_or_stale(houses_client, state):
+    conn = db.connect(houses_client.application.config["DB_PATH"])
+    if state == "missing":
+        conn.execute("DELETE FROM offer_houses WHERE source='farpost' AND source_id='139158750'")
+    else:
+        conn.execute("UPDATE offers SET address='улица Гамарника 21А' WHERE source='farpost' AND source_id='139158750'")
+    conn.commit()
+    conn.close()
+    html = houses_client.get("/compare?o=farpost:139158750").get_data(as_text=True)
+    assert "Атлант" not in html and "строк опубликованного плана капремонта" not in html
+    assert "Архив по этому адресу не подтверждён" in html
+    assert ("Дом пока не сопоставлен" if state == "missing" else "Адрес изменился — нужна повторная привязка") in html

@@ -111,6 +111,8 @@ def test_text_to_viewing_flow_and_browser_local_favorites(browser, site, width):
     comparison = context.new_page()
     assert comparison.goto(site + comparison_url).status == 200
     pw.expect(comparison.locator("main")).to_contain_text("На въезд")
+    pw.expect(comparison.locator("tbody tr").filter(has_text="Сопоставление дома")).to_contain_text("Адрес сопоставлен")
+    pw.expect(comparison.get_by_role("rowheader", name="Архив публикаций об отключениях")).to_be_visible()
     check_layout(comparison, f"comparison-{width}")
     comparison.close()
     assert page.evaluate("window.FlatsDecisions.current().length") == 0
