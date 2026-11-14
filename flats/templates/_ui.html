@@ -9,7 +9,7 @@
 
 {% macro map_point(o, c, key) -%}
 {% if o.lat is not none and o.lon is not none %}
-<a data-map-point data-key="{{ key }}" data-lat="{{ o.lat }}" data-lon="{{ o.lon }}" data-price="{{ c.monthly_known|rub if c.monthly_known is not none else 'Цена не указана' }}" data-address="{{ o.address or 'Адрес не указан' }}" href="{{ url_for('pages.flat', key=key) }}">{{ o.address or 'Адрес не указан' }} · {{ c.monthly_known|rub }}</a>
+<a data-map-point data-key="{{ key }}" data-lat="{{ o.lat }}" data-lon="{{ o.lon }}" data-price="{{ c.monthly_known|rub if c.monthly_known is not none else 'Цена не указана' }}" data-address="{{ o.address or 'Адрес не указан' }}" data-photo="{{ o.photos[0] if o.photos else '' }}" data-summary="{{ room_label(o.rooms) }} · {{ o.area_total or '?' }} м²" href="{{ url_for('pages.flat', key=key) }}">{{ o.address or 'Адрес не указан' }} · {{ c.monthly_known|rub }}</a>
 {% endif %}
 {%- endmacro %}
 
@@ -24,5 +24,5 @@
 {%- endmacro %}
 
 {% macro map_house(h) -%}
-{% for o in h.offers %}<a data-map-point data-key="{{ o.key }}" data-house-id="{{ h.id }}" data-house-url="/house/{{ h.id }}" data-lat="{{ h.lat }}" data-lon="{{ h.lon }}" data-price="{{ o.price }}" data-address="{{ h.address }}" href="{{ o.url }}">{{ h.address }} · {{ o.price }}</a>{% endfor %}
+{% for o in h.offers %}<a data-map-point data-key="{{ o.key }}" data-house-id="{{ h.id }}" data-house-url="/house/{{ h.id }}" data-lat="{{ h.lat }}" data-lon="{{ h.lon }}" data-price="{{ o.price|rub }}" data-address="{{ h.address }}" data-photo="{{ o.photo or '' }}" data-summary="{{ room_label(o.rooms) }} · {{ o.area_total or '?' }} м²" href="{{ o.url }}">{{ h.address }} · {{ o.price }}</a>{% endfor %}
 {%- endmacro %}

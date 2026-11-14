@@ -14,6 +14,7 @@ function element(dataset = {}) {
     append(...children) { this.children.push(...children); },
     setAttribute(name, value) { this[name] = value; },
     focus() { this.focused = true; },
+    contains(node) { return this === node || this.children.some(child => child.contains(node)); },
     addEventListener(type, callback) {
       if (!listeners.has(type)) listeners.set(type, []);
       listeners.get(type).push(callback);
@@ -65,7 +66,7 @@ function mapPage({ hidden = [], sdk = true, mapKey = "test-map-key", fail = fals
     document, window: { mapgl: sdk ? mapgl : undefined }, URL,
     location: { href: "https://app.test/", origin: "https://app.test" },
     setTimeout(callback, delay) { const timer = { callback, delay }; timers.push(timer); return timer; },
-    clearTimeout(timer) { timer.cleared = true; },
+    clearTimeout(timer) { if (timer) timer.cleared = true; },
     requestAnimationFrame(callback) { frames.push(callback); },
   });
   return {
@@ -211,4 +212,47 @@ test("invalid coordinates and unsafe links never become markers or popup navigat
   const content = view.popup().options.html;
   assert.equal(content.children[1].textContent, address);
   assert.deepEqual(content.children.filter(node => node.href).map(node => node.href), ["https://app.test/flat/a"]);
+});
+
+
+test("hover opens a photo preview without stealing focus, pointer crossing keeps it open", () => {
+  const view = mapPage({ mutateLinks(links) {
+    links[0].dataset.photo = "https://photos.test/flat.jpg";
+    links[0].dataset.summary = "2 комнаты · 64 м²";
+  } });
+  const pill = view.visibleMarkers()[0].options.html;
+  pill.fire("pointerenter");
+  const popup = view.popup(), content = popup.options.html;
+  view.frame();
+  assert.equal(content.children[0].focused, undefined);
+  const offer = content.children.find(node => node.className === "map-popup-offer");
+  assert.equal(offer.children[0].src, "https://photos.test/flat.jpg");
+  assert.equal(offer.children[2].textContent, "2 комнаты · 64 м²");
+  pill.fire("pointerleave");
+  const closeTimer = view.timers.at(-1);
+  content.fire("pointerenter");
+  assert.equal(closeTimer.cleared, true);
+  content.fire("pointerleave");
+  view.timers.at(-1).callback();
+  assert.equal(popup.destroyed, true);
+});
+
+test("moving to another marker replaces the preview and cancels old close timers", () => {
+  const view = mapPage();
+  const [a, b] = view.visibleMarkers().map(marker => marker.options.html);
+  a.fire("pointerenter");
+  const old = view.popup();
+  a.fire("pointerleave");
+  const pending = view.timers.at(-1);
+  b.fire("pointerenter");
+  assert.equal(old.destroyed, true);
+  assert.equal(pending.cleared, true);
+  assert.notEqual(view.popup(), old);
+});
+
+test("unsafe image URLs never load in preview cards", () => {
+  const view = mapPage({mutateLinks(links) { links[0].dataset.photo = "javascript:alert(1)"; }});
+  view.visibleMarkers()[0].options.html.fire("click");
+  const offer = view.popup().options.html.children.find(node => node.className === "map-popup-offer");
+  assert.equal(offer.children.some(node => node.src), false);
 });

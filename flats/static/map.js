@@ -34,6 +34,8 @@
         link, key: link.dataset.key, lat, lon, href,
         price: link.dataset.price || "Цена не указана",
         address: link.dataset.address || "Адрес не указан",
+        photo: link.dataset.photo || null,
+        summary: link.dataset.summary || "",
         houseId: link.dataset.houseId || null,
         houseUrl: localUrl(link.dataset.houseUrl),
       });
@@ -69,7 +71,20 @@
       document.addEventListener("decisionschange", selectPoints);
       return;
     }
-    const closePopup = () => { popup?.destroy(); popup = null; };
+    let closeTimer, popupContent, activePill, activeGroup;
+    const keepPopup = () => clearTimeout(closeTimer);
+    const closePopup = () => {
+      keepPopup();
+      popup?.destroy();
+      popup = popupContent = activePill = activeGroup = null;
+    };
+    const scheduleClose = () => {
+      keepPopup();
+      closeTimer = setTimeout(() => {
+        if (document.activeElement === activePill || popupContent?.contains(document.activeElement)) return;
+        closePopup();
+      }, 200);
+    };
     map.on("click", closePopup);
     const fit = () => {
       if (!visiblePoints.length || !container.clientWidth || !container.clientHeight) return;
@@ -107,17 +122,39 @@
         pill.setAttribute("aria-label", `${point.address}. Вариантов: ${group.offers.length}`);
         group.marker = new window.mapgl.HtmlMarker(map, { coordinates, html: pill, interactive: true });
         group.coordinates = coordinates;
-        group.open = () => {
+        let dismissing = false;
+        group.open = (focus = true) => {
+          keepPopup();
+          if (activeGroup === group) return;
           closePopup();
+          activeGroup = group;
+          activePill = pill;
           const content = document.createElement("div");
           content.className = "map-popup";
+          popupContent = content;
+          const markerBounds = pill.getBoundingClientRect?.();
+          const mapBounds = container.getBoundingClientRect?.();
+          if (markerBounds && mapBounds) {
+            const above = markerBounds.top - Math.max(0, mapBounds.top) - 24;
+            const below = Math.min(window.innerHeight, mapBounds.bottom) - markerBounds.bottom - 24;
+            if (below > above) content.dataset.placement = "below";
+            content.style.maxHeight = `${Math.max(120, Math.min(360, Math.max(above, below)))}px`;
+            const anchor = markerBounds.left + markerBounds.width / 2;
+            const half = Math.min(264, window.innerWidth - 48) / 2;
+            const center = Math.max(mapBounds.left + half + 8, Math.min(mapBounds.right - half - 8, anchor));
+            content.style.marginLeft = `${center - anchor}px`;
+          }
+          content.addEventListener("pointerenter", keepPopup);
+          content.addEventListener("pointerleave", scheduleClose);
+          content.addEventListener("focusin", keepPopup);
+          content.addEventListener("focusout", scheduleClose);
           content.setAttribute("role", "group");
           content.setAttribute("aria-label", point.address);
           const close = document.createElement("button");
           close.type = "button";
           close.className = "text-button map-popup-close";
           close.textContent = "Закрыть";
-          const dismiss = () => { closePopup(); pill.focus(); };
+          const dismiss = () => { closePopup(); dismissing = true; pill.focus(); dismissing = false; };
           close.addEventListener("click", dismiss);
           content.addEventListener("keydown", event => { if (event.key === "Escape") dismiss(); });
           const address = document.createElement("strong");
@@ -132,16 +169,41 @@
           }
           group.offers.forEach(offer => {
             const link = document.createElement("a");
-            link.className = "map-popup-link";
             link.href = offer.href;
-            link.textContent = `${offer.price} · квартира →`;
+            link.className = "map-popup-offer";
+            if (offer.photo) {
+              let photoUrl;
+              try { photoUrl = new URL(offer.photo, location.href); } catch { /* Invalid image: keep the text card. */ }
+              if (photoUrl && ["http:", "https:"].includes(photoUrl.protocol)) {
+                const photo = document.createElement("img");
+                photo.src = photoUrl.href;
+                photo.alt = `Фото квартиры: ${offer.address}`;
+                photo.referrerPolicy = "no-referrer";
+                photo.addEventListener("error", () => { photo.hidden = true; });
+                link.append(photo);
+              }
+            }
+            const price = document.createElement("strong");
+            price.textContent = `${offer.price} / месяц`;
+            const summary = document.createElement("span");
+            summary.textContent = offer.summary || "Параметры не указаны";
+            const details = document.createElement("span");
+            details.className = "map-popup-link";
+            details.textContent = "Подробнее о квартире →";
+            link.append(price, summary, details);
             content.append(link);
           });
           popup = new window.mapgl.HtmlMarker(map, { coordinates, html: content, interactive: true, zIndex: 2 });
           // MapGL attaches marker content on the next frame.
-          requestAnimationFrame(() => { if (content.isConnected) close.focus(); });
+          requestAnimationFrame(() => { if (focus && content.isConnected) close.focus(); });
         };
-        pill.addEventListener("click", group.open);
+        pill.addEventListener("click", () => group.open());
+        pill.addEventListener("pointerenter", event => {
+          if (event.pointerType !== "touch") group.open(false);
+        });
+        pill.addEventListener("pointerleave", scheduleClose);
+        pill.addEventListener("focus", () => { if (!dismissing) group.open(false); });
+        pill.addEventListener("blur", scheduleClose);
         group.offers.forEach(offer => markers.set(offer.key, group));
       });
       reportState();
