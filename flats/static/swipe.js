@@ -15,6 +15,12 @@
       document.getElementById(id).disabled = busy || !top();
     }
     document.getElementById("undo").disabled = busy;
+    let hasSkips = false;
+    try { hasSkips = decisions.current().some(([, , action]) => action === "skip"); }
+    catch { decisions.reportError(); }
+    document.querySelectorAll("[data-reset-skips]").forEach(button => {
+      button.disabled = busy || !hasSkips;
+    });
   };
 
   function decide(action) {
@@ -46,6 +52,16 @@
       decisions.refresh();
     } catch { decisions.reportError(); }
   }
+
+  document.querySelectorAll("[data-reset-skips]").forEach(button => {
+    button.addEventListener("click", () => {
+      if (busy) return;
+      try {
+        decisions.resetSkipped();
+        decisions.refresh();
+      } catch { decisions.reportError(); }
+    });
+  });
 
   let startX = null;
   let draggedCard = null;

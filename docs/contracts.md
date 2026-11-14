@@ -213,7 +213,7 @@ A reject verdict carries only reject reasons. Exact reason texts are listed in i
 
 ### Web decisions and comparison
 
-The browser stores save/skip/undo history as journal triples `[source, source_id, action]` in `localStorage` key `farposton.decisions.v1`. Legacy SQLite decisions remain intact and are not automatically imported. Storage events and `pageshow` refresh views. Clearing site data removes the history; browsers and devices have separate histories. Filters and sample photo use visitor sessions in PUBLIC_DEMO and retain single-user behavior in local mode.
+The browser stores save/skip/undo history as journal triples `[source, source_id, action]` in `localStorage` key `farposton.decisions.v1`. Legacy SQLite decisions remain intact and are not automatically imported. Storage events and `pageshow` refresh views. The swipe reset removes the complete journal history only for offers whose current action is skip, preserving current favorites. Clearing site data removes the history; browsers and devices have separate histories. Filters and sample photo use visitor sessions in PUBLIC_DEMO and retain single-user behavior in local mode.
 
 `/favorites` renders public offer candidates hidden; browser code reveals saved offers and disables hidden comparison checkboxes. `/compare` accepts up to five explicitly requested existing offer IDs, independent of SQLite favorites, without importing them into local storage. Legacy `POST /api/decide` and `POST /api/undo` return 410 without mutation when CSRF is valid; CSRF enforcement can return 403 first.
 
