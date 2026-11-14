@@ -1,6 +1,6 @@
 {% from "_evidence.html" import evidence with context %}
 {% extends "base.html" %}
-{% from "_ui.html" import icon, map_shell, map_point %}
+{% from "_ui.html" import icon, map_shell, map_point, map_scripts %}
 {% set b = card.best %}
 {% set reported = namespace(year='Нет сведений', material='Нет сведений', management='Нет сведений') %}
 {% for fact in house_facts|default([]) %}
@@ -8,8 +8,8 @@
   {% if fact.field == 'wall_material' %}{% set reported.material = fact.value %}{% endif %}
   {% if fact.field == 'management' %}{% set reported.management = fact.value %}{% endif %}
 {% endfor %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='houses.css') }}">{% endblock %}
 {% block title %}{{ b.address or 'Квартира' }} · Берег{% endblock %}
-{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}">{% endblock %}
 {% block content %}
 <a class="back-link" href="/">{{ icon('arrow-left') }}К подборке</a>
 <div class="page-heading detail-heading">
@@ -49,14 +49,12 @@
       </section>
       {% endfor %}
     </section>
-    <section id="journeys" class="content-section"><p class="eyebrow">Под ваш график</p><h2>Поездки из этой квартиры</h2>{% for o, c, questions in blocks %}{{ evidence(o, true) }}{% endfor %}<p class="muted">Время и доступность маршрутов зависят от выбранного дня и времени. <a class="text-link" href="/trips">Настроить поездки →</a></p></section>
+    <section id="journeys" class="content-section"><p class="eyebrow">Под ваш график</p><h2>Поездки из этой квартиры</h2>{% for o, c, questions in blocks %}{{ evidence(o, true, passport.house.id if passport else none) }}{% endfor %}<p class="muted">Время и доступность маршрутов зависят от выбранного дня и времени. <a class="text-link" href="/trips">Настроить поездки →</a></p></section>
     <section id="house" class="content-section">
       {% set real_house = (house_links_by_offer|default({})).get((b.source, b.source_id)) %}
-      {% if real_house and real_house.status in ['exact','manual'] and real_house.house_id %}
+      {% if real_house and real_house.status in ['exact','manual'] and passport %}
       <div class="section-heading"><div><p class="eyebrow">Контекст адреса</p><h2>Дом и коммунальные службы</h2></div></div>
-      <p class="section-intro">По этому адресу собран паспорт дома. В нём опубликованные сведения, даты и ссылки на источники; сведения могут быть неполными или противоречивыми.</p>
-      {% for o, c, questions in blocks %}<div class="panel"><h3>{{ o.address or 'Адрес предложения' }}</h3>{{ evidence(o) }}</div>{% endfor %}
-      <a class="button button-primary" href="/house/{{ real_house.house_id }}">Открыть паспорт дома →</a>
+      <div class="house-page">{% include '_house_passport.html' %}</div>
       {% else %}
       <div class="section-heading"><div><p class="eyebrow">Контекст адреса</p><h2>Дом и коммунальные службы</h2></div><span class="status-badge status-unknown">{{ icon('clock-3') }}Дом требует проверки</span></div>
       <p class="section-intro">Адрес и этажность взяты из объявления. Совпадение с домом в реестре пока не подтверждено.</p>
@@ -82,4 +80,4 @@
   </aside>
 </div>
 {% endblock %}
-{% block scripts %}<script src="{{ url_for('static', filename='vendor/leaflet/leaflet.js') }}" defer></script><script src="{{ url_for('static', filename='map.js') }}" defer></script>{% endblock %}
+{% block scripts %}{{ map_scripts() }}<script src="{{ url_for('static', filename='map.js') }}" defer></script>{% endblock %}

@@ -195,6 +195,42 @@ def test_house_web_and_pagination(conn,bundle):
     assert client.get('/house/999999').status_code == 404
 
 
+def test_flat_embeds_only_confirmed_house_passport(conn,bundle):
+    from html.parser import HTMLParser
+    from urllib.parse import quote
+    from flats.web import create_app
+    import_house_passports(conn,bundle)
+    offer=conn.execute("SELECT group_id FROM offers WHERE source='farpost' AND source_id='133892276'").fetchone()
+    key=offer['group_id'] or 'farpost:133892276'
+    url='/flat/'+quote(key,safe='')
+    app=create_app(Path(conn.execute('PRAGMA database_list').fetchone()[2]));app.testing=True
+    client=app.test_client()
+    html=client.get(url).get_data(as_text=True)
+    class IDs(HTMLParser):
+        def __init__(self):
+            super().__init__(); self.ids=[]
+        def handle_starttag(self, tag, attrs):
+            self.ids.extend(value for name,value in attrs if name=='id')
+    parser=IDs();parser.feed(html)
+    assert len(parser.ids)==len(set(parser.ids))
+    assert 'ТЕХНОЛОГИЯ КОМФОРТА' in html and 'Технология управления' in html
+    assert 'Характеристики дома' in html and 'Источники и даты проверок' in html
+    assert 'Паспорт дома →</a>' in html and 'href="#house"' in html
+    assert f'{url}?outage_page=2#outages' in html
+    second=client.get(url+'?outage_page=2')
+    assert second.status_code==200
+    assert '<details open><summary>Публикации об отключениях' in second.get_data(as_text=True)
+    first=client.get(url+'?outage_page=1')
+    assert first.status_code==200
+    assert '<details open><summary>Публикации об отключениях' in first.get_data(as_text=True)
+    assert client.get(url+'?outage_page=0').status_code==400
+    conn.execute("UPDATE offers SET address='ул. Другой адрес 999' WHERE source='farpost' AND source_id='133892276'")
+    conn.commit()
+    stale=client.get(url).get_data(as_text=True)
+    assert 'ТЕХНОЛОГИЯ КОМФОРТА' not in stale
+    assert 'повторная привязка' in stale or 'не подтверждено' in stale
+
+
 def test_map_uses_same_eligible_rows_and_shared_house(conn, bundle):
     import re
     from flats.web import create_app
@@ -233,3 +269,31 @@ def test_duplicate_offer_cannot_replace_an_exact_house_link(conn,bundle):
     with pytest.raises(ValueError,match='duplicate offer'):
         import_house_passports(conn,bad)
     assert conn.execute('SELECT COUNT(*) FROM houses').fetchone()[0]==0
+
+
+def test_map_preview_data_stays_with_its_offer(conn, bundle):
+    from html.parser import HTMLParser
+    from flats.web import create_app
+
+    import_house_passports(conn, bundle)
+    row = conn.execute("SELECT o.source, o.source_id, o.group_id FROM offer_houses l JOIN offers o ON o.source=l.source AND o.source_id=l.source_id WHERE l.match_status IN ('exact', 'manual') LIMIT 1").fetchone()
+    conn.execute("UPDATE offers SET price=42000, rooms=2, area_total=51, floor=3, floors_total=9, photos_json=? WHERE source=? AND source_id=?",
+                 (json.dumps(['https://images.example/cover.jpg']), row['source'], row['source_id']))
+    conn.commit()
+    class Points(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.points = []
+        def handle_starttag(self, tag, attrs):
+            attrs = dict(attrs)
+            if 'data-map-point' in attrs:
+                self.points.append(attrs)
+    parser = Points()
+    app = create_app(Path(conn.execute('PRAGMA database_list').fetchone()['file']))
+    parser.feed(app.test_client().get('/').get_data(as_text=True))
+    point = next(p for p in parser.points if p['data-key'] == (row['group_id'] or f"{row['source']}:{row['source_id']}"))
+    assert point['data-photo'] == 'https://images.example/cover.jpg'
+    assert point['data-price'] == '42 000 ₽'
+    assert point['data-rooms'] == '2-комн.'
+    assert point['data-area'] == '51.0 м²'
+    assert point['data-floor'] == '3/9 эт.'

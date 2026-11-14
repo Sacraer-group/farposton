@@ -14,7 +14,7 @@ def conn(tmp_path, monkeypatch):
     with closing(db.connect(tmp_path / "t.db")) as connection:
         db.init_db(connection)
         connection.execute("INSERT INTO import_runs (id, started_at, status) VALUES (1, 'x', 'ok')")
-        for sid, gid, photos in [("a", None, ["u/a1", "u/a2"]), ("b", "g", ["u/b1"]), ("c", None, ["u/bad"])]:
+        for sid, gid, photos in [("a", None, ["https://static.baza.farpost.ru/u/a1", "https://static.baza.farpost.ru/u/a2"]), ("b", "g", ["https://static.baza.farpost.ru/u/b1"]), ("c", None, ["https://static.baza.farpost.ru/u/bad"])]:
             repo_offers.upsert_offer(connection, {"source": "farpost", "source_id": sid, "group_id": gid, "photos": photos}, 1)
         connection.commit()
         yield connection
@@ -47,12 +47,12 @@ def test_rank_by_photo(conn, monkeypatch):
     pytest.importorskip("PIL")
     fake_vectors(monkeypatch)
     embed.embed_missing(conn, model_name="m")
-    scores = rank_by_photo(conn, "u/a1", ["farpost:a", "g", "farpost:c"], "m")
-    assert scores["farpost:a"] == (1.0, "u/a1")
-    assert scores["g"][1] == "u/b1" and scores["g"][0] == pytest.approx(0.8)
+    scores = rank_by_photo(conn, "https://static.baza.farpost.ru/u/a1", ["farpost:a", "g", "farpost:c"], "m")
+    assert scores["farpost:a"] == (1.0, "https://static.baza.farpost.ru/u/a1")
+    assert scores["g"][1] == "https://static.baza.farpost.ru/u/b1" and scores["g"][0] == pytest.approx(0.8)
     assert "farpost:c" not in scores
-    assert rank_by_photo(conn, "u/unknown", ["g"], "m") == {}
-    assert rank_by_photo(conn, "u/a1", ["g"], "other-model") == {}
+    assert rank_by_photo(conn, "https://static.baza.farpost.ru/u/unknown", ["g"], "m") == {}
+    assert rank_by_photo(conn, "https://static.baza.farpost.ru/u/a1", ["g"], "other-model") == {}
 
 
 def test_cosine_scores():

@@ -2,9 +2,18 @@
 <svg class="icon" aria-hidden="true" width="20" height="20"><use href="{{ url_for('static', filename='icons.svg') }}#{{ name }}"></use></svg>
 {%- endmacro %}
 
+{% macro map_scripts() -%}
+<script src="https://mapgl.2gis.com/api/js/v1" defer></script>
+<script src="{{ url_for('static', filename='map-sdk.js') }}" defer></script>
+{%- endmacro %}
+
+{% macro map_offer_data(o) -%}
+data-photo="{{ o.photos[0] if o.photos else '' }}" data-rooms="{{ room_label(o.rooms) if o.rooms is not none else '' }}" data-area="{{ (o.area_total ~ ' м²') if o.area_total is not none else '' }}" data-floor="{{ (o.floor ~ '/' ~ o.floors_total ~ ' эт.') if o.floor is not none and o.floors_total is not none else ((o.floor ~ ' эт.') if o.floor is not none else '') }}"
+{%- endmacro %}
+
 {% macro map_point(o, c, key) -%}
 {% if o.lat is not none and o.lon is not none %}
-<a data-map-point data-key="{{ key }}" data-lat="{{ o.lat }}" data-lon="{{ o.lon }}" data-price="{{ c.monthly_known|rub if c.monthly_known is not none else 'Цена не указана' }}" data-address="{{ o.address or 'Адрес не указан' }}" href="{{ url_for('pages.flat', key=key) }}">{{ o.address or 'Адрес не указан' }} · {{ c.monthly_known|rub }}</a>
+<a data-map-point {{ map_offer_data(o) }} data-key="{{ key }}" data-lat="{{ o.lat }}" data-lon="{{ o.lon }}" data-price="{{ c.monthly_known|rub if c.monthly_known is not none else 'Цена не указана' }}" data-address="{{ o.address or 'Адрес не указан' }}" href="{{ url_for('pages.flat', key=key) }}">{{ o.address or 'Адрес не указан' }} · {{ c.monthly_known|rub }}</a>
 {% endif %}
 {%- endmacro %}
 
@@ -19,5 +28,5 @@
 {%- endmacro %}
 
 {% macro map_house(h) -%}
-{% for o in h.offers %}<a data-map-point data-key="{{ o.key }}" data-house-id="{{ h.id }}" data-house-url="/house/{{ h.id }}" data-lat="{{ h.lat }}" data-lon="{{ h.lon }}" data-price="{{ o.price }}" data-address="{{ h.address }}" href="{{ o.url }}">{{ h.address }} · {{ o.price }}</a>{% endfor %}
+{% for o in h.offers %}<a data-map-point {{ map_offer_data(o.offer) }} data-key="{{ o.key }}" data-house-id="{{ h.id }}" data-house-url="/house/{{ h.id }}" data-lat="{{ h.lat }}" data-lon="{{ h.lon }}" data-price="{{ o.price|rub if o.price is not none else 'Цена не указана' }}" data-address="{{ o.offer.address or h.address }}" href="{{ o.url }}">{{ h.address }} · {{ o.price }}</a>{% endfor %}
 {%- endmacro %}

@@ -440,3 +440,17 @@ def test_empty_all_scope_estimate_and_start_do_not_create_job(conn,trip_browser)
     assert response.status_code==400 and 'условия аренды' in response.json['error']
     assert visitor not in trips._CURRENT and not trips._JOBS
     assert conn.execute('SELECT COUNT(*) FROM trip_request_usage').fetchone()[0]==0
+
+def test_restart_replaces_previous_job_without_accumulation(conn):
+    trips.save_schedule(conn, schedule(), 'one')
+    for _ in range(105):
+        job = trips.start_job(conn, [row()], 'one')
+    assert len(trips._JOBS) == 1
+    assert trips.status_job(conn, job['id'], 'one')['id'] == job['id']
+
+
+def test_model_budget_is_separate_and_bounded(conn, monkeypatch):
+    monkeypatch.setenv('FLATS_LLM_GLOBAL_BUDGET', '1')
+    assert trips.reserve_model_request(conn, 'one')
+    assert not trips.reserve_model_request(conn, 'two')
+    assert trips.reserve_request('two', conn)

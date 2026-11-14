@@ -1,7 +1,6 @@
 {% extends "base.html" %}
-{% from "_ui.html" import icon %}
+{% from "_ui.html" import icon, map_scripts %}
 {% block title %}Мои поездки · Берег{% endblock %}
-{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}">{% endblock %}
 {% block content %}
 <div class="page-heading"><div><p class="eyebrow">Мои поездки</p><h1>Дом, из которого удобно добираться</h1><p class="page-intro">Сравните квартиры по поездкам в ДВФУ, на работу и в другие места вашей недели</p></div></div>
 <div id="trip-app" class="trip-layout">
@@ -13,4 +12,4 @@
 <aside class="panel trip-run"><p class="eyebrow">03 · Подбор</p><h2>Подобрать квартиры по поездкам</h2><p>Сравним все подходящие квартиры с учётом условий аренды и исключённых вами вариантов.</p><a class="text-link" href="/">Настроить бюджет и условия {{ icon('arrow-right') }}</a><div class="trip-buttons"><button type="button" id="start-trips" class="button button-primary">Подобрать квартиры {{ icon('arrow-right') }}</button><button type="button" id="partial-trips" class="button button-primary" hidden>Рассчитать доступную часть</button><button type="button" id="cancel-trips" class="button button-outline" hidden>Остановить расчёт</button></div><div id="trip-status" role="status" aria-live="polite"></div><progress id="trip-progress" value="0" max="1" hidden aria-label="Прогресс расчёта"></progress><p class="trip-note">{% set limits = trip_limits|default({'session_budget': 100, 'global_budget': 1000}) %}Лимит в сутки: {{ limits.session_budget }} запросов на сессию, {{ limits.global_budget }} на сервер, включая поиск мест. Неполный расчёт отмечается отдельно. Время рассчитано по данным 2ГИС и не гарантирует прибытие.</p><a id="trip-result-link" class="button button-soft" href="/" hidden>Открыть подборку {{ icon('arrow-right') }}</a></aside>
 </div><noscript><p class="notice">Для настройки графика и расчёта маршрутов нужен JavaScript. <a href="/">Поиск по условиям</a> доступен без него.</p></noscript>
 {% endblock %}
-{% block scripts %}<script src="{{ url_for('static', filename='vendor/leaflet/leaflet.js') }}" defer></script><script src="{{ url_for('static', filename='trips.js') }}" defer></script>{% endblock %}
+{% block scripts %}{{ map_scripts() }}<script src="{{ url_for('static', filename='trips.js') }}" defer></script>{% endblock %}

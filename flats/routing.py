@@ -61,9 +61,14 @@ def route(source, target, start_time, *, http=requests):
         return {'status': 'api_error', 'reason': 'Не удалось получить маршрут 2ГИС'}
 
 
-def places(query, *, http=requests):
+def validate_place_query(query):
     if not isinstance(query, str) or not 2 <= len(query.strip()) <= 200:
         raise ValueError('Введите название или адрес от 2 до 200 символов')
+    return query.strip()
+
+
+def places(query, *, http=requests):
+    query = validate_place_query(query)
     try:
         response = http.get('https://catalog.api.2gis.com/3.0/items', params={
             'key': api_key(), 'q': 'Владивосток ' + query.strip(), 'fields': 'items.point', 'page_size': 10}, timeout=8)

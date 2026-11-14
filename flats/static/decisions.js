@@ -31,6 +31,15 @@
     localStorage.setItem(key, JSON.stringify(history));
   }
 
+  function resetSkipped() {
+    const history = read();
+    const latest = new Map(history.map(entry => [JSON.stringify(entry.slice(0, 2)), entry[2]]));
+    const skipped = new Set([...latest].filter(([, action]) => action === "skip").map(([id]) => id));
+    if (!skipped.size) return;
+    // Remove the whole history of skipped offers so older saves cannot reappear.
+    localStorage.setItem(key, JSON.stringify(history.filter(entry => !skipped.has(JSON.stringify(entry.slice(0, 2))))));
+  }
+
   function current() {
     return [...new Map(read().map(entry => [JSON.stringify(entry.slice(0, 2)), entry])).values()];
   }
@@ -109,7 +118,7 @@
     try { refresh(); } catch { reportError(); }
   }
 
-  window.FlatsDecisions = { decide, undo, current, refresh, reportError };
+  window.FlatsDecisions = { decide, undo, resetSkipped, current, refresh, reportError };
   document.addEventListener("submit", event => {
     const form = event.target.closest("[data-decision-form]");
     if (!form) return;

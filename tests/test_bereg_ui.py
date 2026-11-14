@@ -35,8 +35,9 @@ def test_map_key_is_separate_from_server_routing_key(tmp_path, monkeypatch):
         html = client.get(path).get_data(as_text=True)
         assert '<meta name="2gis-map-key" content="browser-map-key">' in html
         assert "private-routing-key" not in html
-        assert "/static/map-tiles.js" in html
-        assert html.index("/static/map-tiles.js") < html.index("/static/vendor/leaflet/leaflet.js")
+        assert "/static/map-sdk.js" in html
+        assert html.index("https://mapgl.2gis.com/api/js/v1") < html.index("/static/map-sdk.js")
+        assert "leaflet" not in html.lower()
     monkeypatch.delenv("FLATS_2GIS_MAP_KEY")
     html = create_app(tmp_path / "no-map.db").test_client().get("/").get_data(as_text=True)
     assert '<meta name="2gis-map-key" content="">' in html

@@ -97,19 +97,19 @@
     manual.elements.lon.value = Number(lon).toFixed(6);
     manual.elements.confirmed.checked = false;
     if (picker) {
-      if (!marker) marker = L.circleMarker([lat, lon], { radius: 8, color: '#ffffff', weight: 3, fillColor: '#326951', fillOpacity: 1 }).addTo(picker);
-      else marker.setLatLng([lat, lon]);
+      marker?.destroy();
+      marker = new window.mapgl.CircleMarker(picker, { coordinates: [lon, lat], diameter: 16, color: '#326951', strokeColor: '#ffffff', strokeWidth: 3 });
     }
     pickerStatus.textContent = `Выбрана точка ${Number(lat).toFixed(5)}, ${Number(lon).toFixed(5)}. Проверьте место и подтвердите его ниже.`;
   }
   pickerDetails.addEventListener('toggle', () => {
     if (!pickerDetails.open) return;
     if (!picker) {
-      const tiles = window.FlatsMapTiles?.();
-      if (!tiles) { pickerStatus.textContent = 'Карта 2ГИС недоступна. Проверьте подключение и настройку ключа или введите координаты вручную.'; return; }
-      picker = L.map('place-picker-map', { scrollWheelZoom: false }).setView([43.1155, 131.8855], 12);
-      tiles.on('tileerror', () => { pickerStatus.textContent = 'Не удалось загрузить карту 2ГИС. Можно ввести координаты вручную.'; }).addTo(picker);
-      picker.on('click', event => setPoint(event.latlng.lat, event.latlng.lng));
+      picker = window.FlatsMap?.(document.querySelector('#place-picker-map'), [131.8855, 43.1155], state => {
+        if (state === 'error') pickerStatus.textContent = 'Не удалось загрузить карту 2ГИС. Можно ввести координаты вручную.';
+      }, 12);
+      if (!picker) { pickerStatus.textContent = 'Карта 2ГИС недоступна. Проверьте подключение, ключ и поддержку WebGL или введите координаты вручную.'; return; }
+      picker.on('click', event => setPoint(event.lngLat[1], event.lngLat[0]));
     }
     requestAnimationFrame(() => picker.invalidateSize());
   });
@@ -158,10 +158,10 @@
         estimate = await api('/estimate', { method: 'POST', body: JSON.stringify({ scope: 'all', decisions: choices }) });
         if (!stillCurrent()) return;
         estimate.choiceKey = choiceKey;
-        const summary = `${estimate.candidates} квартир, ${estimate.total_tasks} участков недели. Потребуется до ${estimate.unique_queries} запросов; осталось ${estimate.remaining_session} на сессию и ${estimate.remaining_global} на сервер.`;
+        const summary = `${estimate.candidates} квартир, ${estimate.total_tasks} участков недели. Потребуется до ${estimate.unique_queries} запросов; осталось ${estimate.remaining_session} на сессию и ${estimate.remaining_global} на сервер${estimate.remaining_network === undefined ? '' : `, ${estimate.remaining_network} для подключения`}.`;
         if (!estimate.candidates) { say('Нет квартир, подходящих под условия и ваши решения. Измените условия по ссылке выше.'); return; }
         if (!estimate.sufficient_budget) {
-          if (Math.min(estimate.remaining_session, estimate.remaining_global) <= 0) say(`${summary} Лимит исчерпан. Попробуйте завтра или измените график.`, true);
+          if (Math.min(estimate.remaining_session, estimate.remaining_global, estimate.remaining_network ?? Infinity) <= 0) say(`${summary} Лимит исчерпан. Попробуйте завтра или измените график.`, true);
           else { say(`${summary} На полный расчёт лимита недостаточно. Можно рассчитать доступную часть; остальные результаты будут неполными.`); document.querySelector('#partial-trips').hidden = false; }
           return;
         }

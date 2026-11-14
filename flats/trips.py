@@ -4,6 +4,9 @@ from contextvars import ContextVar
 from dataclasses import replace
 from datetime import datetime, timedelta
 import json
+import hashlib
+import hmac
+import ipaddress
 import os
 import re
 import secrets
@@ -31,6 +34,12 @@ def init_trips_db(conn):
     conn.execute('''CREATE TABLE IF NOT EXISTS trip_request_usage (
         day TEXT NOT NULL, visitor_id TEXT NOT NULL, requests INTEGER NOT NULL,
         PRIMARY KEY(day,visitor_id))''')
+    conn.execute('''CREATE TABLE IF NOT EXISTS model_request_usage (
+        day TEXT NOT NULL, visitor_id TEXT NOT NULL, requests INTEGER NOT NULL,
+        PRIMARY KEY(day,visitor_id))''')
+    conn.execute('''CREATE TABLE IF NOT EXISTS request_rate (
+        minute INTEGER NOT NULL, client TEXT NOT NULL, requests INTEGER NOT NULL,
+        PRIMARY KEY(minute,client))''')
 
 
 def owner_id(visitor_id=None):
@@ -119,32 +128,89 @@ def _cleanup():
             del _USAGE[k]
 
 
+def _client_key():
+    from flask import current_app, has_request_context, request
+    if not has_request_context() or not current_app.config.get('PUBLIC_DEMO', False):
+        return None
+    address = request.remote_addr or ''
+    if os.environ.get('FLATS_TRUST_CADDY') == '1':
+        address = request.headers.get('X-Forwarded-For', '').split(',')[-1].strip() or address
+    try:
+        address = str(ipaddress.ip_address(address))
+    except ValueError:
+        address = 'unknown'
+    digest = hmac.new(current_app.secret_key.encode(), address.encode(), hashlib.sha256).hexdigest()
+    return 'ip:' + digest
+
+
+def _reserve(conn, table, limits):
+    today = datetime.now(TZ).date().isoformat()
+    own_transaction = not conn.in_transaction
+    if own_transaction:
+        conn.execute('BEGIN IMMEDIATE')
+    try:
+        conn.execute(f'DELETE FROM {table} WHERE day <> ?', (today,))
+        for key, limit in limits:
+            row = conn.execute(f'SELECT requests FROM {table} WHERE day=? AND visitor_id=?', (today, key)).fetchone()
+            if (row['requests'] if row else 0) >= limit:
+                if own_transaction:
+                    conn.commit()
+                return False
+        for key, _ in limits:
+            conn.execute(f'INSERT INTO {table} VALUES (?,?,1) ON CONFLICT(day,visitor_id) DO UPDATE SET requests=requests+1', (today, key))
+        if own_transaction:
+            conn.commit()
+        return True
+    except Exception:
+        if own_transaction:
+            conn.rollback()
+        raise
+
+
+def allow_new_visitor(conn):
+    client = _client_key()
+    if not client:
+        return True
+    minute = int(time.time() // 60)
+    with _LOCK:
+        with conn:
+            conn.execute('DELETE FROM request_rate WHERE minute < ?', (minute - 1,))
+            limits = [(client, 30), ('*global*', 300)]
+            for key, limit in limits:
+                row = conn.execute('SELECT requests FROM request_rate WHERE minute=? AND client=?', (minute, key)).fetchone()
+                if row and row['requests'] >= limit:
+                    return False
+            for key, _ in limits:
+                conn.execute('INSERT INTO request_rate VALUES (?,?,1) ON CONFLICT(minute,client) DO UPDATE SET requests=requests+1', (minute, key))
+    return True
+
+
 def reserve_request(owner, conn=None):
     today = datetime.now(TZ).date().isoformat()
-    limits = [(owner, int(os.environ.get('FLATS_TRIP_SESSION_BUDGET','100'))),
-              ('*global*', int(os.environ.get('FLATS_TRIP_GLOBAL_BUDGET','1000')))]
+    limits = [(owner, int(os.environ.get('FLATS_TRIP_SESSION_BUDGET', '100'))),
+              ('*global*', int(os.environ.get('FLATS_TRIP_GLOBAL_BUDGET', '1000')))]
+    client = _client_key()
+    if client:
+        limits.append((client, int(os.environ.get('FLATS_TRIP_IP_BUDGET', '100'))))
     with _LOCK:
         if conn is None:
             _cleanup()
-            if any(_USAGE.get((today,key),0)>=limit for key,limit in limits):return False
-            for key,_limit in limits:_USAGE[(today,key)]=_USAGE.get((today,key),0)+1
+            if any(_USAGE.get((today, key), 0) >= limit for key, limit in limits):
+                return False
+            for key, _ in limits:
+                _USAGE[(today, key)] = _USAGE.get((today, key), 0) + 1
             return True
-        own_transaction = not conn.in_transaction
-        if own_transaction:conn.execute('BEGIN IMMEDIATE')
-        try:
-            conn.execute('DELETE FROM trip_request_usage WHERE day <> ?', (today,))
-            for key,limit in limits:
-                row=conn.execute('SELECT requests FROM trip_request_usage WHERE day=? AND visitor_id=?',(today,key)).fetchone()
-                if row and row['requests']>=limit or not row and limit<=0:
-                    if own_transaction:conn.commit()
-                    return False
-            for key,_limit in limits:
-                conn.execute('INSERT INTO trip_request_usage VALUES (?,?,1) ON CONFLICT(day,visitor_id) DO UPDATE SET requests=requests+1',(today,key))
-            if own_transaction:conn.commit()
-            return True
-        except Exception:
-            if own_transaction:conn.rollback()
-            raise
+        return _reserve(conn, 'trip_request_usage', limits)
+
+
+def reserve_model_request(conn, owner):
+    limits = [(owner, int(os.environ.get('FLATS_LLM_SESSION_BUDGET', '20'))),
+              ('*global*', int(os.environ.get('FLATS_LLM_GLOBAL_BUDGET', '200')))]
+    client = _client_key()
+    if client:
+        limits.append((client, int(os.environ.get('FLATS_LLM_IP_BUDGET', '40'))))
+    with _LOCK:
+        return _reserve(conn, 'model_request_usage', limits)
 
 
 
@@ -198,13 +264,18 @@ def task_identity(task, results):
 
 
 def remaining_budget(conn, visitor_id=None):
-    owner=owner_id(visitor_id)
-    today=datetime.now(TZ).date().isoformat()
-    counts={r['visitor_id']:r['requests'] for r in conn.execute(
-        'SELECT visitor_id,requests FROM trip_request_usage WHERE day=? AND visitor_id IN (?,?)',
-        (today,owner,'*global*'))}
-    return {'remaining_session':max(0,int(os.environ.get('FLATS_TRIP_SESSION_BUDGET','100'))-counts.get(owner,0)),
-            'remaining_global':max(0,int(os.environ.get('FLATS_TRIP_GLOBAL_BUDGET','1000'))-counts.get('*global*',0))}
+    owner = owner_id(visitor_id)
+    today = datetime.now(TZ).date().isoformat()
+    client = _client_key()
+    keys = [(owner, 'remaining_session', int(os.environ.get('FLATS_TRIP_SESSION_BUDGET', '100'))),
+            ('*global*', 'remaining_global', int(os.environ.get('FLATS_TRIP_GLOBAL_BUDGET', '1000')))]
+    if client:
+        keys.append((client, 'remaining_network', int(os.environ.get('FLATS_TRIP_IP_BUDGET', '100'))))
+    result = {}
+    for key, label, limit in keys:
+        row = conn.execute('SELECT requests FROM trip_request_usage WHERE day=? AND visitor_id=?', (today, key)).fetchone()
+        result[label] = max(0, limit - (row['requests'] if row else 0))
+    return result
 
 
 def estimate_job(conn, rows, visitor_id=None, now=None):
@@ -223,13 +294,28 @@ def start_job(conn, rows, visitor_id=None, now=None):
     tasks,results,monday,occurrences=(prepared[k] for k in ('tasks','results','monday','occurrences'))
     with _LOCK:
         _cleanup()
-        if len(_JOBS)>=100 or sum(sum(len(r['legs']) for r in j['results'].values()) for j in _JOBS.values())+occurrences>30000:
-            raise ValueError('Сервер занят, повторите позже')
-        previous = _CURRENT.get(owner)
-        if previous in _JOBS:
-            _JOBS[previous]['cancelled'] = True
+        old_jobs = [(ident, job) for ident, job in _JOBS.items() if job['owner'] == owner]
+        acquired = []
+        try:
+            for _, job in old_jobs:
+                if not job['lock'].acquire(blocking=False):
+                    raise ValueError('Дождитесь завершения текущего шага расчёта')
+                acquired.append(job)
+            retained = [job for job in _JOBS.values() if job['owner'] != owner]
+            client = _client_key()
+            if client and sum(job.get('client') == client for job in retained) >= 5:
+                raise ValueError('Слишком много расчётов с этого подключения, попробуйте позже')
+            if len(retained) >= 100 or sum(sum(len(r['legs']) for r in j['results'].values()) for j in retained) + occurrences > 30000:
+                raise ValueError('Сервер занят, повторите позже')
+            for old_id, job in old_jobs:
+                job['cancelled'] = True
+                _JOBS.pop(old_id)
+            _CURRENT.pop(owner, None)
+        finally:
+            for job in acquired:
+                job['lock'].release()
         ident = secrets.token_urlsafe(18)
-        _JOBS[ident] = {'id':ident,'owner':owner,'version':prepared['version'],'created':time.time(),
+        _JOBS[ident] = {'id':ident,'owner':owner,'client':client,'version':prepared['version'],'created':time.time(),
                        'status':'running' if tasks else 'complete','cancelled':False,'done':0,'total':len(tasks),'tasks':tasks,'results':results,
                        'cache':{},'lock':threading.RLock(),'week_start':str(monday),'week_end':str(monday+timedelta(days=6))}
         _CURRENT[owner]=ident
@@ -263,8 +349,12 @@ def _summarize(job):
 
 
 def _public(job):
-    with job['lock']:
+    if not job['lock'].acquire(blocking=False):
+        raise BlockingIOError('Calculation in progress')
+    try:
         return deepcopy({k:job[k] for k in ('id','version','status','done','total','results','week_start','week_end')})
+    finally:
+        job['lock'].release()
 
 
 def status_job(conn, ident, visitor_id=None):
@@ -278,7 +368,10 @@ def cancel_job(conn, ident, visitor_id=None):
     job = _get_job(conn,ident,owner_id(visitor_id))
     job['cancelled']=True
     job['status']='cancelled'
-    return _public(job)
+    try:
+        return _public(job)
+    except BlockingIOError:
+        return {'id': ident, 'status': 'cancelled'}
 
 
 def step_job(conn, ident, visitor_id=None, provider=None):
@@ -286,7 +379,7 @@ def step_job(conn, ident, visitor_id=None, provider=None):
     job = _get_job(conn,ident,owner)
     provider = provider or routing.route
     if not job['lock'].acquire(blocking=False):
-        return _public(job)
+        raise BlockingIOError('Calculation in progress')
     try:
         calls=0
         while job['done']<job['total'] and job['status']=='running' and not job['cancelled']:
@@ -335,7 +428,10 @@ def current_summary(conn, visitor_id=None):
         job=_JOBS.get(_CURRENT.get(owner))
     if not job or job['version']!=stored['version'] or job['week_start']!=str(next_monday()):
         return {'active':bool(stored['schedule']['legs']),'version':stored['version'],'status':'not_calculated','results':{}}
-    return {'active':True,**_public(job)}
+    try:
+        return {'active':True,**_public(job)}
+    except BlockingIOError:
+        return {'active':True,'version':stored['version'],'status':'running','results':{}}
 
 
 def trip_context(conn, offer_keys, visitor_id=None):

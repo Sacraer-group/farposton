@@ -15,6 +15,15 @@
       document.getElementById(id).disabled = busy || !top();
     }
     document.getElementById("undo").disabled = busy;
+    stack.querySelectorAll(".swipe-card:not([hidden])").forEach(card => {
+      card.querySelectorAll?.("[data-gallery] button").forEach(button => { button.disabled = busy || card !== top(); });
+    });
+    let hasSkips = false;
+    try { hasSkips = decisions.current().some(([, , action]) => action === "skip"); }
+    catch { decisions.reportError(); }
+    document.querySelectorAll("[data-reset-skips]").forEach(button => {
+      button.disabled = busy || !hasSkips;
+    });
   };
 
   function decide(action) {
@@ -47,6 +56,16 @@
     } catch { decisions.reportError(); }
   }
 
+  document.querySelectorAll("[data-reset-skips]").forEach(button => {
+    button.addEventListener("click", () => {
+      if (busy) return;
+      try {
+        decisions.resetSkipped();
+        decisions.refresh();
+      } catch { decisions.reportError(); }
+    });
+  });
+
   let startX = null;
   let draggedCard = null;
   function cancelDrag() {
@@ -56,7 +75,7 @@
   }
   stack.addEventListener("pointerdown", (e) => {
     const card = top();
-    if (busy || !card || !card.contains(e.target) || e.target.closest("a")) return;
+    if (busy || !card || !card.contains(e.target) || e.target.closest("a, button")) return;
     startX = e.clientX;
     draggedCard = card;
     card.setPointerCapture(e.pointerId);
@@ -83,7 +102,7 @@
     if (card) location.href = card.querySelector(".details").href;
   });
   document.addEventListener("keydown", (e) => {
-    if (e.target.closest("input, select, textarea")) return;
+    if (e.target.closest('input, select, textarea, button, a, [contenteditable="true"]')) return;
     if (e.key === "ArrowRight") decide("save");
     else if (e.key === "ArrowLeft") decide("skip");
     else if (e.key === "z" || e.key === "Z" || e.key === "я" || e.key === "Я") undo();

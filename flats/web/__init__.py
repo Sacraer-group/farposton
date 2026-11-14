@@ -32,10 +32,15 @@ def create_app(db_path: Path | None = None) -> Flask:
 
     @app.before_request
     def identify_visitor():
-        if request.endpoint == 'static':
+        if request.endpoint in ('static', 'health'):
             return
         from flats.visitors import begin
-        begin(get_conn())
+        conn = get_conn()
+        if app.config['PUBLIC_DEMO'] and 'visitor_id' not in session:
+            from flats.trips import allow_new_visitor
+            if not allow_new_visitor(conn):
+                return jsonify(error='Слишком много запросов, попробуйте позже'), 429
+        begin(conn)
         if app.config['PUBLIC_DEMO'] and request.method in ('POST', 'PUT', 'PATCH', 'DELETE'):
             token=request.headers.get('X-CSRF-Token') or request.form.get('csrf_token')
             if not isinstance(token,str) or not secrets.compare_digest(token,session['csrf_token']):

@@ -9,14 +9,7 @@ from flats.web import get_conn
 bp = Blueprint('houses', __name__)
 
 
-@bp.get('/house/<int:house_id>')
-def house(house_id):
-    if not 0 < house_id <= 9223372036854775807:
-        abort(404)
-    conn = get_conn()
-    passport = get_house_passport(conn, house_id)
-    if passport is None:
-        abort(404)
+def passport_context(passport):
     page = request.args.get('outage_page', '1')
     if len(page) > 7 or not page.isdigit() or int(page) < 1:
         abort(400)
@@ -25,11 +18,22 @@ def house(house_id):
     pages = max(1, (len(events) + 24) // 25)
     if page > pages:
         abort(404)
+    return {'passport': passport, 'outage_events': events[(page-1)*25:page*25],
+            'outage_page': page, 'outage_pages': pages, 'nearby': nearby_places(passport['coordinates'])}
+
+
+@bp.get('/house/<int:house_id>')
+def house(house_id):
+    if not 0 < house_id <= 9223372036854775807:
+        abort(404)
+    conn = get_conn()
+    passport = get_house_passport(conn, house_id)
+    if passport is None:
+        abort(404)
     rows = search(conn, repo_user.get_profile(conn))
     links = house_links_for_offers(conn, [(r.offer.source, r.offer.source_id) for r in rows])
     related = [r for r in rows if links[(r.offer.source, r.offer.source_id)]['house_id'] == house_id]
-    return render_template('house.html', passport=passport, outage_events=events[(page-1)*25:page*25],
-                           outage_page=page, outage_pages=pages, related=related, nearby=nearby_places(passport['coordinates']))
+    return render_template('house.html', **passport_context(passport), related=related)
 
 
 @bp.get('/house/for-offer/<source>/<source_id>')

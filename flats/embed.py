@@ -2,6 +2,7 @@ import hashlib
 import io
 import json
 import sqlite3
+from urllib.parse import urlsplit
 
 import numpy as np
 import requests
@@ -14,16 +15,29 @@ _model = None
 
 
 def _download(url: str) -> bytes:
+    try:
+        parsed = urlsplit(url)
+        allowed = (parsed.scheme == 'https' and parsed.hostname == 'static.baza.farpost.ru'
+                   and parsed.port in (None, 443) and not parsed.username and not parsed.password)
+    except (TypeError, ValueError):
+        allowed = False
+    if not allowed:
+        raise ValueError('unsupported photo host')
     path = config.photo_dir() / (hashlib.sha256(url.encode()).hexdigest() + ".img")
     if path.exists():
         return path.read_bytes()
-    response = requests.get(url, timeout=20)
-    response.raise_for_status()
-    if not response.headers.get("content-type", "").startswith("image/") or len(response.content) > MAX_BYTES:
-        raise ValueError("not an image or too large")
+    with requests.get(url, timeout=20, stream=True, allow_redirects=False) as response:
+        response.raise_for_status()
+        if response.status_code != 200 or not response.headers.get('content-type', '').lower().startswith('image/'):
+            raise ValueError('not an image')
+        data = bytearray()
+        for chunk in response.iter_content(65536):
+            data.extend(chunk)
+            if len(data) > MAX_BYTES:
+                raise ValueError('image too large')
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(response.content)
-    return response.content
+    path.write_bytes(data)
+    return bytes(data)
 
 
 def _encode(images: list, model_name: str) -> np.ndarray:

@@ -57,22 +57,30 @@ def index():
             'lat':coords['lat'],'lon':coords['lon'],'offers':[]})
         if not any(o['key']==row.card.key for o in group['offers']):
             group['offers'].append({'key':row.card.key,'url':'/flat/'+quote(row.card.key,safe=''),
-                                  'price':row.costs.monthly_known,'address':row.offer.address})
+                                  'price':row.costs.monthly_known,'offer':row.offer})
     return render_template("search.html", rows=rows, total=total, profile=profile,
                            districts=districts, errors=errors, map_houses=list(groups.values()), map_unlocated=unlocated)
 
 
 @bp.get("/flat/<path:key>")
 def flat(key):
-    offers = repo_offers.offers_by_key(get_conn(), key)
+    conn = get_conn()
+    offers = repo_offers.offers_by_key(conn, key)
     if not offers:
         abort(404)
     card = group_offers(offers)[0]
     blocks = [(o, compute_costs(o), questions_for(card, o)) for o in card.offers]
     house_facts = place_context.house_facts(card.best.address)
     house_sources = list({fact["url"]: fact for fact in house_facts}.values())
+    from flats.repo_houses import get_house_passport, house_links_for_offers
+    from flats.web.houses import passport_context
+    best_key = (card.best.source, card.best.source_id)
+    link = house_links_for_offers(conn, [best_key])[best_key]
+    passport = get_house_passport(conn, link['house_id']) if link['status'] in ('exact', 'manual') and link['house_id'] else None
+    house_context = passport_context(passport) if passport else {'passport': None}
     return render_template("flat.html", card=card, blocks=blocks,
-                           house_facts=house_facts, house_sources=house_sources)
+                           house_facts=house_facts, house_sources=house_sources,
+                           inline_house=True, flat_key=key, **house_context)
 
 
 @bp.get("/advisor")

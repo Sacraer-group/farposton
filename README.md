@@ -82,8 +82,9 @@ Without a configured model provider, the advisor clearly uses retrieval. An opti
 
 ## Map basemap, fonts and theme
 
-All embedded maps, including the journey point picker, use Leaflet with the
-official 2GIS Raster Tiles API. Set `FLATS_2GIS_MAP_KEY` in the untracked `.env`;
+All embedded maps, including the journey point picker, use the official 2GIS
+MapGL JS API with native vector maps and controls. Leaflet and its raster layer
+are removed. Set `FLATS_2GIS_MAP_KEY` in the untracked `.env`;
 Compose reads that file automatically. For a local shell, export its values before
 starting Flask:
 
@@ -94,10 +95,13 @@ set +a
 flask --app flats.web:create_app run --host 127.0.0.1
 ```
 
-This map key is browser-visible: restrict its allowed origins in 2GIS and keep it
+The key must have access to 2GIS Map Tiles API (the configured demo key was
+verified with MapGL). It is browser-visible: restrict its allowed origins in 2GIS and keep it
 separate from the server-only routing key in `FLATS_2GIS_KEY_FILE`. Tile loads
 consume the provider's quota, independently of the application's routing limits.
-Without a map key, address links and manual coordinate entry remain available.
+MapGL requires WebGL and loads its SDK from `https://mapgl.2gis.com/api/js/v1`.
+Without a map key, SDK access or WebGL, address links and manual coordinate entry
+remain available; no alternative map provider is loaded.
 Demo keys expire and have provider-side limits.
 
 The font stack follows VL.ru: Arial with the locally hosted InterGlyphs ruble sign

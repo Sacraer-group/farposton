@@ -1,5 +1,6 @@
 import json
 import sqlite3
+from urllib.parse import urlsplit
 
 from .types import Offer
 
@@ -22,15 +23,26 @@ _UPSERT_SQL = (
 )
 
 
+def safe_url(value):
+    if not isinstance(value, str) or any(ord(c) < 33 or ord(c) == 127 for c in value):
+        return None
+    try:
+        parsed = urlsplit(value)
+        return value if parsed.scheme in ('http', 'https') and parsed.hostname and not parsed.username and not parsed.password else None
+    except ValueError:
+        return None
+
+
 def upsert_offer(conn: sqlite3.Connection, row: dict, run_id: int) -> None:
     if not row.get("source") or row.get("source_id") in (None, ""):
         raise ValueError("source and source_id are required")
     raw = {k: v for k, v in (row.get("raw") or {}).items() if k not in _PRIVATE_RAW_KEYS}
     values = dict(row)
+    values["url"] = safe_url(row.get("url"))
     values["source_id"] = str(row["source_id"])
     if row.get("group_id") is not None:
         values["group_id"] = str(row["group_id"])
-    values["photos_json"] = json.dumps(list(row.get("photos") or []), ensure_ascii=False)
+    values["photos_json"] = json.dumps([url for value in (row.get("photos") or []) if (url := safe_url(value))], ensure_ascii=False)
     values["raw_json"] = json.dumps(raw, ensure_ascii=False)
     values["import_run_id"] = run_id
     conn.execute(_UPSERT_SQL, [values.get(name) for name in OFFER_FIELDS])
@@ -40,7 +52,8 @@ def _to_offer(row: sqlite3.Row) -> Offer:
     data = {name: row[name] for name in OFFER_FIELDS if name not in ("photos_json", "raw_json", "import_run_id")}
     if isinstance(data["address"], str):
         data["address"] = data["address"].removesuffix(" Подробности о доме").strip()
-    return Offer(**data, photos=tuple(json.loads(row["photos_json"])))
+    data["url"] = safe_url(data["url"])
+    return Offer(**data, photos=tuple(url for value in json.loads(row["photos_json"]) if (url := safe_url(value))))
 
 
 def all_offers(conn: sqlite3.Connection) -> list[Offer]:
