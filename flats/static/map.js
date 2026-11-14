@@ -1,5 +1,7 @@
 (() => {
   const maps = [];
+  const workspace = document.querySelector("[data-workspace]");
+  let pendingFocus = workspace?.dataset?.pendingMapFocus;
   const cards = new Map([...document.querySelectorAll("[data-listing-key]")]
     .map(card => [card.dataset.listingKey, card]));
   function localUrl(value) {
@@ -116,6 +118,7 @@
     };
     map.on("click", closePopup);
     map.on("idle", positionPopup);
+    map.on("idle", focusPending);
     const fit = () => {
       if (!visiblePoints.length || !container.clientWidth || !container.clientHeight) return;
       map.invalidateSize();
@@ -269,14 +272,24 @@
       entry.visible = visible;
     });
   });
-  document.addEventListener("farposton:map-focus", event => {
-    maps.forEach(({ map, markers }) => {
-      const group = markers.get(event.detail?.key);
-      if (!group) return;
+  function focusPending() {
+    if (!pendingFocus) return;
+    for (const { map, markers, container } of maps) {
+      const group = markers.get(pendingFocus);
+      if (!group || container.dataset.mapState !== "ready") continue;
+      pendingFocus = null;
+      if (workspace) delete workspace.dataset.pendingMapFocus;
       map.invalidateSize();
       map.setCenter(group.coordinates, { animate: false });
       map.setZoom(16, { animate: false });
       group.open();
-    });
+      break;
+    }
+  }
+  document.addEventListener("farposton:map-focus", event => {
+    pendingFocus = event.detail?.key;
+    if (workspace && pendingFocus) workspace.dataset.pendingMapFocus = pendingFocus;
+    focusPending();
   });
+  focusPending();
 })();

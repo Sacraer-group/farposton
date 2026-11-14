@@ -27,7 +27,7 @@ function element(dataset = {}) {
 function descendants(node) { return [node, ...node.children.flatMap(descendants)]; }
 
 function mapPage({ hidden = [], sdk = true, mapKey = "test-map-key", fail = false, mutateLinks,
-  markerBounds, mapBounds, popupBounds, viewport = { width: 320, height: 600 } } = {}) {
+  markerBounds, mapBounds, popupBounds, pendingFocus, viewport = { width: 320, height: 600 } } = {}) {
   const cards = ["a", "b", "c"].map(key => ({ dataset: { listingKey: key }, hidden: hidden.includes(key) }));
   const links = cards.map((card, index) => Object.assign(element({
     key: card.dataset.listingKey, lat: "43.1", lon: String(131.9 + index / 100),
@@ -43,8 +43,9 @@ function mapPage({ hidden = [], sdk = true, mapKey = "test-map-key", fail = fals
     "[data-map-reset]": reset, "[data-map-status]": status,
   })[selector];
   shell.querySelectorAll = () => links;
+  const workspace = element(pendingFocus ? { pendingMapFocus: pendingFocus } : {});
   const document = Object.assign(element(), {
-    querySelector: () => ({ content: mapKey }),
+    querySelector: selector => selector === "[data-workspace]" ? workspace : { content: mapKey },
     querySelectorAll: selector => selector === ".map-shell" ? [shell] : cards,
     createElement() {
       const node = element();
@@ -79,7 +80,7 @@ function mapPage({ hidden = [], sdk = true, mapKey = "test-map-key", fail = fals
     requestAnimationFrame(callback) { frames.push(callback); },
   });
   return {
-    cards, links, container, fallback, reset, status, shell, maps, markers, timers, document,
+    cards, links, container, fallback, reset, status, shell, maps, markers, timers, document, workspace,
     visibleMarkers() { return markers.filter(marker => !marker.destroyed && marker.options.html.className === "map-price-pill"); },
     popup() { return markers.findLast(marker => !marker.destroyed && marker.options.html.className === "map-popup"); },
     refresh() { document.fire("decisionschange"); },
@@ -158,6 +159,7 @@ test("a page starting with every listing skipped can reveal markers after undo",
 
 test("focus opens the right popup and closing it returns keyboard focus to the marker", () => {
   const view = mapPage();
+  view.maps[0].fire("idle");
   view.document.fire("farposton:map-focus", { key: "b" });
   assert.deepEqual(Array.from(view.maps[0].center), [131.9, 43.1]);
   assert.equal(view.maps[0].zoom, 16);
@@ -309,6 +311,7 @@ test("popup placement uses settled marker bounds and keeps its close control ins
   const mapBounds = { left: 844, top: 522, right: 1399, bottom: 1002, width: 555 };
   const popupBounds = { left: 990, top: 378, width: 300, height: 200 };
   const view = mapPage({ markerBounds, mapBounds, popupBounds, viewport: { width: 1440, height: 1000 } });
+  view.maps[0].fire("idle");
   view.document.fire("farposton:map-focus", { key: "a" });
   const content = view.popup().options.html;
   assert.equal(content.style.maxHeight, undefined);
@@ -347,4 +350,33 @@ test("activating an already focused preview enters it and Escape returns to the 
   pill.fire("keydown", undefined, { key: "Escape", preventDefault() { prevented = true; } });
   assert.equal(prevented, true);
   assert.equal(next.destroyed, true);
+});
+
+
+test("an intentional selection made before the SDK loads opens once after readiness", () => {
+  const view = mapPage({ pendingFocus: "b" });
+  assert.equal(view.popup(), undefined);
+  assert.equal(view.workspace.dataset.pendingMapFocus, "b");
+  view.maps[0].fire("idle");
+  const popup = view.popup();
+  assert.ok(popup);
+  assert.ok(descendants(popup.options.html).some(node => node.href === "https://app.test/flat/b"));
+  assert.equal(view.workspace.dataset.pendingMapFocus, undefined);
+  view.frame();
+  assert.equal(popup.options.html.children[0].focused, true);
+  view.maps[0].fire("idle");
+  assert.equal(view.popup(), popup);
+});
+
+test("while the map loads, the last explicit selection wins", () => {
+  const view = mapPage();
+  view.document.fire("farposton:map-focus", { key: "a" });
+  view.document.fire("farposton:map-focus", { key: "c" });
+  assert.equal(view.popup(), undefined);
+  assert.equal(view.workspace.dataset.pendingMapFocus, "c");
+  view.maps[0].fire("idle");
+  const nodes = descendants(view.popup().options.html);
+  assert.ok(nodes.some(node => node.href === "https://app.test/flat/c"));
+  assert.equal(nodes.some(node => node.href === "https://app.test/flat/a"), false);
+  assert.equal(view.workspace.dataset.pendingMapFocus, undefined);
 });

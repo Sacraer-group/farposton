@@ -35,6 +35,7 @@
   document.addEventListener("click", event => {
     const button = event.target.closest("[data-map-focus]");
     if (!button || !workspace) return;
+    workspace.dataset.pendingMapFocus = button.dataset.mapFocus;
     workspace.dataset.view = compact.matches ? "map" : "split";
     updateView();
     requestAnimationFrame(() => {
