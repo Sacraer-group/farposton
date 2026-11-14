@@ -250,9 +250,18 @@ def _document(offer, costs, card, verdict, priority, query_terms, imported_at, l
                 or (priority == "commute" and fact["kind"] == "route")
                 or query_terms & _tokens(fact["text"])]
     if priority == "house":
-        relevant.sort(key=lambda fact: (fact["kind"] != "house_fact", -len(query_terms & _tokens(fact["text"]))))
+        specific_terms = query_terms - _tokens("дом дома известно сведения источник работаю")
+        relevant.sort(key=lambda fact: (
+            fact["kind"] != "house_fact",
+            -len(specific_terms & _tokens(fact["text"])),
+            not any(part in fact["id"] for part in (":management:", ":outages", ":repair_plans", ":repair_executions")),
+        ))
     elif priority == "commute":
         relevant.sort(key=lambda fact: fact["kind"] != "route")
+    distinct = {}
+    for fact in relevant:
+        distinct.setdefault(fact["text"], fact)
+    relevant = list(distinct.values())
     unknowns = [_UNKNOWN_PARTS[name] for name in (*costs.monthly_unknown, *costs.move_in_unknown)]
     if pets is None:
         unknowns.append("Разрешение на животных не указано")

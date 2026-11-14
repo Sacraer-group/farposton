@@ -94,6 +94,18 @@ def test_advisor_without_imported_passports_does_not_claim_house_coverage(real_c
     assert data["recommendations"][0]["house_url"] is None
 
 
+def test_work_from_home_reasons_prioritize_management_outages_and_repairs(houses_client):
+    data = houses_client.post("/api/advisor", json={"question": "Работаю из дома",
+        "scope": "offers", "offer_ids": ["farpost:139158750"], "priority": "house"}).get_json()
+    reasons = data["recommendations"][0]["reasons"]
+    assert len(reasons) == 3
+    assert any(":management:" in reason["id"] for reason in reasons)
+    assert any(reason["id"].endswith(":outages") for reason in reasons)
+    assert any(reason["id"].endswith(":repair_plans") for reason in reasons)
+    assert any(fact["id"].endswith(":floors_text") for fact in data["evidence"])
+    assert any("не число фактических" in reason["text"] for reason in reasons)
+
+
 def test_address_trailing_interface_label_is_not_part_of_house_identity(tmp_path):
     conn = db.connect(tmp_path / "address.db")
     db.init_db(conn)

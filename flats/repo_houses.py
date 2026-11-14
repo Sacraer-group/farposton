@@ -19,6 +19,19 @@ _CONTACT = ('contact_key name role scope phone_raw dispatch_phone_raw email offi
 _EVENT = ('event_key kind source_event_id title resource organization_name status_reported period_text starts_at '
           'ends_at year_from year_to completion_reported source_url source_locator published_at raw_json').split()
 _EVIDENCE = 'source_url source_type provider checked_at fetched_at source_as_of document_date fetch_status'.split()
+_SECTION_LABELS = {
+    'identity': 'Сопоставление адреса', 'facts': 'Характеристики дома', 'contacts': 'УК и службы',
+    'coordinates': 'Координаты дома', 'outages': 'Публикации об отключениях', 'repairs': 'Ремонты',
+}
+_FETCH_STATUS_LABELS = {
+    'ok': 'Сведения получены',
+    'empty': 'Источник проверен, подходящих записей нет',
+    'not_found': 'Запись по этому дому не найдена в источнике',
+    'blocked': 'Доступ к источнику ограничен; сведения не проверены',
+    'error': 'Не удалось получить сведения из источника; актуальность не проверена',
+    'parse_error': 'Ответ источника получен, но сведения не удалось разобрать',
+    'ambiguous': 'Совпадение адреса неоднозначно; сведения требуют проверки',
+}
 
 
 def init_house_db(conn):
@@ -171,6 +184,8 @@ def _source(row):
     data = dict(row)
     data['coverage'] = json.loads(data.pop('coverage_json'))
     data['raw'] = json.loads(data.pop('raw_json'))
+    data['section_label'] = _SECTION_LABELS.get(data['section'], 'Сведения о доме')
+    data['fetch_status_label'] = _FETCH_STATUS_LABELS.get(data['fetch_status'], 'Результат проверки неизвестен')
     return data
 
 
@@ -217,7 +232,9 @@ def get_house_passport(conn, house_id):
                        'source_urls': sorted({f['source']['source_url'] for f in facts if f['floors_text']})})
     for s in latest.values():
         if s['fetch_status'] not in ('ok', 'empty'):
-            issues.append({'code': 'source_unavailable', 'message': 'Проверка источника: ' + s['fetch_status'], 'source_urls': [s['source_url']]})
+            issues.append({'code': 'source_unavailable',
+                           'message': s['section_label'] + ': ' + s['fetch_status_label'] + '.',
+                           'source_urls': [s['source_url']]})
         if s['section'] == 'outages' and (s['coverage'].get('coverage_uncertain') or not s['coverage'].get('all_time_history_complete')):
             issues.append({'code': 'partial_history', 'message': 'Архив публикаций не подтверждает полноту реальных отключений.', 'source_urls': [s['source_url']]})
     ev = list(events.values())

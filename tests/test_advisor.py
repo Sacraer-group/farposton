@@ -181,6 +181,22 @@ def test_exact_house_evidence_is_scoped_and_ranked(env):
     assert not any(f["kind"] == "house_fact" and not f["id"].startswith("offer:farpost:a:") for f in result["evidence"])
 
 
+def test_duplicate_source_text_is_one_reason_but_both_sources_remain(env):
+    conn, _ = env
+    hid, sid, source = attach_house(conn)
+    source.update(source_key="other-registry:facts", source_url="https://other.example/house/1", provider="Другой реестр")
+    second_id = repo_houses.store_house_observation(conn, hid, {
+        "source": source, "facts": {"construction_year": 1980}, "contacts": [], "events": []})
+    result = ask(conn, scope="offers", offer_ids=["farpost:a"], priority="house", question="Год постройки дома")
+    reasons = result["recommendations"][0]["reasons"]
+    assert sum(reason["text"] == "Год постройки по источнику: 1980" for reason in reasons) == 1
+    assert len({reason["text"] for reason in reasons}) == len(reasons)
+    evidence = [fact for fact in result["evidence"] if fact["kind"] == "house_fact"]
+    assert {fact["id"] for fact in evidence} == {
+        f"offer:farpost:a:house:{sid}:construction_year", f"offer:farpost:a:house:{second_id}:construction_year"}
+    assert {fact["url"] for fact in evidence} == {"https://official.example/house/1", "https://other.example/house/1"}
+
+
 def test_stale_house_link_never_reuses_prior_address_evidence(env):
     conn, _ = env
     attach_house(conn)
@@ -199,7 +215,7 @@ def test_failed_source_keeps_dated_evidence_and_reports_failure(env):
     source.update(checked_at="2026-11-14T00:00:00Z", fetched_at=None, fetch_status="error", error="unavailable")
     repo_houses.store_house_observation(conn, hid, {"source": source, "facts": None, "contacts": [], "events": []})
     result = ask(conn, scope="offers", offer_ids=["farpost:a"], priority="house")
-    assert any("Проверка источника: error" == text for text in result["recommendations"][0]["unknowns"])
+    assert "Характеристики дома: Не удалось получить сведения из источника; актуальность не проверена." in result["recommendations"][0]["unknowns"]
     [fact] = [f for f in result["evidence"] if f["kind"] == "house_fact"]
     assert fact["url"] == source["source_url"] and fact["observed_at"].startswith("2026-11-13")
 

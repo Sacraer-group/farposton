@@ -62,6 +62,7 @@ def context_for(browser, width):
 
 
 def check_layout(page, name):
+    page.evaluate("window.scrollTo({top: 0, behavior: 'instant'})")
     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth + 1"), "Horizontal overflow"
     output = Path("test-results")
     output.mkdir(exist_ok=True)

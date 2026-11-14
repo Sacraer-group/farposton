@@ -148,6 +148,31 @@ def test_latest_failure_preserves_success_and_writer_does_not_commit(conn):
     assert passport['sources']['last_successful'][0]['fetch_status'] == 'ok'
 
 
+@pytest.mark.parametrize('status,label', [
+    ('error', 'Не удалось получить сведения из источника; актуальность не проверена'),
+    ('not_found', 'Запись по этому дому не найдена в источнике'),
+])
+def test_source_status_is_readable_without_changing_original_diagnostics(conn, status, label):
+    from flats.web import create_app
+    hid = ensure_house(conn, address('Владивосток', 'улица Ленина 1'),
+                       address_display='улица Ленина 1', created_at='2026-11-13T00:00:00+00:00')
+    failed = observation(fetch_status=status, error='Original provider diagnostic', fetched_at=None)
+    failed['facts'] = None
+    store_house_observation(conn, hid, failed)
+    conn.commit()
+    passport = get_house_passport(conn, hid)
+    assert passport['issues'][0]['message'] == 'Характеристики дома: ' + label + '.'
+    source = passport['sources']['latest_attempts'][0]
+    assert source['fetch_status'] == status and source['fetch_status_label'] == label
+    assert source['error'] == 'Original provider diagnostic'
+    assert conn.execute('SELECT error FROM house_sources').fetchone()[0] == 'Original provider diagnostic'
+    path = Path(conn.execute('PRAGMA database_list').fetchone()[2])
+    html = create_app(path).test_client().get(f'/house/{hid}').get_data(as_text=True)
+    assert 'fixture · Характеристики дома · ' + label in html
+    assert ' · facts · ' not in html and f' · {status} · ' not in html
+    assert 'Подробности ответа источника' in html and 'Original provider diagnostic' in html
+
+
 def test_no_guessed_outage_years_or_completion_flags(conn,bundle):
     import_house_passports(conn,bundle)
     assert conn.execute('SELECT COUNT(*) FROM house_events WHERE kind="outage" AND (starts_at IS NOT NULL OR ends_at IS NOT NULL OR year_from IS NOT NULL)').fetchone()[0] == 0
