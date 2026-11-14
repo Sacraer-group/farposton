@@ -266,7 +266,7 @@ def _model_choices(corpus, guides, question, priority, settings, http):
     return selections
 
 
-def answer(conn, data, *, http=requests):
+def answer(conn, data, *, http=requests, allow_model=None):
     question, priority, scope, offer_ids, profile, decisions = _request(data, repo_user.get_profile(conn))
     candidates = _candidates(conn, profile, scope, offer_ids, decisions)
     dates = {(row["source"], row["source_id"]): row["finished_at"] for row in conn.execute(
@@ -295,7 +295,9 @@ def answer(conn, data, *, http=requests):
     mode = "retrieval"
     notice = "ИИ не настроен. Показана подборка по найденным данным и ограничениям формы."
     settings = _provider()
-    if corpus and settings:
+    if corpus and settings and allow_model is not None and not allow_model():
+        notice = 'Достигнут лимит запросов к ИИ. Показана подборка по найденным данным.'
+    elif corpus and settings:
         try:
             selections = _model_choices(corpus, guides, question, priority, settings, http)
             mode = "llm"

@@ -387,3 +387,17 @@ def test_saved_scope_does_not_charge_skipped_siblings(public_trips_app):
     result=c.post('/api/trips/start',json={'scope':'saved','decisions':decisions},headers=ch)
     assert result.status_code==200
     assert set(result.json['results'])=={'s:alternate'}
+
+def test_restart_replaces_previous_job_without_accumulation(conn):
+    trips.save_schedule(conn, schedule(), 'one')
+    for _ in range(105):
+        job = trips.start_job(conn, [row()], 'one')
+    assert len(trips._JOBS) == 1
+    assert trips.status_job(conn, job['id'], 'one')['id'] == job['id']
+
+
+def test_model_budget_is_separate_and_bounded(conn, monkeypatch):
+    monkeypatch.setenv('FLATS_LLM_GLOBAL_BUDGET', '1')
+    assert trips.reserve_model_request(conn, 'one')
+    assert not trips.reserve_model_request(conn, 'two')
+    assert trips.reserve_request('two', conn)

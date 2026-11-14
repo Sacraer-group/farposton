@@ -14,6 +14,7 @@ def init_visitors(conn):
     CREATE TABLE IF NOT EXISTS visitors (id TEXT PRIMARY KEY, seen_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS visitor_profiles (visitor_id TEXT PRIMARY KEY REFERENCES visitors(id) ON DELETE CASCADE, profile_json TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS visitor_decisions (id INTEGER PRIMARY KEY, visitor_id TEXT NOT NULL REFERENCES visitors(id) ON DELETE CASCADE, source TEXT NOT NULL, source_id TEXT NOT NULL, action TEXT NOT NULL CHECK(action IN ('save','skip')), created_at TEXT NOT NULL, undone INTEGER NOT NULL DEFAULT 0);
+    CREATE INDEX IF NOT EXISTS visitors_seen_at ON visitors(seen_at);
     CREATE INDEX IF NOT EXISTS visitor_decisions_owner ON visitor_decisions(visitor_id,id);
     ''')
 

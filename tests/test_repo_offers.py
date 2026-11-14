@@ -123,3 +123,17 @@ def test_upsert_does_not_commit(conn, tmp_path):
     assert conn.in_transaction
     with closing(db.connect(tmp_path / "t.db")) as reopened:
         assert reopened.execute("SELECT COUNT(*) FROM offers").fetchone()[0] == 0
+
+def test_safe_url_rejects_executable_schemes_and_credentials():
+    from flats.repo_offers import safe_url
+    assert safe_url('https://example.com/image.jpg')
+    for value in ('javascript:alert(1)', 'https://example.com\n.evil/', 'https://user@example.com/', '//example.com/x'):
+        assert safe_url(value) is None
+
+def test_existing_unsafe_offer_urls_are_not_rendered(conn):
+    from flats import repo_offers
+    conn.execute("INSERT INTO import_runs(id,started_at,status) VALUES (77,'2026-01-01','ok')")
+    conn.execute("INSERT INTO offers(source,source_id,url,photos_json,raw_json,import_run_id) VALUES ('test','unsafe','javascript:alert(1)',?, '{}',77)", ('["javascript:alert(1)","https://example.com/a"]',))
+    offer = next(o for o in repo_offers.all_offers(conn) if o.source_id == 'unsafe')
+    assert offer.url is None
+    assert offer.photos == ('https://example.com/a',)

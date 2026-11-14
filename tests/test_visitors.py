@@ -55,3 +55,33 @@ def test_public_isolation_and_csrf(app):
 def test_public_requires_stable_secret(monkeypatch,tmp_path):
     monkeypatch.setenv('FLATS_PUBLIC_DEMO','1');monkeypatch.delenv('FLATS_SECRET_KEY',raising=False)
     with pytest.raises(RuntimeError):create_app(tmp_path/'test.db')
+
+def test_health_does_not_create_visitor(app):
+    client = app.test_client()
+    assert client.get('/health').status_code == 200
+    with app.app_context():
+        conn = get_conn()
+        assert conn.execute('SELECT COUNT(*) FROM visitors').fetchone()[0] == 0
+        assert any(row['name'] == 'visitors_seen_at' for row in conn.execute('PRAGMA index_list(visitors)'))
+
+
+def test_invalid_place_query_does_not_consume_quota(app):
+    client = app.test_client()
+    assert client.get('/api/trips/places?q=').status_code == 400
+    with app.app_context():
+        assert get_conn().execute('SELECT COUNT(*) FROM trip_request_usage').fetchone()[0] == 0
+
+
+def test_new_sessions_are_limited_by_client_not_cookie(app):
+    for _ in range(30):
+        assert app.test_client().get('/api/trips/schedule').status_code == 200
+    assert app.test_client().get('/api/trips/schedule').status_code == 429
+    assert app.test_client().get('/health').status_code == 200
+
+def test_place_budget_is_shared_across_sessions_from_same_client(app, monkeypatch):
+    from flats import routing
+    monkeypatch.setenv('FLATS_TRIP_IP_BUDGET', '1')
+    monkeypatch.setattr(routing, 'places', lambda query: [])
+    first, second = app.test_client(), app.test_client()
+    assert first.get('/api/trips/places?q=школа').status_code == 200
+    assert second.get('/api/trips/places?q=школа', headers={'X-Forwarded-For': '203.0.113.25'}).status_code == 429

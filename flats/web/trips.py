@@ -21,11 +21,15 @@ def schedule_save():
 
 @bp.get('/places')
 def places():
+    try:
+        query = routing.validate_place_query(request.args.get('q', ''))
+    except ValueError as exc:
+        return jsonify(error=str(exc)), 400
     owner=trips.owner_id()
     if not trips.reserve_request(owner,get_conn()):
         return jsonify(error='Достигнут лимит запросов 2ГИС'),429
     try:
-        return jsonify(places=routing.places(request.args.get('q','')))
+        return jsonify(places=routing.places(query))
     except ValueError as exc:
         return jsonify(error=str(exc)),400
     except RuntimeError as exc:
@@ -88,6 +92,8 @@ def _action(ident, action):
         return jsonify(action(get_conn(),ident))
     except KeyError:
         return jsonify(error='Расчёт не найден или срок его хранения истёк'),404
+    except BlockingIOError:
+        return jsonify(error='Расчёт уже выполняется, попробуйте ещё раз'),429
 
 
 @bp.get('/<ident>')

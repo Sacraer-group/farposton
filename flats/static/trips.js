@@ -112,7 +112,7 @@
       if (!estimate || estimate.version !== version || estimate.scope !== scope || estimate.choiceKey !== choiceKey) {
         estimate = await api('/estimate', { method: 'POST', body: JSON.stringify({ scope, decisions }) });
         estimate.choiceKey = choiceKey;
-        const summary = `${estimate.candidates} квартир, ${estimate.total_tasks} участков недели. Потребуется до ${estimate.unique_queries} запросов; осталось ${estimate.remaining_session} на сессию и ${estimate.remaining_global} на сервер.`;
+        const summary = `${estimate.candidates} квартир, ${estimate.total_tasks} участков недели. Потребуется до ${estimate.unique_queries} запросов; осталось ${estimate.remaining_session} на сессию и ${estimate.remaining_global} на сервер${estimate.remaining_network === undefined ? "" : `, ${estimate.remaining_network} для подключения`}.`;
         if (!estimate.sufficient_budget) { estimate = null; say(`${summary} Для полного расчёта недостаточно лимита: сократите число квартир, дней или поездок.`, true); return; }
         document.querySelector('#start-trips').textContent = 'Запустить расчёт';
         say(`${summary}${estimate.unresolved_tasks ? ` У ${estimate.unresolved_tasks} участков нет пригодных координат; они останутся неполными.` : ''} Проверьте оценку и нажмите «Запустить расчёт».`);

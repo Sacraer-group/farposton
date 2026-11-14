@@ -1,7 +1,7 @@
 import json
 from dataclasses import replace
 
-from flask import Blueprint, jsonify, redirect, request
+from flask import Blueprint, current_app, jsonify, redirect, request
 
 from flats import advisor, repo_user
 from flats.web import get_conn
@@ -73,7 +73,10 @@ def advise():
     except (ValueError, UnicodeDecodeError, RecursionError):
         return jsonify({"error": "Неверный JSON"}), 400
     try:
-        result = advisor.answer(get_conn(), data)
+        from flats import trips
+        conn = get_conn()
+        allow_model = (lambda: trips.reserve_model_request(conn, trips.owner_id())) if current_app.config['PUBLIC_DEMO'] else None
+        result = advisor.answer(conn, data, allow_model=allow_model)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
     return jsonify(result)

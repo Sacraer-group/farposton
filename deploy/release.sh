@@ -17,7 +17,7 @@ sudo -n chown tech:tech "/home/tech/bereg/backups/pre-$revision.db"
 sudo -n chmod 600 "/home/tech/bereg/backups/pre-$revision.db"
 sudo -n docker run --rm -v bereg-data:/data "$image" flats import-house-passports /app/research/house-passports/2026-11-14/farposton-house-data-2026-11-14.zip
 sudo -n docker rm -f "$name" >/dev/null 2>&1 || true
-sudo -n docker run -d --name "$name" --restart unless-stopped --init --env-file /home/tech/bereg/.env -e FLATS_DB=/data/flats.db -e FLATS_PUBLIC_DEMO=1 -e FLATS_SECURE_COOKIE=1 -e FLATS_2GIS_KEY_FILE=/run/secrets/2gis_api_key -v bereg-data:/data -v /home/tech/.config/bereg/2gis_api_key:/run/secrets/2gis_api_key:ro -p "127.0.0.1:$port:5000" "$image" >/dev/null
+sudo -n docker run -d --name "$name" --restart unless-stopped --init --env-file /home/tech/bereg/.env -e FLATS_DB=/data/flats.db -e FLATS_PUBLIC_DEMO=1 -e FLATS_SECURE_COOKIE=1 -e FLATS_TRUST_CADDY=1 -e FLATS_2GIS_KEY_FILE=/run/secrets/2gis_api_key -v bereg-data:/data -v /home/tech/.config/bereg/2gis_api_key:/run/secrets/2gis_api_key:ro -p "127.0.0.1:$port:5000" "$image" >/dev/null
 ready=0
 for attempt in {1..20}; do
  if curl -fsS "http://127.0.0.1:$port/health" >/dev/null;then ready=1;break;fi
