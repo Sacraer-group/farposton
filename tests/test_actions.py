@@ -37,51 +37,37 @@ def db(app, fn):
 OFFER = {"source": "cian", "source_id": "1"}
 
 
-def test_decide_json_save(app, client):
-    r = client.post("/api/decide", json={**OFFER, "action": "save"})
-    assert r.status_code == 200
-    assert isinstance(r.get_json()["id"], int)
-    assert db(app, repo_user.current_decisions) == {("cian", "1"): "save"}
+@pytest.mark.parametrize("path", ["/api/decide", "/api/undo"])
+@pytest.mark.parametrize("encoding", ["json", "data"])
+def test_global_decision_endpoints_are_retired(app, client, path, encoding):
+    db(app, lambda conn: repo_user.decide(conn, "cian", "1", "save"))
+    before = db(app, lambda conn: [tuple(row) for row in conn.execute("SELECT * FROM decisions")])
+    r = client.post(path, **{encoding: {**OFFER, "action": "skip"}})
+    assert r.status_code == 410
+    if encoding == "json":
+        assert "error" in r.get_json()
+    else:
+        assert r.mimetype == "text/plain"
+    assert "Location" not in r.headers
+    assert db(app, lambda conn: [tuple(row) for row in conn.execute("SELECT * FROM decisions")]) == before
 
 
-def test_decide_form_redirects(app, client):
-    r = client.post("/api/decide", data={**OFFER, "action": "skip"})
+def test_sample_form_redirects(client):
+    r = client.post("/api/sample", data={"photo_url": PHOTO})
     assert r.status_code == 303
     assert r.headers["Location"] == "/"
     r = client.post(
-        "/api/decide", data={**OFFER, "action": "save"},
+        "/api/sample", data={"photo_url": PHOTO},
         headers={"Referer": "http://localhost/favorites"},
     )
     assert r.status_code == 303
     assert r.headers["Location"] == "http://localhost/favorites"
     r = client.post(
-        "/api/decide", data={**OFFER, "action": "save"},
+        "/api/sample", data={"photo_url": PHOTO},
         headers={"Referer": "https://evil.test/"},
     )
     assert r.status_code == 303
     assert r.headers["Location"] == "/"
-
-
-def test_decide_errors(app, client):
-    r = client.post("/api/decide", json={**OFFER, "action": "like"})
-    assert r.status_code == 400
-    assert "error" in r.get_json()
-    r = client.post("/api/decide", json={"source": "cian", "source_id": "2", "action": "save"})
-    assert r.status_code == 404
-    assert client.post("/api/decide", json={"source": "cian", "action": "save"}).status_code == 400
-    r = client.post("/api/decide", data={**OFFER, "action": "like"})
-    assert r.status_code == 400
-    assert r.mimetype == "text/plain"
-    assert "Location" not in r.headers
-    assert db(app, repo_user.current_decisions) == {}
-
-
-def test_undo(app, client):
-    assert client.post("/api/undo", json={}).get_json() == {"undone": None}
-    client.post("/api/decide", json={**OFFER, "action": "save"})
-    last = client.post("/api/decide", json={**OFFER, "action": "skip"}).get_json()["id"]
-    assert client.post("/api/undo", json={}).get_json() == {"undone": last}
-    assert db(app, repo_user.current_decisions) == {("cian", "1"): "save"}
 
 
 def test_sample(app, client):
@@ -97,5 +83,6 @@ def test_sample(app, client):
     assert db(app, repo_user.get_profile).sample_photo_url is None
 
 
-def test_get_not_allowed(client):
-    assert client.get("/api/undo").status_code == 405
+@pytest.mark.parametrize("path", ["/api/decide", "/api/undo"])
+def test_get_not_allowed(client, path):
+    assert client.get(path).status_code == 405

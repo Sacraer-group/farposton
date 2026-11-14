@@ -37,8 +37,13 @@ def start():
     from flats.search import search
     token=trips.BUILDING.set(True)
     try:
+        data=request.get_json(silent=True) if request.get_data() else {}
+        if not isinstance(data,dict):
+            raise ValueError('Ожидается JSON-объект')
+        decisions=repo_user.validate_browser_decisions(data.get('decisions',[]))
         conn=get_conn()
-        rows=trips.candidate_rows(conn,search(conn,repo_user.get_profile(conn)))
+        rows=trips.candidate_rows(conn,search(conn,repo_user.get_profile(conn),decisions=decisions))
+        rows=[row for row in rows if decisions.get((row.offer.source,row.offer.source_id))!='skip']
         return jsonify(trips.start_job(conn,rows))
     except ValueError as exc:
         return jsonify(error=str(exc)),400

@@ -47,8 +47,9 @@ flowchart TD
     C --> F
     F --> G["List or swipes"]
     G --> H["Save / skip / undo"]
-    H --> C
-    C --> I["Comparison + questions"]
+    H --> J[("Browser localStorage")]
+    J --> I["Comparison + questions"]
+    C --> I
 ```
 
 Two modes:
@@ -88,7 +89,9 @@ Python 3.11+, Flask (Jinja), `sqlite3` from stdlib, `requests`, NumPy; Transform
 - Unknown is not zero. Unknown pets is not "allowed".
 - Raw string is stored next to the parsed value.
 - Totals are computed on read, not stored.
-- Decisions reference the offer (`source`, `source_id`), not the group.
+- Web decisions reference the offer (`source`, `source_id`), not the group. Save/skip history is kept in `localStorage` key `farposton.decisions.v1`; legacy SQLite decisions remain intact and are not imported. Storage events and `pageshow` refresh views.
+- Favorites reveals browser-local saves among hidden public offer candidates and disables hidden comparison checkboxes. Comparison accepts up to five explicitly requested existing offer IDs without adding them to local storage.
+- Advisor and `/api/trips/start` requests carry compact local decisions validated by `repo_user.validate_browser_decisions`, without persistence or database fallback. Advisor saved scope uses the whole saved set; explicit chosen IDs retain the five-item limit. Trip jobs exclude skipped groups and skipped sibling offers before spending API budget. House related lists also apply local decisions. Filters and sample photo continue to use visitor sessions in PUBLIC_DEMO and the existing single-user behavior in local mode.
 - Visual search never brings back a `reject` flat.
 - Failed import keeps the previous working data.
 - A listing missing from a new import is not marked "rented".

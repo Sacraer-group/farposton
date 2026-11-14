@@ -1,5 +1,5 @@
 # State
-Updated: 2026-11-13
+Updated: 2026-11-14
 
 ## Objective
 Local app that helps pick 3–5 long-term rentals in Vladivostok worth visiting.
@@ -30,7 +30,16 @@ The integrated working tree based on `5089343` implements the four-stage advisor
 - Against the 50-offer dataset, POST `/api/advisor` returned HTTP 200 and retrieval mode for all four priorities. The house priority returned Гамарника 21, Хабаровская 24 and Тополевая 30 with house coverage and without route coverage.
 - No live model provider was configured or verified. The browser screenshot and responsive review remain outstanding.
 
+## Browser-local decisions integration
+
+The checked working tree on `fix/browser-local-favorites-updated`, based on upstream `main` revision `8983ee90f85ea6dce170e3bf0920a38b0754dd18`, implements browser-local decisions. Legacy SQLite decisions remain intact and are not imported. PUBLIC_DEMO filters and sample photo continue to use visitor sessions; local mode remains single-user.
+
+- `.venv/bin/pytest -q`: 437 passed in 8.17s. `node --test tests/test_*.cjs`: 21 passed, 0 failed in 151.45ms. `node --check` passed for all six touched browser scripts; `git diff --check` passed.
+- A temporary integration harness using jsdom, real Flask-rendered HTML and API, checked-in Leaflet, 50 demo offers and the house snapshot passed seven checks, with no uncaught JavaScript errors or requests to legacy decision APIs. It covered saves, isolated storage and tabs, comparison, swipes and undo, map behavior, advisor saved scope, house related-list skip and empty recovery, and storage failure recovery. This was DOM simulation, not a real browser.
+- Real-browser visual and responsive verification remains outstanding: Chromium could not create its process singleton socket in the sandbox and the Playwright headless shell download failed.
+
 ## Remaining
+- Verify browser-local decision flows visually and responsively in a real browser.
 - Visual and responsive browser review of the redesigned UI.
 - Manual usefulness session with a real person (S6-T3).
 - Style-level visual check of matches by eye.

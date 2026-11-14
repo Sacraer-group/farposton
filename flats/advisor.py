@@ -83,7 +83,7 @@ def validate_offer_ids(values):
 
 
 def _request(data, profile):
-    allowed = {"question", "priority", "scope", "offer_ids", "filters"}
+    allowed = {"question", "priority", "scope", "offer_ids", "filters", "decisions"}
     if not isinstance(data, dict) or set(data) - allowed:
         raise ValueError("Неверные поля запроса")
     question = data.get("question")
@@ -95,6 +95,7 @@ def _request(data, profile):
     offer_ids = validate_offer_ids(data.get("offer_ids", []))
     if scope == "offers" and not offer_ids:
         raise ValueError("Выберите предложения для разбора")
+    decisions = repo_user.validate_browser_decisions(data.get("decisions", []))
     filters = data.get("filters", {})
     if not isinstance(filters, dict) or set(filters) - {"monthly_max", "move_in_max", "rooms", "pets_required"}:
         raise ValueError("Неверные поля ограничений")
@@ -111,15 +112,14 @@ def _request(data, profile):
     changes = dict(filters)
     if "rooms" in changes:
         changes["rooms"] = tuple(dict.fromkeys(changes["rooms"]))
-    return question.strip(), priority, scope, offer_ids, replace(profile, **changes)
+    return question.strip(), priority, scope, offer_ids, replace(profile, **changes), decisions
 
 
-def _candidates(conn, profile, scope, offer_ids):
+def _candidates(conn, profile, scope, offer_ids, decisions):
     offers = repo_offers.all_offers(conn)
     by_id = {f"{o.source}:{o.source_id}": o for o in offers}
     if any(key not in by_id for key in offer_ids):
         raise ValueError("Одно из предложений не найдено")
-    decisions = repo_user.current_decisions(conn)
     cards = {o: card for card in group_offers(offers) for o in card.offers}
     if scope == "saved":
         if any(decisions.get((by_id[key].source, by_id[key].source_id)) != "save" for key in offer_ids):
@@ -130,7 +130,7 @@ def _candidates(conn, profile, scope, offer_ids):
         chosen = [by_id[key] for key in offer_ids]
     else:
         chosen = []
-        for row in search(conn, profile):
+        for row in search(conn, profile, decisions=decisions):
             for offer in row.card.offers:
                 if decisions.get((offer.source, offer.source_id)) != "skip" and check(
                     offer, compute_costs(offer), profile
@@ -267,8 +267,8 @@ def _model_choices(corpus, guides, question, priority, settings, http):
 
 
 def answer(conn, data, *, http=requests):
-    question, priority, scope, offer_ids, profile = _request(data, repo_user.get_profile(conn))
-    candidates = _candidates(conn, profile, scope, offer_ids)
+    question, priority, scope, offer_ids, profile, decisions = _request(data, repo_user.get_profile(conn))
+    candidates = _candidates(conn, profile, scope, offer_ids, decisions)
     dates = {(row["source"], row["source_id"]): row["finished_at"] for row in conn.execute(
         "SELECT o.source, o.source_id, r.finished_at FROM offers o JOIN import_runs r ON r.id=o.import_run_id")}
     terms = _tokens(question) - _STOP_WORDS

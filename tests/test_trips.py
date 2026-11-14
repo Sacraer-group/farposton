@@ -165,6 +165,80 @@ def test_api_contract_ownership_start_step_cancel(conn,tmp_path):
         assert client.get('/api/trips/missing').status_code==404
 
 
+@pytest.fixture
+def trip_browser(conn, tmp_path, monkeypatch):
+    from flats import repo_user
+    from flats.importer import run_import
+    from flats.web import create_app
+
+    monkeypatch.setenv('FLATS_PUBLIC_DEMO', '1')
+    monkeypatch.setenv('FLATS_SECRET_KEY', 'test-trip-browser-decisions')
+    run_import(conn, [dict(source='s', source_id=ident, group_id=group, price=30000,
+                          lat=lat, lon=131.2, deposit_raw='Без залога',
+                          commission_raw='Без комиссии', prepayment_raw='за 1 месяц')
+                      for ident, group, lat in [('first', 'shared', 43.2),
+                                                ('second', 'shared', 43.3), ('kept', None, 43.4)]])
+    client = create_app(tmp_path/'trips.db').test_client()
+    client.get('/')
+    with client.session_transaction() as session:
+        headers = {'X-CSRF-Token': session['csrf_token']}
+        visitor = session['visitor_id']
+    trips.save_schedule(conn, schedule(), visitor)
+    for ident in ('first', 'second', 'kept'):
+        repo_user.decide(conn, 's', ident, 'skip')
+        conn.execute("INSERT INTO visitor_decisions(visitor_id,source,source_id,action,created_at)"
+                     " VALUES (?, 's', ?, 'skip', '2026-11-14')", (visitor, ident))
+    conn.commit()
+    return client, headers, visitor
+
+
+@pytest.mark.parametrize('decisions, expected', [
+    (None, {'first', 'second', 'kept'}),
+    ([['s', 'first', 'skip']], {'kept'}),
+    ([['s', 'first', 'skip'], ['s', 'second', 'save']], {'second', 'kept'}),
+    ([['s', 'kept', 'skip']], {'first', 'second'}),
+])
+def test_start_applies_browser_decisions_before_spending_route_budget(conn, trip_browser, decisions, expected):
+    client, headers, visitor = trip_browser
+    before = {table: [tuple(r) for r in conn.execute(f'SELECT * FROM {table} ORDER BY id')]
+              for table in ('decisions', 'visitor_decisions')}
+    body = {} if decisions is None else {'json': {'version': 1, 'decisions': decisions}}
+    if decisions is None:
+        assert client.post('/api/trips/start').status_code == 403
+        assert client.post('/api/trips/start', headers={'X-CSRF-Token': 'wrong'}).status_code == 403
+        assert not trips._JOBS
+    response = client.post('/api/trips/start', headers=headers, **body)
+    assert response.status_code == 200
+    job = response.get_json()
+    assert set(job['results']) == {f's:{ident}' for ident in expected}
+    assert job['total'] == 4 * len(expected)
+    assert not trips.BUILDING.get()
+    calls = []
+
+    def counted(source, target, start_time):
+        calls.append((source, target))
+        return provider(source, target, start_time)
+
+    assert finish(conn, job, owner=visitor, get_route=counted)['status'] == 'complete'
+    home_lats = {point['lat'] for call in calls for point in call} & {43.2, 43.3, 43.4}
+    lat_by_id = {'first': 43.2, 'second': 43.3, 'kept': 43.4}
+    assert home_lats == {lat_by_id[ident] for ident in expected}
+    assert {table: [tuple(r) for r in conn.execute(f'SELECT * FROM {table} ORDER BY id')]
+            for table in ('decisions', 'visitor_decisions')} == before
+
+
+@pytest.mark.parametrize('body', [
+    '[]', 'null', '{broken', '{"decisions": null}',
+    '{"decisions": [["s", "first", "skip"], ["s", "first", "save"]]}',
+])
+def test_start_rejects_malformed_browser_state_before_creating_a_job(conn, trip_browser, body):
+    client, headers, _ = trip_browser
+    response = client.post('/api/trips/start', data=body, content_type='application/json', headers=headers)
+    assert response.status_code == 400 and response.get_json()['error']
+    assert not trips._JOBS and not trips.BUILDING.get()
+    assert conn.execute('SELECT COUNT(*) FROM trip_request_usage').fetchone()[0] == 0
+
+
 def test_group_chooses_eligible_offer_with_own_costs(conn):
     from flats import repo_offers,repo_user
     from flats.search import search

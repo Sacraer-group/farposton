@@ -4,10 +4,9 @@ import re
 import numpy as np
 import pytest
 
-from flats import db, repo_user
+from flats import db
 from flats.importer import run_import
 from flats.similar import MODEL
-from flats.types import Profile
 from flats.web import create_app
 
 KNOWN = {"deposit_raw": "Без залога", "commission_raw": "Без комиссии", "prepayment_raw": "за 1 месяц", "pets_raw": "можно"}
@@ -69,8 +68,7 @@ def test_unknown_payments_are_not_zero(env):
 
 
 def test_offers_of_one_flat_are_not_mixed(env):
-    conn, client = env
-    repo_user.decide(conn, "farpost", "g-a", "save")
+    _, client = env
     html = client.get("/compare?o=farpost:g-a").get_data(as_text=True)
     assert "70 000 ₽" in html  # 35 000 rent + 35 000 commission of offer g-a
     assert "37 000 ₽" not in html  # nothing from offer g-b
@@ -111,14 +109,16 @@ def test_offer_without_photos_is_listed(env):
 
 
 def test_compare_links_to_exact_source(env):
-    conn, client = env
-    repo_user.decide(conn, "farpost", "g-b", "save")
+    _, client = env
     html = client.get("/compare?o=farpost:g-b").get_data(as_text=True)
     assert 'href="https://example.com/g-b"' in html and "https://example.com/g-a" not in html
 
 
-def test_saved_decision_survives_regrouping(env):
+def test_favorite_offer_key_survives_regrouping(env):
     conn, client = env
-    repo_user.decide(conn, "farpost", "ref", "save")
-    run_import(conn, [offer("ref", group_id="new-group", price=40000)])
     assert 'value="farpost:ref"' in client.get("/favorites").get_data(as_text=True)
+    run_import(conn, [offer("ref", group_id="new-group", price=40000)])
+    html = client.get("/favorites").get_data(as_text=True)
+    assert 'value="farpost:ref"' in html and 'href="/flat/new-group"' in html
+    html = client.get("/compare?o=farpost:ref").get_data(as_text=True)
+    assert 'href="https://example.com/ref"' in html and "40 000 ₽" in html

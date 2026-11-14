@@ -72,9 +72,6 @@ def test_address_trailing_interface_label_is_not_part_of_house_identity(tmp_path
 
 def test_comparison_keeps_house_sources_and_undated_outages_separate(real_client):
     selected = ["farpost:139158750", "farpost:138877224"]
-    for offer_id in selected:
-        source, source_id = offer_id.split(":", 1)
-        real_client.post("/api/decide", json={"source": source, "source_id": source_id, "action": "save"})
     html = real_client.get("/compare?" + urlencode([("o", key) for key in selected])).get_data(as_text=True)
     assert "Атлант" in html and "Эгершельд ДВ" in html
     assert "18.11.2025" in html and "выполнение работ этой записью не подтверждены" in html

@@ -52,15 +52,15 @@ def test_flat_page_escapes_description_and_404(client):
     assert client.get("/flat/nope").status_code == 404
 
 
-def test_each_grouped_offer_can_be_saved_from_its_own_panel(client):
+def test_each_grouped_offer_has_its_own_browser_save_payload(client):
     html = client.get("/flat/demo-g1").get_data(as_text=True)
-    forms = re.findall(r'<form[^>]*class="offer-save-form"[^>]*>(.*?)</form>', html, re.S)
+    forms = re.findall(r'(<form[^>]*class="offer-save-form"[^>]*>)(.*?)</form>', html, re.S)
     pairs = set()
-    for form in forms:
+    for tag, form in forms:
+        assert "data-decision-form" in tag
         payload = dict(re.findall(r'name="(source|source_id|action)" value="([^"]+)"', form))
         pairs.add((payload["source"], payload["source_id"]))
         assert payload["action"] == "save"
-        assert client.post("/api/decide", data=payload).status_code == 303
     assert pairs == {("farpost", "demo-12"), ("avito", "demo-13"), ("cian", "demo-14")}
     favorites = client.get("/favorites").get_data(as_text=True)
     for source, source_id in pairs:

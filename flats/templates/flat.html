@@ -14,7 +14,7 @@
 <a class="back-link" href="/">{{ icon('arrow-left') }}К подборке</a>
 <div class="page-heading detail-heading">
   <div><p class="eyebrow">{{ b.district or 'Район не указан' }} · Владивосток</p><h1>{{ b.address or 'Адрес не указан' }}</h1><p class="page-intro">{{ room_label(b.rooms) }} · {{ b.area_total or '?' }} м²{% if b.floor is not none %} · {{ b.floor }} этаж из {{ b.floors_total or '?' }}{% endif %}</p></div>
-  <form method="post" action="/api/decide"><input type="hidden" name="csrf_token" value="{{ csrf_token|default('') }}"><input type="hidden" name="source" value="{{ b.source }}"><input type="hidden" name="source_id" value="{{ b.source_id }}"><button name="action" value="save" class="button button-primary">{{ icon('heart') }}Сохранить</button></form>
+  <form method="post" action="/api/decide" data-decision-form><input type="hidden" name="csrf_token" value="{{ csrf_token|default('') }}"><input type="hidden" name="source" value="{{ b.source }}"><input type="hidden" name="source_id" value="{{ b.source_id }}"><button name="action" value="save" class="button button-primary" disabled>{{ icon('heart') }}<span data-save-label>Сохранить</span></button></form>
 </div>
 <nav class="section-nav" aria-label="Разделы квартиры"><a href="#photos">Фотографии</a><a href="#terms">Расходы и условия</a><a href="#journeys">Мои поездки</a><a href="#house">Дом и службы</a><a href="#viewing">Перед просмотром</a></nav>
 <section class="decision-entry"><div><strong>Подойдёт ли эта квартира вашей жизни?</strong><p>Разберите условия, адресные источники и вопросы, которые могут изменить решение.</p></div><a class="button" href="/advisor?key={{ card.key|urlencode }}&amp;o={{ (b.source ~ ':' ~ b.source_id)|urlencode }}">Разобрать с помощником {{ icon('arrow-right') }}</a></section>
@@ -44,7 +44,7 @@
         </tbody></table></div>
         <details class="source-description"><summary>Описание из объявления {{ icon('chevron-down') }}</summary><p class="description">{{ o.description or 'Описание не добавлено' }}</p></details>
         <div class="source-footnote">Источник: {{ o.source }}{% if o.last_seen %} · Получено <time>{{ o.last_seen }}</time>{% endif %}</div>
-        <div class="candidate-actions"><form method="post" action="/api/decide" class="offer-save-form"><input type="hidden" name="csrf_token" value="{{ csrf_token|default('') }}"><input type="hidden" name="source" value="{{ o.source }}"><input type="hidden" name="source_id" value="{{ o.source_id }}"><button name="action" value="save" class="button button-soft button-small">{{ icon('heart') }}Сохранить это предложение</button></form><a class="text-link" href="/advisor?key={{ card.key|urlencode }}&amp;o={{ (o.source ~ ':' ~ o.source_id)|urlencode }}">Разобрать эти условия {{ icon('arrow-right') }}</a></div>
+        <div class="candidate-actions"><form method="post" action="/api/decide" data-decision-form class="offer-save-form"><input type="hidden" name="csrf_token" value="{{ csrf_token|default('') }}"><input type="hidden" name="source" value="{{ o.source }}"><input type="hidden" name="source_id" value="{{ o.source_id }}"><button name="action" value="save" class="button button-soft button-small" disabled>{{ icon('heart') }}<span data-save-label>Сохранить это предложение</span></button></form><a class="text-link" href="/advisor?key={{ card.key|urlencode }}&amp;o={{ (o.source ~ ':' ~ o.source_id)|urlencode }}">Разобрать эти условия {{ icon('arrow-right') }}</a></div>
       </section>
       {% endfor %}
     </section>
