@@ -100,7 +100,7 @@
   function setRunning(value) { running = value; root.querySelectorAll('button:not(#cancel-trips), input, select').forEach(el => el.disabled = value); document.querySelector('#cancel-trips').hidden = !value; document.querySelector('#trip-progress').hidden = !value; if (!value) document.querySelector('#add-leg').disabled = !schedule.places.length; }
   function showJob(data) { const progress = document.querySelector('#trip-progress'); progress.max = data.total || 1; progress.value = data.done || 0; say(`Неделя ${data.week_start || ''} — ${data.week_end || ''}. Рассчитано ${data.done || 0} из ${data.total || 0} участков.`); }
   document.querySelector('#start-trips').addEventListener('click', async () => {
-    try { await save(); setRunning(true); const data = await api('/start', { method: 'POST', body: JSON.stringify({ version }) }); job = data.id; let current = data; showJob(current);
+    try { const decisions = window.FlatsDecisions.current(); await save(); setRunning(true); const data = await api('/start', { method: 'POST', body: JSON.stringify({ version, decisions }) }); job = data.id; let current = data; showJob(current);
       while (running && current.status === 'running') { current = await api(`/${encodeURIComponent(job)}/step`, { method: 'POST', body: '{}' }); showJob(current); await new Promise(resolve => setTimeout(resolve, 80)); }
       setRunning(false); say(current.status === 'complete' ? 'Расчёт завершён. Откройте подборку: сначала полностью рассчитанные подходящие квартиры.' : 'Расчёт остановлен или ограничен. Неполные результаты отмечены в подборке.'); document.querySelector('#trip-result-link').hidden = false;
     } catch (error) { setRunning(false); say(error.message, true); }

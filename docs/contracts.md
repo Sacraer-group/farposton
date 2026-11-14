@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS decisions (
 );
 ```
 
-Rules: offers are upserted by `(source, source_id)`; old offers are never deleted by import. Totals are not stored. Current decision for an offer = latest row with `undone = 0`.
+Rules: offers are upserted by `(source, source_id)`; old offers are never deleted by import. Totals are not stored. For legacy SQLite decision callers, the current decision for an offer is the latest row with `undone = 0`. Web decisions do not use or import those rows.
 
 ## 3. Domain types (`flats/types.py`)
 
@@ -150,7 +150,7 @@ class FlatCard:                       # one flat = offers sharing group_id
 | `flats/repo_offers.py` | `upsert_offer(conn, row: dict, run_id: int) -> None` (normalized dict: `offers` columns + `photos` list + `raw` dict; no commit); `all_offers(conn) -> list[Offer]`; `offers_by_key(conn, key: str) -> list[Offer]`; `last_ok_run(conn) -> sqlite3.Row \| None` |
 | `flats/repo_user.py` | `get_profile(conn) -> Profile`; `save_profile(conn, p: Profile) -> None`; `decide(conn, source, source_id, action) -> int`; `undo_last(conn) -> int \| None`; `current_decisions(conn) -> dict[tuple[str, str], str]` |
 | `flats/grouping.py` | `group_offers(offers: list[Offer]) -> list[FlatCard]` |
-| `flats/search.py` | `search(conn, profile: Profile, *, include_skipped=False) -> list[SearchRow]` |
+| `flats/search.py` | `search(conn, profile: Profile, *, include_skipped=False, decisions=None) -> list[SearchRow]` |
 | `flats/embed.py` | `embed_missing(conn, *, model_name: str, limit: int \| None = None) -> int` |
 | `flats/similar.py` | `cosine_scores(sample: np.ndarray, matrix: np.ndarray) -> np.ndarray`; `rank_by_photo(conn, sample_url: str, keys: list[str], model: str) -> dict[str, tuple[float, str]]` (key -> score, best photo url) |
 | `flats/cli.py` | `main(argv=None) -> int`; subcommands `init-db`, `import [--limit N]`, `embed [--limit N]` |
@@ -211,7 +211,17 @@ A reject verdict carries only reject reasons. Exact reason texts are listed in i
 - `best` = offer with the lowest known `move_in_known + monthly_known`; offers with unknowns go after known ones; tie -> latest `last_seen`.
 - Offers are never merged field by field.
 
+### Web decisions and comparison
+
+The browser stores save/skip/undo history as journal triples `[source, source_id, action]` in `localStorage` key `farposton.decisions.v1`. Legacy SQLite decisions remain intact and are not automatically imported. Storage events and `pageshow` refresh views. Clearing site data removes the history; browsers and devices have separate histories. Filters and sample photo use visitor sessions in PUBLIC_DEMO and retain single-user behavior in local mode.
+
+`/favorites` renders public offer candidates hidden; browser code reveals saved offers and disables hidden comparison checkboxes. `/compare` accepts up to five explicitly requested existing offer IDs, independent of SQLite favorites, without importing them into local storage. Legacy `POST /api/decide` and `POST /api/undo` return 410 without mutation when CSRF is valid; CSRF enforcement can return 403 first.
+
+Advisor and `/api/trips/start` JSON requests carry compact local decisions, validated by `repo_user.validate_browser_decisions` without persistence or database fallback. Advisor saved scope uses the whole local saved set; explicit chosen IDs retain the five-item limit. Trip jobs exclude skipped groups and skipped sibling offers before spending API budget, without mutating persisted decisions. House related lists also apply local decisions.
+
 ### Search order (`flats/search.py`)
+
+`decisions=None` means an empty mapping; search never loads shared SQLite decisions implicitly. Domain callers can supply a mapping keyed by `(source, source_id)`. Weekly trip ranking remains applied via `trips.rank_rows`.
 
 1. Drop `reject`. Drop `skip` decisions unless `include_skipped`.
 2. For each card, evaluate every offer; the card's offer = best non-reject offer by grouping rule.

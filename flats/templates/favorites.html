@@ -4,20 +4,20 @@
 {% block title %}Избранное · Берег{% endblock %}
 {% block content %}
 <div class="page-heading"><div><p class="eyebrow">Ваша подборка</p><h1>Избранное<span class="heading-dot">.</span></h1><p class="page-intro">Соберите 3–5 квартир и сравните их перед просмотром.</p></div><a href="/" class="button button-outline">{{ icon('arrow-left') }}Продолжить поиск</a></div>
-{% if not saved %}
-<div class="empty-state favorites-empty">{{ icon('heart') }}<h2>Пока ничего не сохранено</h2><p>Нажмите «Сохранить» в подборке. Здесь будут квартиры, к которым стоит вернуться.</p><a href="/" class="button button-primary">Посмотреть квартиры {{ icon('arrow-right') }}</a></div>
-{% else %}
-<form method="get" action="/compare" id="compare-form"></form>
+<p class="muted">Сохранено только в этом браузере. При очистке данных сайта избранное удалится.</p>
+<div class="empty-state favorites-empty" id="favorites-empty">{{ icon('heart') }}<h2>Пока ничего не сохранено</h2><p>Нажмите «Сохранить» в подборке. Здесь будут квартиры, к которым стоит вернуться.</p><a href="/" class="button button-primary">Посмотреть квартиры {{ icon('arrow-right') }}</a></div>
+<div id="favorites-content" hidden>
+<form method="get" action="/compare" id="compare-form" hidden></form>
 <section class="decision-entry"><div><strong>С какой квартиры начать?</strong><p>Помощник сопоставит сохранённые предложения и соберёт план первых просмотров.</p></div><a class="button" href="/advisor?scope=saved">Разобрать избранное {{ icon('arrow-right') }}</a></section>
-<div class="results-toolbar"><strong>{{ saved|length }} сохранено</strong><span class="muted">Отметьте до {{ max_compare }} вариантов для сравнения</span></div>
+<div class="results-toolbar"><strong><span id="favorites-count">0</span> сохранено</strong><span class="muted">Отметьте до {{ max_compare }} вариантов для сравнения</span></div>
 <div class="cards favorites-grid">
-{% for o, c, card in saved %}
-  <article class="listing-card favorite-card">
-    <div class="listing-photo"><a href="{{ url_for('pages.flat', key=card.key) }}" tabindex="-1" aria-hidden="true">{% if o.photos %}<img class="thumb" src="{{ o.photos[0] }}" alt="Фото квартиры: {{ o.address or '' }}" loading="lazy" referrerpolicy="no-referrer">{% else %}<div class="photo-placeholder">{{ icon('image') }}<span>Нет фотографий</span></div>{% endif %}</a><label class="compare-choice"><input type="checkbox" name="o" form="compare-form" value="{{ o.source }}:{{ o.source_id }}"><span>Сравнить</span></label></div>
-    <div class="listing-body"><div class="price-line"><strong>{{ c.monthly_known|rub }}</strong><span>/ месяц</span></div><h2><a href="{{ url_for('pages.flat', key=card.key) }}">{{ room_label(o.rooms) }} · {{ o.area_total or '?' }} м²</a></h2><p class="listing-address">{{ o.address or 'Адрес не указан' }}</p><p class="listing-district">{{ o.district or 'Район не указан' }}</p><div class="move-in-line"><span>На въезд, известно</span><strong>{{ c.move_in_known|rub }}</strong></div><p class="cost-note">{% if c.move_in_unknown %}Не указано: {{ c.move_in_unknown|map('part_label')|join(', ') }}.{% endif %}{% if 'utilities' in c.monthly_unknown %} Коммунальные — уточнить.{% endif %}</p>{{ evidence(o) }}<div class="listing-bottom"><form method="post" action="/api/decide"><input type="hidden" name="csrf_token" value="{{ csrf_token|default('') }}"><input type="hidden" name="source" value="{{ o.source }}"><input type="hidden" name="source_id" value="{{ o.source_id }}"><button name="action" value="skip" class="text-button muted" title="Убрать из избранного и скрыть из подборки">Убрать из избранного</button></form><a class="details-link" href="{{ url_for('pages.flat', key=card.key) }}">Подробнее {{ icon('arrow-up-right') }}</a></div></div>
+{% for o, c, card in offers %}
+  <article class="listing-card favorite-card" data-saved-offer='{{ [o.source, o.source_id]|tojson }}' hidden>
+    <div class="listing-photo"><a href="{{ url_for('pages.flat', key=card.key) }}" tabindex="-1" aria-hidden="true">{% if o.photos %}<img class="thumb" src="{{ o.photos[0] }}" alt="Фото квартиры: {{ o.address or '' }}" loading="lazy" referrerpolicy="no-referrer">{% else %}<div class="photo-placeholder">{{ icon('image') }}<span>Нет фотографий</span></div>{% endif %}</a><label class="compare-choice"><input type="checkbox" name="o" form="compare-form" value="{{ o.source }}:{{ o.source_id }}" disabled><span>Сравнить</span></label></div>
+    <div class="listing-body"><div class="price-line"><strong>{{ c.monthly_known|rub }}</strong><span>/ месяц</span></div><h2><a href="{{ url_for('pages.flat', key=card.key) }}">{{ room_label(o.rooms) }} · {{ o.area_total or '?' }} м²</a></h2><p class="listing-address">{{ o.address or 'Адрес не указан' }}</p><p class="listing-district">{{ o.district or 'Район не указан' }}</p><div class="move-in-line"><span>На въезд, известно</span><strong>{{ c.move_in_known|rub }}</strong></div><p class="cost-note">{% if c.move_in_unknown %}Не указано: {{ c.move_in_unknown|map('part_label')|join(', ') }}.{% endif %}{% if 'utilities' in c.monthly_unknown %} Коммунальные — уточнить.{% endif %}</p>{{ evidence(o) }}<div class="listing-bottom"><form method="post" action="/api/decide" data-decision-form><input type="hidden" name="csrf_token" value="{{ csrf_token|default('') }}"><input type="hidden" name="source" value="{{ o.source }}"><input type="hidden" name="source_id" value="{{ o.source_id }}"><button name="action" value="skip" class="text-button muted" title="Убрать из избранного и скрыть из подборки" disabled>Убрать из избранного</button></form><a class="details-link" href="{{ url_for('pages.flat', key=card.key) }}">Подробнее {{ icon('arrow-up-right') }}</a></div></div>
   </article>
 {% endfor %}
 </div>
 <div class="compare-dock"><div class="dock-icon">{{ icon('columns-3') }}</div><div><strong>Выбрано <span data-selected-count>0</span> из {{ max_compare }}</strong><p data-compare-hint>Отметьте квартиры, которые хотите сопоставить</p></div><button form="compare-form" class="button button-primary" data-compare-submit>Сравнить {{ icon('arrow-right') }}</button></div>
-{% endif %}
+</div>
 {% endblock %}

@@ -38,8 +38,7 @@ flats import-house-passports research/house-passports/2026-11-14/farposton-house
 
 Для нескольких посетителей задайте `FLATS_PUBLIC_DEMO=1`, постоянный случайный
 `FLATS_SECRET_KEY` и `FLATS_SECURE_COOKIE=1` за HTTPS. Без PUBLIC_DEMO сохраняется
-прежний локальный однопользовательский режим. Профили публичных браузеров отделены
-от прежних локальных решений; устаревшие сессии удаляются через30 дней.
+прежний локальный однопользовательский режим. Фильтры и выбранное фото хранятся в раздельных сессиях посетителей; устаревшие сессии удаляются через30 дней.
 `compose.yaml` использует существующий внешний том `bereg-data`; ключ монтируется
 отдельным закрытым файлом. Docker-образ не содержит ключей, базы и фотографий.
 
@@ -74,7 +73,7 @@ flats embed            # downloads photos to data/photos and the SigLIP 2 model
 
 Then open a flat, click «Найти похожие интерьеры» under a photo: the list is re-ordered by visual similarity among flats that pass the filters.
 
-Open http://127.0.0.1:5000: search, flat page, «Избранное» (compare up to 5), «Свайпы». The database file is `data/flats.db` (override with `FLATS_DB`).
+Open http://127.0.0.1:5000: search, flat page, «Избранное» (compare up to 5), «Свайпы». Save, skip and undo history is stored in this browser’s local storage, survives reloads and browser restarts, and is separate on other browsers or devices. Clearing site data deletes it. Legacy SQLite decisions remain intact and are not imported. Filters and the sample photo use visitor sessions in PUBLIC_DEMO; the default local mode remains single-user. The database file is `data/flats.db` (override with `FLATS_DB`).
 
 ## Advisor
 
