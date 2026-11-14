@@ -1,6 +1,6 @@
 {% from "_evidence.html" import evidence with context %}
 {% extends "base.html" %}
-{% from "_ui.html" import icon, map_shell, map_point %}
+{% from "_ui.html" import icon, map_shell, map_point, map_scripts %}
 {% set b = card.best %}
 {% set reported = namespace(year='Нет сведений', material='Нет сведений', management='Нет сведений') %}
 {% for fact in house_facts|default([]) %}
@@ -9,7 +9,6 @@
   {% if fact.field == 'management' %}{% set reported.management = fact.value %}{% endif %}
 {% endfor %}
 {% block title %}{{ b.address or 'Квартира' }} · Берег{% endblock %}
-{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}">{% endblock %}
 {% block content %}
 <a class="back-link" href="/">{{ icon('arrow-left') }}К подборке</a>
 <div class="page-heading detail-heading">
@@ -81,4 +80,4 @@
   </aside>
 </div>
 {% endblock %}
-{% block scripts %}<script src="{{ url_for('static', filename='vendor/leaflet/leaflet.js') }}" defer></script><script src="{{ url_for('static', filename='map.js') }}" defer></script>{% endblock %}
+{% block scripts %}{{ map_scripts() }}<script src="{{ url_for('static', filename='map.js') }}" defer></script>{% endblock %}

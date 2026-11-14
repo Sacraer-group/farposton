@@ -2,6 +2,10 @@
 
 Status: proposed next sprint; no application or production changes made. Based on the existing Flask/Jinja application at commit `a697ee5d3805af89bb162705dc5cdb4b933f7cef`, its `docs/{agent-rules,contracts,architecture,constraints}.md`, `flats/search.py`, web routes and templates, and the collected 48-house dataset. The user's revised scope makes the house passport part of choosing a long-term rental.
 
+Historical specification: the original map-library choice below has been
+superseded by the official 2GIS MapGL JS API. See [current UI design](../ui-design.md)
+for the implemented map engine, loading, accessibility and fallback behavior.
+
 ## 1. Outcome and boundaries
 
 The user can move from a rental offer to its house, see what the available sources actually say about that house, and compare a few apartments without losing their individual costs and conditions. The map is another view of the same eligible apartments. Saved offers, search filters, swipe decisions and visual similarity keep their current behavior.

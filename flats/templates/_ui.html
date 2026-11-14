@@ -2,6 +2,11 @@
 <svg class="icon" aria-hidden="true" width="20" height="20"><use href="{{ url_for('static', filename='icons.svg') }}#{{ name }}"></use></svg>
 {%- endmacro %}
 
+{% macro map_scripts() -%}
+<script src="https://mapgl.2gis.com/api/js/v1" defer></script>
+<script src="{{ url_for('static', filename='map-sdk.js') }}" defer></script>
+{%- endmacro %}
+
 {% macro map_point(o, c, key) -%}
 {% if o.lat is not none and o.lon is not none %}
 <a data-map-point data-key="{{ key }}" data-lat="{{ o.lat }}" data-lon="{{ o.lon }}" data-price="{{ c.monthly_known|rub if c.monthly_known is not none else 'Цена не указана' }}" data-address="{{ o.address or 'Адрес не указан' }}" href="{{ url_for('pages.flat', key=key) }}">{{ o.address or 'Адрес не указан' }} · {{ c.monthly_known|rub }}</a>

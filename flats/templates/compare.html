@@ -1,8 +1,7 @@
 {% from "_evidence.html" import evidence with context %}
 {% extends "base.html" %}
-{% from "_ui.html" import icon, map_shell, map_point %}
+{% from "_ui.html" import icon, map_shell, map_point, map_scripts %}
 {% block title %}Сравнение · Берег{% endblock %}
-{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}">{% endblock %}
 {% block content %}
 <a class="back-link" href="/favorites">{{ icon('arrow-left') }}К избранному</a>
 <div class="page-heading"><div><h1>Сравнить квартиры</h1><p class="page-intro">Расходы, условия и сведения о доме по каждому варианту</p></div>{% if columns %}<span class="neutral-badge">{{ columns|length }} вариантов</span>{% endif %}</div>
@@ -40,4 +39,4 @@
 <section class="comparison-map-section"><div class="section-heading"><div><p class="eyebrow">Где находятся варианты</p><h2>Расположение на одной карте</h2></div></div>{% call map_shell('Выбранные квартиры', true) %}{% for o, c, q in columns %}{{ map_point(o, c, (o.group_id if o.group_id is not none else o.source ~ ':' ~ o.source_id)) }}{% endfor %}{% endcall %}</section>
 {% endif %}
 {% endblock %}
-{% block scripts %}<script src="{{ url_for('static', filename='vendor/leaflet/leaflet.js') }}" defer></script><script src="{{ url_for('static', filename='map.js') }}" defer></script>{% endblock %}
+{% block scripts %}{{ map_scripts() }}<script src="{{ url_for('static', filename='map.js') }}" defer></script>{% endblock %}

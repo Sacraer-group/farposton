@@ -5,14 +5,15 @@ const test = require("node:test");
 const vm = require("node:vm");
 
 const source = fs.readFileSync(path.join(__dirname, "../flats/static/map.js"), "utf8");
-const tileSource = fs.readFileSync(path.join(__dirname, "../flats/static/map-tiles.js"), "utf8");
+const sdkSource = fs.readFileSync(path.join(__dirname, "../flats/static/map-sdk.js"), "utf8");
 
 function element(dataset = {}) {
   const listeners = new Map();
   return {
-    dataset, hidden: false, children: [], textContent: "",
+    dataset, hidden: false, children: [], textContent: "", isConnected: true,
     append(...children) { this.children.push(...children); },
     setAttribute(name, value) { this[name] = value; },
+    focus() { this.focused = true; },
     addEventListener(type, callback) {
       if (!listeners.has(type)) listeners.set(type, []);
       listeners.get(type).push(callback);
@@ -21,13 +22,14 @@ function element(dataset = {}) {
   };
 }
 
-function mapPage({ hidden = [], leaflet = true, mapKey = "test-map-key" } = {}) {
+function mapPage({ hidden = [], sdk = true, mapKey = "test-map-key", fail = false, mutateLinks } = {}) {
   const cards = ["a", "b", "c"].map(key => ({ dataset: { listingKey: key }, hidden: hidden.includes(key) }));
   const links = cards.map((card, index) => Object.assign(element({
     key: card.dataset.listingKey, lat: "43.1", lon: String(131.9 + index / 100),
     houseId: index < 2 ? "7" : "9", houseUrl: index < 2 ? "/house/7" : "/house/9",
     price: `${index + 1}0 000 ₽`, address: index < 2 ? "Дом 7" : "Дом 9",
   }), { href: `https://app.test/flat/${card.dataset.listingKey}` }));
+  mutateLinks?.(links);
   const container = Object.assign(element(), { clientWidth: 500, clientHeight: 300 });
   const fallback = element(), reset = element(), status = element(), shell = element();
   shell.querySelector = selector => ({
@@ -36,149 +38,177 @@ function mapPage({ hidden = [], leaflet = true, mapKey = "test-map-key" } = {}) 
   })[selector];
   shell.querySelectorAll = () => links;
   const document = Object.assign(element(), {
-    querySelector: selector => selector === 'meta[name="2gis-map-key"]' ? { content: mapKey } : null,
+    querySelector: () => ({ content: mapKey }),
     querySelectorAll: selector => selector === ".map-shell" ? [shell] : cards,
     createElement: () => element(),
   });
-  const maps = [], layers = [], tiles = [];
-  const L = {
-    map(_container, options) {
-      const map = {
-        ready: Boolean(options.center && options.zoom !== undefined),
-        invalidateSize() {},
-        fitBounds(bounds) { this.ready = true; this.bounds = bounds; },
-        setView(center) { this.ready = true; this.center = center; },
-      };
-      maps.push(map);
-      return map;
+  const maps = [], markers = [], timers = [], frames = [];
+  const mapgl = {
+    Map: class {
+      constructor(container, options) {
+        if (fail) throw Error("WebGL unavailable");
+        Object.assign(this, element(), { container, options });
+        maps.push(this);
+      }
+      on(type, callback) { this.addEventListener(type, callback); return this; }
+      invalidateSize() {}
+      fitBounds(bounds, options) { this.bounds = bounds; this.fitOptions = options; }
+      setCenter(center, options) { this.center = center; this.centerOptions = options; }
+      setZoom(zoom, options) { this.zoom = zoom; this.zoomOptions = options; }
     },
-    control: { zoom: () => ({ addTo() {} }) },
-    layerGroup() {
-      const layer = {
-        items: [],
-        addTo(map) { this.map = map; return this; },
-        clearLayers() { this.items = []; },
-      };
-      layers.push(layer);
-      return layer;
-    },
-    divIcon: options => options,
-    marker(coords, options) {
-      return {
-        coords, options, node: element(),
-        addTo(layer) { this.map = layer.map; layer.items.push(this); return this; },
-        // Leaflet creates marker elements only after the map has a view.
-        getElement() { return this.map.ready ? this.node : undefined; },
-        bindPopup(popup) { this.popup = popup; },
-        getLatLng() { return this.coords; },
-        openPopup() { this.opened = true; },
-      };
-    },
-    tileLayer(url, options) {
-      const layer = Object.assign(element(), {
-        url, options,
-        on(type, callback) { this.addEventListener(type, callback); return this; },
-        addTo() { return this; },
-      });
-      tiles.push(layer);
-      return layer;
+    HtmlMarker: class {
+      constructor(map, options) { Object.assign(this, { map, options, destroyed: false }); markers.push(this); }
+      destroy() { this.destroyed = true; }
     },
   };
-  vm.runInNewContext(tileSource + "\n" + source, {
-    document, window: { L: leaflet ? L : undefined }, L, URL,
+  vm.runInNewContext(sdkSource + "\n" + source, {
+    document, window: { mapgl: sdk ? mapgl : undefined }, URL,
     location: { href: "https://app.test/", origin: "https://app.test" },
-    matchMedia: () => ({ matches: true }),
+    setTimeout(callback, delay) { const timer = { callback, delay }; timers.push(timer); return timer; },
+    clearTimeout(timer) { timer.cleared = true; },
+    requestAnimationFrame(callback) { frames.push(callback); },
   });
-  return { cards, links, container, fallback, reset, status, shell, maps, layers, tiles,
-    refresh() { document.fire("decisionschange"); } };
+  return {
+    cards, links, container, fallback, reset, status, shell, maps, markers, timers, document,
+    visibleMarkers() { return markers.filter(marker => !marker.destroyed && marker.options.html.className === "map-price-pill"); },
+    popup() { return markers.findLast(marker => !marker.destroyed && marker.options.html.className === "map-popup"); },
+    refresh() { document.fire("decisionschange"); },
+    frame() { frames.splice(0).forEach(callback => callback()); },
+  };
 }
 
-test("maps use the official 2GIS raster endpoint with encoded key and attribution", () => {
-  const view = mapPage({ mapKey: "demo key&other=value" });
-  assert.equal(view.tiles.length, 1);
-  assert.match(view.tiles[0].url, /^https:\/\/tile0\.maps\.2gis\.com\/v2\/tiles\/online_sd\/\{z\}\/\{x\}\/\{y\}\.png\?/);
-  const url = new URL(view.tiles[0].url);
-  assert.equal(url.searchParams.get("key"), "demo key&other=value");
-  assert.equal([...url.searchParams].length, 1);
-  assert.match(view.tiles[0].options.attribution, /https:\/\/2gis\.ru\//);
-  assert.doesNotMatch(view.tiles[0].url, /openstreetmap/);
-});
-
-test("missing browser key keeps usable address links without requesting tiles", () => {
-  const view = mapPage({ mapKey: "   " });
-  assert.equal(view.maps.length, 0);
-  assert.equal(view.tiles.length, 0);
-  assert.equal(view.container.hidden, true);
-  assert.equal(view.fallback.hidden, false);
-  assert.match(view.status.textContent, /2ГИС/);
-  view.cards[0].hidden = true;
-  view.refresh();
-  assert.equal(view.links[0].hidden, true);
+test("native 2GIS map uses the browser key and longitude/latitude order", () => {
+  const view = mapPage();
+  assert.equal(view.maps.length, 1);
+  assert.equal(view.maps[0].options.key, "test-map-key");
+  assert.deepEqual(Array.from(view.maps[0].options.center), [131.9, 43.1]);
+  assert.equal(view.maps[0].options.lang, "ru");
+  assert.equal(view.maps[0].options.disableZoomOnScroll, true);
+  assert.equal(view.shell.dataset.mapState, "loading");
+  view.maps[0].fire("idle");
+  assert.equal(view.shell.dataset.mapState, "ready");
+  assert.equal(view.timers[0].cleared, true);
 });
 
 test("skipping and undoing a listing updates grouped markers, popup links and counts", () => {
   const view = mapPage();
-  view.tiles[0].fire("load");
-  assert.equal(view.layers[0].items.length, 2);
-  assert.equal(view.layers[0].items[0].options.icon.html.textContent, "2 квартиры");
+  view.maps[0].fire("idle");
+  assert.equal(view.visibleMarkers().length, 2);
+  assert.equal(view.visibleMarkers()[0].options.html.textContent, "2 квартиры");
   assert.match(view.status.textContent, /Домов на карте: 2 · квартир: 3/);
+  const oldMarker = view.visibleMarkers()[0];
   view.cards[0].hidden = true;
   view.refresh();
-  const house = view.layers[0].items[0];
-  assert.equal(house.options.icon.html.textContent, "20 000 ₽");
-  assert.deepEqual(house.popup.children.filter(node => node.href).map(node => node.href), ["/house/7", "https://app.test/flat/b"]);
+  assert.equal(oldMarker.destroyed, true);
+  const house = view.visibleMarkers()[0];
+  assert.equal(house.options.html.textContent, "20 000 ₽");
+  house.options.html.fire("click");
+  assert.deepEqual(view.popup().options.html.children.filter(node => node.href).map(node => node.href),
+    ["https://app.test/house/7", "https://app.test/flat/b"]);
   assert.equal(view.links[0].hidden, true);
   assert.match(view.status.textContent, /Домов на карте: 2 · квартир: 2/);
   view.cards[2].hidden = true;
   view.refresh();
-  assert.equal(view.layers[0].items.length, 1);
+  assert.equal(view.visibleMarkers().length, 1);
+  assert.equal(view.popup(), undefined);
   view.cards[0].hidden = false;
   view.refresh();
-  assert.equal(view.layers[0].items[0].options.icon.html.textContent, "2 квартиры");
+  assert.equal(view.visibleMarkers()[0].options.html.textContent, "2 квартиры");
   assert.equal(view.links[0].hidden, false);
 });
 
-test("empty results and undo reuse the map and marker layer", () => {
+test("empty results and undo reuse the native map and destroy old markers", () => {
   const view = mapPage();
   view.cards.forEach(card => { card.hidden = true; });
   view.refresh();
-  assert.equal(view.layers[0].items.length, 0);
+  assert.equal(view.visibleMarkers().length, 0);
   assert.equal(view.container.hidden, true);
   assert.equal(view.reset.disabled, true);
   assert.equal(view.shell.dataset.mapState, "empty");
   view.cards[1].hidden = false;
   view.refresh();
   assert.equal(view.maps.length, 1);
-  assert.equal(view.layers.length, 1);
-  assert.equal(view.layers[0].items.length, 1);
+  assert.equal(view.visibleMarkers().length, 1);
   assert.equal(view.container.hidden, false);
   assert.equal(view.reset.disabled, false);
-  assert.equal(view.maps[0].bounds.length, 1);
+  assert.deepEqual(Array.from(view.maps[0].bounds.southWest), [131.91, 43.1]);
+  assert.equal(view.maps[0].fitOptions.maxZoom, 16);
+  assert.equal(view.maps[0].fitOptions.animation.animate, false);
 });
 
 test("a page starting with every listing skipped can reveal markers after undo", () => {
   const view = mapPage({ hidden: ["a", "b", "c"] });
-  assert.equal(view.layers[0].items.length, 0);
+  assert.equal(view.visibleMarkers().length, 0);
   view.cards[0].hidden = false;
   view.refresh();
-  assert.equal(view.layers[0].items.length, 1);
+  assert.equal(view.visibleMarkers().length, 1);
   assert.equal(view.container.hidden, false);
   assert.equal(view.maps.length, 1);
 });
 
-for (const leaflet of [true, false]) {
-  test(`${leaflet ? "tile failure" : "missing Leaflet"} fallback hides skipped links and restores them on undo`, () => {
-    const view = mapPage({ leaflet });
-    if (leaflet) view.tiles[0].fire("tileerror");
+test("focus opens the right popup and closing it returns keyboard focus to the marker", () => {
+  const view = mapPage();
+  view.document.fire("farposton:map-focus", { key: "b" });
+  assert.deepEqual(Array.from(view.maps[0].center), [131.9, 43.1]);
+  assert.equal(view.maps[0].zoom, 16);
+  const popup = view.popup();
+  const close = popup.options.html.children[0];
+  assert.equal(close.focused, undefined);
+  view.frame();
+  assert.equal(close.focused, true);
+  close.fire("click");
+  assert.equal(popup.destroyed, true);
+  assert.equal(view.visibleMarkers()[0].options.html.focused, true);
+});
+
+test("SDK style failures show address links and a later idle event restores the map state", () => {
+  const view = mapPage();
+  view.maps[0].fire("styleloaderror");
+  assert.equal(view.shell.dataset.mapState, "error");
+  assert.equal(view.fallback.hidden, false);
+  view.cards[0].hidden = true;
+  view.refresh();
+  assert.equal(view.links[0].hidden, true);
+  view.maps[0].fire("idle");
+  assert.equal(view.shell.dataset.mapState, "ready");
+  assert.equal(view.fallback.hidden, true);
+});
+
+test("a stalled SDK shows usable addresses instead of loading forever", () => {
+  const view = mapPage();
+  assert.equal(view.timers[0].delay, 15000);
+  view.timers[0].callback();
+  assert.equal(view.shell.dataset.mapState, "error");
+  assert.equal(view.fallback.hidden, false);
+});
+
+for (const options of [{ sdk: false }, { mapKey: "   " }, { fail: true }]) {
+  test(`unavailable native map preserves address filtering: ${JSON.stringify(options)}`, () => {
+    const view = mapPage(options);
+    assert.equal(view.maps.length, 0);
     assert.equal(view.shell.dataset.mapState, "error");
+    assert.equal(view.container.hidden, true);
     assert.equal(view.fallback.hidden, false);
     view.cards[0].hidden = true;
     view.refresh();
     assert.equal(view.links[0].hidden, true);
-    assert.equal(view.links[1].hidden, false);
-    assert.equal(view.fallback.hidden, false);
     view.cards[0].hidden = false;
     view.refresh();
     assert.equal(view.links[0].hidden, false);
   });
 }
+
+test("invalid coordinates and unsafe links never become markers or popup navigation", () => {
+  const address = '<img src=x onerror="alert(1)">';
+  const view = mapPage({ mutateLinks(links) {
+    links[0].dataset.address = address;
+    links[0].dataset.houseUrl = "javascript:alert(1)";
+    links[1].dataset.lat = "Infinity";
+    links[2].href = "https://external.test/flat";
+  } });
+  assert.equal(view.visibleMarkers().length, 1);
+  view.visibleMarkers()[0].options.html.fire("click");
+  const content = view.popup().options.html;
+  assert.equal(content.children[1].textContent, address);
+  assert.deepEqual(content.children.filter(node => node.href).map(node => node.href), ["https://app.test/flat/a"]);
+});

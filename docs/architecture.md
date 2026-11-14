@@ -81,7 +81,7 @@ Package name: `flats` (directory `flats/`). Each module has one owner task per s
 
 ## Stack
 
-Python 3.11+, Flask (Jinja), `sqlite3` from stdlib, `requests`, NumPy; Transformers + PyTorch + Pillow only for sprint 4. Plain HTML/CSS/JS. The map uses locally served Leaflet assets and OpenStreetMap tiles; tiles require a network connection and OpenStreetMap attribution. `pytest` for tests.
+Python 3.11+, Flask (Jinja), `sqlite3` from stdlib, `requests`, NumPy; Transformers + PyTorch + Pillow only for sprint 4. Plain HTML/CSS/JS. Maps use the official 2GIS MapGL JS API, loaded only on map-bearing pages, with native vector maps, controls and attribution. `flats/static/map-sdk.js` shares initialization and failure handling between the catalog/detail/comparison maps and journey point picker. The browser-visible `FLATS_2GIS_MAP_KEY` requires Map Tiles API access; server routing credentials remain separate. MapGL requires network access and WebGL; address links and manual coordinates remain available when it fails. `pytest` and Node's built-in test runner cover the application.
 
 ## Key rules
 
@@ -95,4 +95,3 @@ Python 3.11+, Flask (Jinja), `sqlite3` from stdlib, `requests`, NumPy; Transform
 - Visual search never brings back a `reject` flat.
 - Failed import keeps the previous working data.
 - A listing missing from a new import is not marked "rented".
-
