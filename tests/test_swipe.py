@@ -34,6 +34,7 @@ def test_swipe_ignores_legacy_decisions_for_new_browsers(app, tmp_path):
     assert shown == expected
     assert "demo-1" in shown and "demo-2" in shown
     assert "swipe.js" in html
+    assert html.count("data-reset-skips") == 2
 
 
 def test_empty_stack_message(tmp_path):

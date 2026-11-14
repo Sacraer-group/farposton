@@ -61,11 +61,12 @@ function page(store, cards = [], swipe = false) {
     "decisions-error": { hidden: true, textContent: "" },
     "search-count": {}, "search-short": {}, empty: {},
   };
-  for (const id of ["save", "skip", "details", "undo"]) nodes[id] = events({ disabled: true });
+  for (const id of ["save", "skip", "details", "undo", "resetSkips"]) nodes[id] = events({ disabled: true });
   nodes.stack = events({ querySelectorAll: () => cards.filter(c => !c.hidden && c.classList.contains("swipe-card")) });
   const document = events({
     getElementById: id => nodes[id] || null,
     querySelectorAll(selector) {
+      if (selector === "[data-reset-skips]") return [nodes.resetSkips];
       if (selector === "[data-card-offers]") return cards;
       if (selector === "[data-card-offers]:not([hidden])") return cards.filter(c => !c.hidden);
       if (["[data-decision-form]", "[data-saved-offer]", "[data-listing-key]", "[data-listing-ref]"].includes(selector)) return [];
@@ -227,4 +228,54 @@ test("a drag cannot save the next card when another tab hides the dragged card",
   view.flush();
   assert.deepEqual(history(store), [["farpost", "dragged", "save"]]);
   assert.equal(next.hidden, false);
+});
+
+
+test("reset skips restores skipped cards, preserves favorites and persists after reload", () => {
+  const store = storage(JSON.stringify([
+    ["farpost", "one", "save"], ["farpost", "one", "skip"],
+    ["farpost", "two", "skip"], ["farpost", "saved", "save"],
+  ]));
+  const skipped = card(["one"], true), favorite = card(["saved"], true);
+  const view = page(store, [skipped, favorite], true);
+  assert.equal(skipped.hidden, true);
+  assert.equal(view.nodes.resetSkips.disabled, false);
+  view.nodes.resetSkips.dispatchEvent({ type: "click" });
+  assert.deepEqual(history(store), [["farpost", "saved", "save"]]);
+  assert.equal(skipped.hidden, false);
+  assert.equal(favorite.hidden, true);
+  assert.equal(view.nodes.resetSkips.disabled, true);
+  const reloaded = card(["one"], true);
+  page(store, [reloaded], true);
+  assert.equal(reloaded.hidden, false);
+});
+
+test("reset skips does not write when empty and preserves data if storage fails", () => {
+  const store = storage(), view = page(store);
+  view.decisions.resetSkipped();
+  assert.equal(store.writes, 0);
+  store.raw = '[["farpost","one","skip"],["farpost","saved","save"]]';
+  const original = store.raw;
+  for (const failure of ["failRead", "failWrite"]) {
+    store[failure] = true;
+    assert.throws(() => view.decisions.resetSkipped());
+    assert.equal(store.raw, original);
+    store[failure] = false;
+  }
+});
+
+test("swipe reset is blocked during an animation and reports a failed write", () => {
+  const store = storage(), view = page(store, [card(["one"], true)], true);
+  view.nodes.skip.dispatchEvent({type: "click"});
+  view.nodes.resetSkips.dispatchEvent({type: "click"});
+  assert.deepEqual(history(store), [["farpost", "one", "skip"]]);
+  view.flush();
+  assert.equal(view.nodes.empty.hidden, false);
+  store.failWrite = true;
+  view.nodes.resetSkips.dispatchEvent({type: "click"});
+  assert.equal(view.nodes["decisions-error"].hidden, false);
+  assert.equal(view.nodes.empty.hidden, false);
+  store.failWrite = false;
+  view.nodes.resetSkips.dispatchEvent({type: "click"});
+  assert.equal(view.nodes.empty.hidden, true);
 });
