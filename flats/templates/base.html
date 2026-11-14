@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="csrf-token" content="{{ csrf_token|default('') }}">
   <meta name="2gis-map-key" content="{{ two_gis_map_key|default('') }}">
-  <meta name="theme-color" content="#f5f6f4">
+  <meta name="theme-color" content="#f4f6f9">
   <title>{% block title %}Квартиры{% endblock %}</title>
   <script src="{{ url_for('static', filename='theme.js') }}"></script>
   {% block head %}{% endblock %}
