@@ -40,5 +40,7 @@ jobs:
       - name: Deploy and verify public health
         run: |
           set -o pipefail
+          latest=$(git ls-remote origin refs/heads/main | cut -f1)
+          if [ "$latest" != "${{ github.sha }}" ]; then echo "Superseded main commit; skipping release"; exit 0; fi
           docker save bereg:${{ github.sha }} | ssh -i ~/.ssh/bereg -o BatchMode=yes tech@176.53.253.25 deploy ${{ github.sha }}
           curl --fail --retry 3 https://farposton.renosaza.com/health
