@@ -134,7 +134,7 @@ def test_unknown_and_zero_values_stay_distinct(env):
     conn, _ = env
     result = ask(conn, scope="offers", offer_ids=["farpost:b"], priority="move_in")
     [item] = result["recommendations"]
-    assert item["move_in_known"] == 0
+    assert item["move_in_known"] == 45000
     assert "Предоплата не указана" in item["unknowns"]
     assert "Залог не указан" in item["unknowns"]
     assert "Разрешение на животных не указано" in item["unknowns"]

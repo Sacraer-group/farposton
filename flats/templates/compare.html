@@ -12,7 +12,7 @@
 {% if not columns %}<div class="empty-state">{{ icon('columns-3') }}<h2>Выберите квартиры для сравнения</h2><p>Добавьте варианты в избранное и отметьте до пяти предложений.</p><a class="button button-primary" href="/favorites">Открыть избранное {{ icon('arrow-right') }}</a></div>
 {% else %}
 <section class="decision-entry"><div><strong>Теперь — понять компромиссы</strong><p>Выберите приоритет и получите основания, неизвестные условия и вопросы по этим предложениям.</p></div><a class="button" href="/advisor?scope=offers{% for o, c, q in columns %}&amp;o={{ (o.source ~ ':' ~ o.source_id)|urlencode }}{% endfor %}">Разобрать с помощником {{ icon('arrow-right') }}</a></section>
-<div class="comparison-note">{{ icon('clock-3') }}<span>«Известно на въезд» — сумма только указанных платежей. Неизвестные суммы не равны нулю.</span></div>
+<div class="comparison-note">{{ icon('clock-3') }}<span>«Известно на въезд» включает первый месяц аренды, если он указан, а также известные залог и комиссию. Предоплата включает первый месяц и не добавляется к нему повторно. Неизвестные суммы не равны нулю.</span></div>
 {% if columns|length > 1 %}<p class="small-note">Листайте таблицу вправо, чтобы увидеть остальные квартиры.</p>{% endif %}
 <div class="table-wrap comparison-wrap" tabindex="0" aria-label="Таблица сравнения квартир, прокручивается горизонтально">
 <table class="comparison-table"><caption class="visually-hidden">Сравнение расходов, квартиры, дома и источников</caption>
@@ -21,7 +21,8 @@
 <tr class="comparison-group"><th colspan="{{ columns|length + 1 }}" scope="colgroup">Расходы</th></tr>
 <tr class="comparison-price"><th scope="row">Ежемесячно</th>{% for o, c, q in columns %}<td><strong>{{ c.monthly_known|rub }}</strong>{% if c.monthly_unknown %}<small>Уточнить: {{ c.monthly_unknown|map('part_label')|join(', ') }}</small>{% endif %}</td>{% endfor %}</tr>
 <tr><th scope="row">На въезд, известно</th>{% for o, c, q in columns %}<td><strong>{{ c.move_in_known|rub }}</strong>{% if c.move_in_unknown %}<small class="data-missing">Не указано: {{ c.move_in_unknown|map('part_label')|join(', ') }}</small>{% endif %}</td>{% endfor %}</tr>
-<tr><th scope="row">Предоплата</th>{% for o, c, q in columns %}<td>{{ c.prepayment.rub|rub }}<small>{{ o.prepayment_raw or 'Условия не указаны' }}</small></td>{% endfor %}</tr>
+<tr><th scope="row">Первый месяц аренды</th>{% for o, c, q in columns %}<td>{{ c.rent|rub }}</td>{% endfor %}</tr>
+<tr><th scope="row">Предоплата по объявлению (не добавляется повторно)</th>{% for o, c, q in columns %}<td>{{ c.prepayment.rub|rub }}<small>{{ o.prepayment_raw or 'Условия не указаны' }}</small></td>{% endfor %}</tr>
 <tr><th scope="row">Залог</th>{% for o, c, q in columns %}<td>{{ c.deposit.rub|rub }}<small>{{ o.deposit_raw or 'Условия не указаны' }}</small></td>{% endfor %}</tr>
 <tr><th scope="row">Комиссия</th>{% for o, c, q in columns %}<td>{{ c.commission.rub|rub }}<small>{{ o.commission_raw or 'Условия не указаны' }}</small></td>{% endfor %}</tr>
 <tr><th scope="row">Коммунальные</th>{% for o, c, q in columns %}<td>{{ o.utilities_raw or 'Не указано' }}{% if 'utilities' in c.monthly_unknown %}<small class="data-missing">Сумму нужно уточнить</small>{% endif %}</td>{% endfor %}</tr>

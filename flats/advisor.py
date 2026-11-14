@@ -211,9 +211,10 @@ def _document(offer, costs, card, verdict, priority, query_terms, imported_at, l
 
     add("monthly", f"Ежемесячно известно: {_rub(costs.monthly_known)}")
     add("move_in", f"На въезд известно: {_rub(costs.move_in_known)}"
+        + ("; первый месяц аренды учтён" if costs.rent is not None else "; аренда первого месяца не указана")
         + ("; это неполная сумма — " + "; ".join(_UNKNOWN_PARTS[p] for p in costs.move_in_unknown)
            if costs.move_in_unknown else "; все составляющие указаны"))
-    for name, label in (("prepayment", "Предоплата"), ("deposit", "Залог"), ("commission", "Комиссия")):
+    for name, label in (("prepayment", "Предоплата по объявлению"), ("deposit", "Залог"), ("commission", "Комиссия")):
         add(name, f"{label}: {_rub(getattr(costs, name).rub)}")
     add("utilities", "Коммунальные: " + (offer.utilities_raw or "не указаны")
         + ("; сумму нужно уточнить" if "utilities" in costs.monthly_unknown else ""))
@@ -262,7 +263,7 @@ def _document(offer, costs, card, verdict, priority, query_terms, imported_at, l
     for fact in relevant:
         distinct.setdefault(fact["text"], fact)
     relevant = list(distinct.values())
-    unknowns = [_UNKNOWN_PARTS[name] for name in (*costs.monthly_unknown, *costs.move_in_unknown)]
+    unknowns = [_UNKNOWN_PARTS[name] for name in dict.fromkeys((*costs.monthly_unknown, *costs.move_in_unknown))]
     if pets is None:
         unknowns.append("Разрешение на животных не указано")
     if passport:

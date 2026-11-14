@@ -82,7 +82,10 @@ def start():
         conn=get_conn()
         if 'version' in data and data['version']!=trips.get_schedule(conn)['version']:
             raise ValueError('График изменился. Повторите оценку расчёта.')
-        return jsonify(trips.start_job(conn,_candidates(conn,scope,decisions)))
+        rows=_candidates(conn,scope,decisions)
+        if not rows:
+            raise ValueError('Нет квартир, подходящих под условия аренды. Измените условия и повторите поиск.')
+        return jsonify(trips.start_job(conn,rows))
     except ValueError as exc:
         return jsonify(error=str(exc)),400
 

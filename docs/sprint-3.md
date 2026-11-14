@@ -1,5 +1,7 @@
 # Sprint 3 — web core (search, flat page, favorites, comparison)
 
+> Historical task specification: the current move-in cost rule in [contracts §5](contracts.md#costs-flatscostspy) supersedes earlier descriptions below.
+
 Goal: first end-to-end result — real listing -> clear card -> correct costs -> save -> compare.
 
 Split into two waves so no task waits on a file it does not own. Wave B starts after wave A is merged.

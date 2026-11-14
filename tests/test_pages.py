@@ -137,3 +137,16 @@ def test_sample_banner_and_similar_photo(tmp_path):
     assert "Сбросить образец" not in client.get("/").get_data(as_text=True)
     assert repo_user.get_profile(conn).sample_photo_url is None
     conn.close()
+
+
+def test_move_in_includes_first_rent_and_filters_without_prepayment(client):
+    conn = db.connect(client.application.config["DB_PATH"])
+    run_import(conn, [{"source": "farpost", "source_id": "rent-first", "price": 40000,
+                       "deposit_raw": "40 000 ₽", "commission_raw": "20 000 ₽",
+                       "address": "Проверка первого месяца"}])
+    conn.close()
+    html = client.get("/flat/farpost:rent-first").get_data(as_text=True)
+    assert "100 000 ₽" in html
+    assert "Первый месяц аренды учтён" in html
+    html = client.get("/?apply=1&move_in_max=90000").get_data(as_text=True)
+    assert "Проверка первого месяца" not in html

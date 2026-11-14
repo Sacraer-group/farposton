@@ -42,5 +42,5 @@ Stored normalized (no phones, no seller names) in `flats/demo/metrapi_vladivosto
 
 ## Consequences
 
-- With a move-in budget set, every real offer is `unknown` because prepayment is never given. This is intended: the app asks instead of assuming.
+- Prepayment was absent in this sample. The first month of known rent is included in the known move-in amount; extra prepayment remains unknown. An offer exceeding the move-in budget on known costs is rejected; otherwise missing prepayment makes it unknown.
 - Money parsing rules in contracts §5 cover all observed strings.
