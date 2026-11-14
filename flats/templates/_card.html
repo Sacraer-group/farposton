@@ -1,18 +1,18 @@
 {% set o = row.offer %}{% set c = row.costs %}
-<article class="card">
+<article class="card" data-card-offers='[{% for offer in row.card.offers %}{{ [offer.source, offer.source_id]|tojson }}{% if not loop.last %},{% endif %}{% endfor %}]'>
   {% if row.similar %}<img class="thumb" src="{{ row.similar[1] }}" alt="Похожий интерьер: {{ o.address or '' }}" loading="lazy" referrerpolicy="no-referrer"><p class="similar-label">Похожий интерьер</p>
   {% elif o.photos %}<img class="thumb" src="{{ o.photos[0] }}" alt="Фото квартиры: {{ o.address or '' }}" loading="lazy" referrerpolicy="no-referrer">{% endif %}
-  <p class="status status-{{ row.verdict.status }}">{{ row.verdict.status|status_label }}{% if row.decision == 'save' %} · в избранном{% endif %}</p>
+  <p class="status status-{{ row.verdict.status }}">{{ row.verdict.status|status_label }}<span data-saved-label hidden> · в избранном</span></p>
   <h2><a href="{{ url_for('pages.flat', key=row.card.key) }}">{{ room_label(o.rooms) }}, {{ o.area_total or '?' }} м² · {{ o.district or 'район не указан' }}</a></h2>
   <p>{{ o.address or 'Адрес не указан' }}{% if o.floor %}, этаж {{ o.floor }}/{{ o.floors_total or '?' }}{% endif %}</p>
   <p><strong>Ежемесячно:</strong> {{ c.monthly_known|rub }}{% if 'utilities' in c.monthly_unknown %} + коммунальные (уточнить){% endif %}</p>
   <p><strong>На въезд:</strong> {{ c.move_in_known|rub }}{% if c.move_in_unknown %} <span class="status-unknown">+ не указано: {{ c.move_in_unknown|map('part_label')|join(', ') }}</span>{% endif %}</p>
   {% if row.verdict.reasons %}<ul class="reasons">{% for r in row.verdict.reasons %}<li>{{ r }}</li>{% endfor %}</ul>{% endif %}
-  <form method="post" action="/api/decide" class="actions">
+  <form method="post" action="/api/decide" class="actions" data-decision-form>
     <input type="hidden" name="source" value="{{ o.source }}">
     <input type="hidden" name="source_id" value="{{ o.source_id }}">
-    <button name="action" value="save">Сохранить</button>
-    <button name="action" value="skip">Пропустить</button>
+    <button name="action" value="save" disabled>Сохранить</button>
+    <button name="action" value="skip" disabled>Пропустить</button>
     <a href="{{ url_for('pages.flat', key=row.card.key) }}">Подробнее</a>
   </form>
 </article>

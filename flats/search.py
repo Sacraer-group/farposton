@@ -1,7 +1,7 @@
 import sqlite3
 from dataclasses import replace
 
-from flats import repo_offers, repo_user
+from flats import repo_offers
 from flats.costs import compute_costs
 from flats.eligibility import check
 from flats.grouping import group_offers
@@ -22,8 +22,9 @@ def _base_order(row: SearchRow) -> tuple:
     return (_STATUS_ORDER[row.verdict.status], monthly is None, monthly or 0, row.card.key)
 
 
-def search(conn: sqlite3.Connection, profile: Profile, *, include_skipped: bool = False) -> list[SearchRow]:
-    decisions = repo_user.current_decisions(conn)
+def search(conn: sqlite3.Connection, profile: Profile, *, include_skipped: bool = False,
+           decisions: dict[tuple[str, str], str] | None = None) -> list[SearchRow]:
+    decisions = decisions or {}
     rows = []
     for card in group_offers(repo_offers.all_offers(conn)):
         decision = _card_decision(card, decisions)

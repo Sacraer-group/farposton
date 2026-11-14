@@ -5,7 +5,7 @@
 <p>Те же фильтры и порядок, что в <a href="/">подборке</a>. Клавиши: ← пропустить, → сохранить, Z — отменить.</p>
 <div class="stack" id="stack" aria-live="polite">
   {% for row in rows|reverse %}{% set o = row.offer %}{% set c = row.costs %}
-  <article class="card swipe-card" data-source="{{ o.source }}" data-source-id="{{ o.source_id }}">
+  <article class="card swipe-card" data-source="{{ o.source }}" data-source-id="{{ o.source_id }}" data-card-offers='[{% for offer in row.card.offers %}{{ [offer.source, offer.source_id]|tojson }}{% if not loop.last %},{% endif %}{% endfor %}]'>
     {% set photo = row.similar[1] if row.similar else (o.photos[0] if o.photos else none) %}
     {% if photo %}<img class="thumb" src="{{ photo }}" alt="Фото квартиры: {{ o.address or '' }}" draggable="false" referrerpolicy="no-referrer">{% endif %}
     {% if row.similar %}<p class="similar-label">Похожий интерьер</p>{% endif %}
@@ -20,11 +20,10 @@
   <p class="empty" id="empty"{% if rows %} hidden{% endif %}>Подборка закончилась. <a href="/favorites">Избранное</a> · <a href="/">Изменить фильтры</a></p>
 </div>
 <div class="actions swipe-actions">
-  <button type="button" id="skip">← Пропустить</button>
-  <button type="button" id="details">Подробнее</button>
-  <button type="button" id="save">Сохранить →</button>
-  <button type="button" id="undo">Отменить</button>
+  <button type="button" id="skip" disabled>← Пропустить</button>
+  <button type="button" id="details" disabled>Подробнее</button>
+  <button type="button" id="save" disabled>Сохранить →</button>
+  <button type="button" id="undo" disabled>Отменить</button>
 </div>
-<p id="swipe-error" class="status-reject" role="alert"></p>
 {% endblock %}
 {% block scripts %}<script src="{{ url_for('static', filename='swipe.js') }}"></script>{% endblock %}

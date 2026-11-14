@@ -15,7 +15,12 @@
     </nav>
     <p class="import-status">{% if last_import %}Данные от {{ last_import }}{% else %}Данные не загружены{% endif %}</p>
   </header>
-  <main>{% block content %}{% endblock %}</main>
+  <main>
+    <noscript><p>Для избранного и свайпов включите JavaScript. Сохранения остаются только в этом браузере.</p></noscript>
+    <p id="decisions-error" class="status-reject" role="alert" hidden></p>
+    {% block content %}{% endblock %}
+  </main>
+  <script src="{{ url_for('static', filename='decisions.js') }}"></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

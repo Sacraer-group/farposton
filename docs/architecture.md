@@ -30,8 +30,9 @@ flowchart TD
     C --> F
     F --> G["List or swipes"]
     G --> H["Save / skip / undo"]
-    H --> C
-    C --> I["Comparison + questions"]
+    H --> J[("Browser localStorage")]
+    J --> I["Comparison + questions"]
+    C --> I
 ```
 
 Two modes:
@@ -71,7 +72,9 @@ Python 3.11+, Flask (Jinja), `sqlite3` from stdlib, `requests`, NumPy; Transform
 - Unknown is not zero. Unknown pets is not "allowed".
 - Raw string is stored next to the parsed value.
 - Totals are computed on read, not stored.
-- Decisions reference the offer (`source`, `source_id`), not the group.
+- Web decisions reference the offer (`source`, `source_id`), not the group. The browser keeps save/skip history in `localStorage` under `farposton.decisions.v1`; undo removes a decision from that journal. Legacy SQLite decisions remain intact and are not imported. Storage events and `pageshow` refresh the browser view.
+- Favorites renders public offer candidates hidden until the browser reveals its saves; hidden comparison checkboxes are disabled. Comparison accepts up to five explicitly requested existing offer IDs and does not add them to local storage.
+- Search profile and sample photo remain shared in SQLite; browser-local decisions do not isolate them.
 - Visual search never brings back a `reject` flat.
 - Failed import keeps the previous working data.
 - A listing missing from a new import is not marked "rented".

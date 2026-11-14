@@ -22,6 +22,6 @@
 </div>
 {% endif %}
 {% for e in errors %}<p class="status-reject" role="alert">{{ e }}</p>{% endfor %}
-<p>Подходят или требуют уточнения: {{ rows|length }} из {{ total }}.{% if rows|length < 3 %} Остальные нарушают известные условия — попробуйте смягчить фильтры.{% endif %}</p>
+<p>Подходят или требуют уточнения: <span id="search-count">{{ rows|length }}</span> из {{ total }}.<span id="search-short"{% if rows|length >= 3 %} hidden{% endif %}> Если вариантов мало, попробуйте смягчить фильтры или отменить пропуски в свайпах.</span></p>
 <div class="cards">{% for row in rows %}{% include "_card.html" %}{% endfor %}</div>
 {% endblock %}

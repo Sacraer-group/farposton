@@ -30,9 +30,9 @@
   </table>
   <h3>Что уточнить до просмотра</h3>
   <ul>{% for q in questions %}<li>{{ q }}</li>{% endfor %}</ul>
-  <form method="post" action="/api/decide" class="actions">
+  <form method="post" action="/api/decide" class="actions" data-decision-form>
     <input type="hidden" name="source" value="{{ o.source }}"><input type="hidden" name="source_id" value="{{ o.source_id }}">
-    <button name="action" value="save">Сохранить это предложение</button>
+    <button name="action" value="save" disabled>Сохранить это предложение</button>
     {% if o.url %}<a href="{{ o.url }}" target="_blank" rel="noopener noreferrer">Открыть объявление</a>{% endif %}
   </form>
   {% if o.description %}<h3>Описание из объявления</h3><p class="description">{{ o.description }}</p>{% endif %}

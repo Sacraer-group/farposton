@@ -30,25 +30,10 @@ def _error(status, json_message, text_message):
 
 
 @bp.post("/decide")
-def decide():
-    data = _input()
-    source, source_id, action = (data.get(k) for k in ("source", "source_id", "action"))
-    if not all(isinstance(v, str) and v for v in (source, source_id, action)):
-        return _error(400, "missing field", "Не хватает данных")
-    if action not in ("save", "skip"):
-        return _error(400, "bad action", "Неверное действие")
-    conn = get_conn()
-    found = conn.execute(
-        "SELECT 1 FROM offers WHERE source = ? AND source_id = ?", (source, source_id)
-    ).fetchone()
-    if found is None:
-        return _error(404, "offer not found", "Объявление не найдено")
-    return _ok({"id": repo_user.decide(conn, source, source_id, action)})
-
-
 @bp.post("/undo")
-def undo():
-    return _ok({"undone": repo_user.undo_last(get_conn())})
+def browser_decisions():
+    return _error(410, "decisions are stored in this browser; reload the page",
+                  "Избранное теперь хранится в браузере. Обновите страницу.")
 
 
 @bp.post("/sample")
